@@ -1,5 +1,7 @@
 # MTR_BRsignal_addon
 
+## ⚠️ ***当前版本仍存在较多已知问题，尤其是模型贴图和渲染部分，且仍有部分贴图和模型未开发完成。该版本仅用于开发测试，暂不建议在生产环境使用。***
+
 Minecraft Transit Railway（MTR）的**英式闭塞信号扩展**补充 Mod（Forge 1.20.1）。
 
 不改动 MTR 原文件：用 Mixin 覆盖 MTR 信号机的灯色判定，加入 BR 风格的
