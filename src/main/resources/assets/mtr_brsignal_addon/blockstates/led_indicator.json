@@ -1,0 +1,64 @@
+{
+  "variants": {
+    "facing=north,is_22_5=false,is_45=false": {
+      "model": "mtr_brsignal_addon:block/led_indicator"
+    },
+    "facing=north,is_22_5=true,is_45=false": {
+      "model": "mtr_brsignal_addon:block/led_indicator_22_5"
+    },
+    "facing=north,is_22_5=false,is_45=true": {
+      "model": "mtr_brsignal_addon:block/led_indicator_45"
+    },
+    "facing=north,is_22_5=true,is_45=true": {
+      "model": "mtr_brsignal_addon:block/led_indicator_67_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=false": {
+      "model": "mtr_brsignal_addon:block/led_indicator",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=false": {
+      "model": "mtr_brsignal_addon:block/led_indicator_22_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=true": {
+      "model": "mtr_brsignal_addon:block/led_indicator_45",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=true": {
+      "model": "mtr_brsignal_addon:block/led_indicator_67_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=false": {
+      "model": "mtr_brsignal_addon:block/led_indicator",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=false": {
+      "model": "mtr_brsignal_addon:block/led_indicator_22_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=true": {
+      "model": "mtr_brsignal_addon:block/led_indicator_45",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=true": {
+      "model": "mtr_brsignal_addon:block/led_indicator_67_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=false": {
+      "model": "mtr_brsignal_addon:block/led_indicator",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=false": {
+      "model": "mtr_brsignal_addon:block/led_indicator_22_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=true": {
+      "model": "mtr_brsignal_addon:block/led_indicator_45",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=true": {
+      "model": "mtr_brsignal_addon:block/led_indicator_67_5"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "item.mtr_brsignal_addon.signal_debug_tool": "Signal Debug Tool",
+  "item.mtr_brsignal_addon.route_tool": "Route Tool",
+  "block.mtr_brsignal_addon.led_indicator": "LED Route Indicator",
+  "block.mtr_brsignal_addon.indicator_1": "Colour-light Route Indicator",
+  "tooltip.mtr_brsignal_addon.hold_shift": "Hold SHIFT for details",
+  "tooltip.mtr_brsignal_addon.signal_debug_tool.1": "Right-click signal: open debug panel",
+  "tooltip.mtr_brsignal_addon.signal_debug_tool.2": "Shift+right-click signal, then Shift+right-click node: bind node",
+  "tooltip.mtr_brsignal_addon.signal_debug_tool.3": "Shift+right-click route indicator, then Shift+right-click signal: bind indicator",
+  "tooltip.mtr_brsignal_addon.signal_debug_tool.4": "Right-click route indicator: view info / unbind",
+  "tooltip.mtr_brsignal_addon.route_tool.1": "Right-click signal: select",
+  "tooltip.mtr_brsignal_addon.route_tool.2": "Shift+right-click node: bind route and enter content",
+  "tooltip.mtr_brsignal_addon.route_tool.3": "Shows lines while held; shows next signal while riding"
+}

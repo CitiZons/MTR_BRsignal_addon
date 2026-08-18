@@ -1,0 +1,14 @@
+{
+  "item.mtr_brsignal_addon.signal_debug_tool": "信号机调试工具",
+  "item.mtr_brsignal_addon.route_tool": "进路工具",
+  "block.mtr_brsignal_addon.led_indicator": "LED进路显示器",
+  "block.mtr_brsignal_addon.indicator_1": "色灯进路指示器(1)",
+  "tooltip.mtr_brsignal_addon.hold_shift": "按住 SHIFT 查看用法",
+  "tooltip.mtr_brsignal_addon.signal_debug_tool.1": "右键信号机：打开调试面板",
+  "tooltip.mtr_brsignal_addon.signal_debug_tool.2": "Shift+右键信号机，再 Shift+右键轨道节点：绑定节点",
+  "tooltip.mtr_brsignal_addon.signal_debug_tool.3": "Shift+右键进路指示器，再 Shift+右键信号机：绑定进路指示器",
+  "tooltip.mtr_brsignal_addon.signal_debug_tool.4": "右键进路指示器：查看信息 / 解绑",
+  "tooltip.mtr_brsignal_addon.route_tool.1": "右键信号机：选中",
+  "tooltip.mtr_brsignal_addon.route_tool.2": "Shift+右键轨道节点：绑定进路并输入内容",
+  "tooltip.mtr_brsignal_addon.route_tool.3": "手持时可见连线；乘车上时显示下一信号机进路"
+}

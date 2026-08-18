@@ -1,0 +1,71 @@
+plugins {
+	id "java"
+	id "net.minecraftforge.gradle" version "[6.0.25,6.2)"
+	id "org.spongepowered.mixin" version "0.7.+"
+}
+
+group = "org.mtrbr"
+version = "${mod_version}"
+base {
+	archivesName = "${mod_id}"
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+minecraft {
+	mappings channel: "official", version: "${minecraft_version}"
+
+	runs {
+		client {
+			workingDirectory project.file("run")
+			property "forge.logging.console.level", "debug"
+			mods {
+				"${mod_id}" {
+					source sourceSets.main
+				}
+			}
+		}
+		server {
+			workingDirectory project.file("run-server")
+			property "forge.logging.console.level", "debug"
+			args "--nogui"
+			mods {
+				"${mod_id}" {
+					source sourceSets.main
+				}
+			}
+		}
+	}
+}
+
+mixin {
+	add sourceSets.main, "mtrbr.refmap.json"
+	config "mtrbr.mixins.json"
+}
+
+repositories {
+	flatDir {
+		dirs "libs"
+	}
+}
+
+dependencies {
+	minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+	implementation files("libs/MTR-forge-${mtr_version}+${minecraft_version}.jar")
+	annotationProcessor "org.spongepowered:mixin:0.8.5:processor"
+}
+
+processResources {
+	inputs.property "version", project.version
+	filesMatching("META-INF/mods.toml") {
+		expand "version": project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = "UTF-8"
+}

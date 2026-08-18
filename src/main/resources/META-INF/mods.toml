@@ -1,0 +1,31 @@
+modLoader = "javafml"
+loaderVersion = "[36,)"
+license = "MIT"
+
+[[mods]]
+modId = "mtr_brsignal_addon"
+version = "${version}"
+displayName = "MTR_BRsignal_addon"
+authors = "MTR BR Team"
+description = "British Railway style signalling addon for Minecraft Transit Railway."
+
+[[dependencies.mtr_brsignal_addon]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.mtr_brsignal_addon]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1]"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.mtr_brsignal_addon]]
+modId = "mtr"
+mandatory = true
+versionRange = "[4.0,4.1)"
+ordering = "AFTER"
+side = "BOTH"

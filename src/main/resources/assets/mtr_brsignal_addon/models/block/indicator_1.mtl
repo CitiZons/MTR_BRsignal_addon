@@ -1,0 +1,20 @@
+newmtl indicator_1
+Kd 1.000000 1.000000 1.000000
+map_Kd mtr_brsignal_addon:block/indicator_1
+
+newmtl grey
+Kd 1.000000 1.000000 1.000000
+map_Kd mtr_brsignal_addon:block/grey
+
+newmtl black
+Kd 1.000000 1.000000 1.000000
+map_Kd mtr_brsignal_addon:block/black
+
+newmtl indicator_1_back
+Kd 1.000000 1.000000 1.000000
+map_Kd mtr_brsignal_addon:block/indicator_1_back
+
+newmtl indicator_1_route_1
+Kd 1.000000 1.000000 1.000000
+map_Kd mtr_brsignal_addon:block/indicator_1_route_1
+
