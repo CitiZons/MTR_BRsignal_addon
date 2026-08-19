@@ -4,8 +4,8 @@
 
 Minecraft Transit Railway（MTR）的**英式闭塞信号扩展**补充 Mod（Forge 1.20.1）。
 
-不改动 MTR 原文件：用 Mixin 覆盖 MTR 信号机的灯色判定，加入 BR 风格的
-**红 → 单黄 → 双黄 → 绿** 闭塞链，并新增色灯式 / LED 式进路指示器与配套工具。
+不改动 MTR 原文件：用 Mixin 逐步接入服务端闭塞与车辆执行层，加入 BR 风格的
+**绿 → 双黄 → 单黄 → 红** 闭塞链，并新增色灯式 / LED 式进路指示器与配套工具。
 
 ## 环境要求
 
@@ -15,8 +15,8 @@ Minecraft Transit Railway（MTR）的**英式闭塞信号扩展**补充 Mod（Fo
 
 ## 功能
 
-- **BR 闭塞链**：信号灯色由前方闭塞区段占用与“下一信号机”决定；
-  列车头部进入区段即红、尾部离开才释放，最多向后传递 4 个信号。
+- **BR 闭塞链**：最终由服务端完整 RouteRequest、SectionState 和 Authorization 派生；
+  当前显示实验仍按前方信号链计算，列车头部进入 Section 即占用、尾部离开才释放。
 - **色灯式进路指示器**（`indicator_1`）：运行时直接解析
   `indicator_1_NULL.bbmodel` 渲染全部几何，route 图层按进路状态显隐。
 - **LED 式进路指示器**（`led_indicator`）：显示 `path=0..20 / A..Z / UF,US,DF,DS`。
@@ -25,6 +25,7 @@ Minecraft Transit Railway（MTR）的**英式闭塞信号扩展**补充 Mod（Fo
 - **进路工具**：绑定进路并输入 `route=X` / `path=Y`；手持显示连线与标签；
   乘车上显示下一信号机进路。
 - 信号机命名、工具 Shift 悬停说明、半透明连线可视化。
+- 人工驾驶 Override 规划：人工驾驶列车可经服务端授权越过红灯并进入 occupied Section；不改变自动车辆 Aspect。
 
 ## 构建
 
@@ -55,9 +56,20 @@ gradlew.bat build
 - [设计大纲.md](设计大纲.md) —— 机制、数据、网络、渲染与待办。
 - [模型.md](模型.md) —— 模型 / 贴图清单与资源约定。
 
+## 架构原则
+
+```text
+Vehicle immutablePath -> RouteRequest -> SectionCheck -> Dispatcher
+-> Authorization -> Signal Aspect -> Movement Gate
+```
+
+- Request 是一列车申请一条完整进路，不是单个信号请求。
+- SectionState 是服务端权威状态库；客户端只显示 Aspect、Authorization 和调度信息。
+- `Dispatcher Override` 不绕过安全检查；`Manual Driving Override` 只对人工驾驶车辆生效，可进入 occupied Section。
+
 ## 说明
 
 - 所有 MTR 信号机（含羊毛连线信号）都会参与 BR 闭塞链，其作用节点即闭塞区段端点；
   无信号机的普通节点不是区段端点。
-- 当前为显示层实现；让列车按闭塞真实停车/减速的执行层尚未实现。
+- 当前仍主要为显示层实现；让自动列车按服务端闭塞真实停车/减速的 Movement Gate 执行层尚未完成。
 - 网络协议版本：4（客户端与服务端需使用同一版本 jar）。
