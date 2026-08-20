@@ -25,18 +25,22 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import org.mtr.core.simulation.Simulator;
 import org.mtrbr.client.ClientHooks;
 import org.mtrbr.block.LedIndicatorBlock;
 import org.mtrbr.block.LedIndicatorBlockEntity;
 import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
+import org.mtrbr.block.DispatcherConsoleBlock;
 import org.mtrbr.data.RouteBindingsSavedData;
 import org.mtrbr.event.LeftClickHandler;
 import org.mtrbr.item.DebugToolItem;
 import org.mtrbr.item.RouteToolItem;
+import org.mtrbr.item.DispatcherToolItem;
 import org.mtrbr.network.Network;
 import org.mtrbr.network.SyncRouteBindingsPacket;
 import org.mtrbr.network.SyncSignalAspectsPacket;
+import org.mtrbr.network.SyncDispatcherDataPacket;
 import org.mtrbr.command.MTRBRCommands;
 
 @Mod(MTRBR.MOD_ID)
@@ -48,6 +52,7 @@ public final class MTRBR {
 	public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, MOD_ID);
 	public static final RegistryObject<Item> DEBUG_TOOL = ITEMS.register("signal_debug_tool", () -> new DebugToolItem(new Item.Properties()));
 	public static final RegistryObject<Item> ROUTE_TOOL = ITEMS.register("route_tool", () -> new RouteToolItem(new Item.Properties()));
+	public static final RegistryObject<Item> DISPATCHER_TOOL = ITEMS.register("dispatcher_tool", () -> new DispatcherToolItem(new Item.Properties()));
 	public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(ForgeRegistries.BLOCKS, MOD_ID);
 	public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(ForgeRegistries.BLOCK_ENTITY_TYPES, MOD_ID);
 	public static final RegistryObject<LedIndicatorBlock> LED_INDICATOR_BLOCK = BLOCKS.register("led_indicator", () -> new LedIndicatorBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion()));
@@ -56,6 +61,8 @@ public final class MTRBR {
 	public static final RegistryObject<ColorLightIndicatorBlock> COLOR_LIGHT_INDICATOR_BLOCK = BLOCKS.register("indicator_1", () -> new ColorLightIndicatorBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion()));
 	public static final RegistryObject<BlockItem> COLOR_LIGHT_INDICATOR_ITEM = ITEMS.register("indicator_1", () -> new BlockItem(COLOR_LIGHT_INDICATOR_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<BlockEntityType<ColorLightIndicatorBlockEntity>> COLOR_LIGHT_INDICATOR_BLOCK_ENTITY = BLOCK_ENTITIES.register("indicator_1", () -> BlockEntityType.Builder.of(ColorLightIndicatorBlockEntity::new, COLOR_LIGHT_INDICATOR_BLOCK.get()).build(null));
+	public static final RegistryObject<DispatcherConsoleBlock> DISPATCHER_CONSOLE_BLOCK = BLOCKS.register("dispatcher_console", () -> new DispatcherConsoleBlock(BlockBehaviour.Properties.of().strength(2.0F)));
+	public static final RegistryObject<BlockItem> DISPATCHER_CONSOLE_ITEM = ITEMS.register("dispatcher_console", () -> new BlockItem(DISPATCHER_CONSOLE_BLOCK.get(), new Item.Properties()));
 
 	public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MOD_ID);
 	public static final RegistryObject<CreativeModeTab> CREATIVE_TAB = TABS.register("main", () -> CreativeModeTab.builder()
@@ -64,6 +71,8 @@ public final class MTRBR {
 			.displayItems((parameters, output) -> {
 				output.accept(new ItemStack(DEBUG_TOOL.get()));
 				output.accept(new ItemStack(ROUTE_TOOL.get()));
+				output.accept(new ItemStack(DISPATCHER_TOOL.get()));
+				output.accept(new ItemStack(DISPATCHER_CONSOLE_ITEM.get()));
 				output.accept(new ItemStack(LED_INDICATOR_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_ITEM.get()));
 			})
@@ -91,13 +100,16 @@ public final class MTRBR {
 
 	private static void onServerTick(TickEvent.ServerTickEvent event) {
 		if (event.phase == TickEvent.Phase.END && event.getServer() != null) {
-			final boolean periodicSync = event.getServer().getTickCount() % 20 == 0;
-			event.getServer().getAllLevels().forEach(level -> {
-				final boolean changed = org.mtrbr.server.ServerAspectManager.update(level);
-				if (changed || periodicSync) {
+			if (event.getServer().getTickCount() % 20 == 0) {
+				event.getServer().getAllLevels().forEach(level -> {
+					org.mtrbr.server.ServerAspectManager.update(level);
 					Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncSignalAspectsPacket(org.mtrbr.server.ServerAspectManager.snapshot(level)));
-				}
-			});
+					final Simulator simulator = org.mtrbr.server.SectionStateManager.getSimulator(level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath());
+					if (simulator != null) {
+						Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncDispatcherDataPacket(org.mtrbr.server.RouteRequestManager.getRequestSnapshots(simulator)));
+					}
+				});
+			}
 		}
 	}
 
@@ -113,6 +125,10 @@ public final class MTRBR {
 			final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 			Network.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new SyncRouteBindingsPacket(data.toClientMap(), data.getNodeBindings(), data.getIndicatorBindings(), data.getSignalNames()));
 			Network.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new SyncSignalAspectsPacket(org.mtrbr.server.ServerAspectManager.snapshot(serverLevel)));
+			final org.mtr.core.simulation.Simulator simulator = org.mtrbr.server.SectionStateManager.getSimulator(serverLevel.dimension().location().getNamespace() + "/" + serverLevel.dimension().location().getPath());
+			if (simulator != null) {
+				Network.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new SyncDispatcherDataPacket(org.mtrbr.server.RouteRequestManager.getRequestSnapshots(simulator)));
+			}
 		}
 	}
 

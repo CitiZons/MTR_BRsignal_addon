@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "mtr_brsignal_addon:block/dispatcher_console"
+  }
+}

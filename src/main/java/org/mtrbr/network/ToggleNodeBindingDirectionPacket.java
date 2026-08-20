@@ -31,6 +31,9 @@ public final class ToggleNodeBindingDirectionPacket {
 			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 				data.toggleNodeBindingDirection(message.signalPos);
+				System.out.println("[MTRBR-BIND] toggle-direction signal=" + message.signalPos
+						+ " reversed=" + data.getNodeBindings().get(message.signalPos).reversed()
+						+ " by=" + context.getSender().getGameProfile().getName());
 				org.mtrbr.server.ServerAspectManager.invalidateTopology(serverLevel);
 				Network.CHANNEL.send(net.minecraftforge.network.PacketDistributor.ALL.noArg(), new SyncRouteBindingsPacket(data.toClientMap(), data.getNodeBindings(), data.getIndicatorBindings(), data.getSignalNames()));
 			}

@@ -30,7 +30,11 @@ public final class ServerAspectCache {
 	}
 
 	/** Display-only data from the server; it has no client-side authority. */
-	public record DisplayState(int aspect, String authorizationId, String routeContent, long revision) {
+	public record DisplayState(int aspect, String authorizationId, String routeContent, long revision, BlockPos nodePos) {
+		public DisplayState(int aspect, String authorizationId, String routeContent, long revision) {
+			this(aspect, authorizationId, routeContent, revision, null);
+		}
+
 		public DisplayState {
 			authorizationId = authorizationId == null ? "" : authorizationId;
 			routeContent = routeContent == null ? "" : routeContent;

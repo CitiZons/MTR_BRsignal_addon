@@ -25,13 +25,17 @@ public final class SyncSignalAspectsPacket {
 			buffer.writeUtf(entry.getValue().authorizationId(), 256);
 			buffer.writeUtf(entry.getValue().routeContent(), 64);
 			buffer.writeLong(entry.getValue().revision());
+			buffer.writeBoolean(entry.getValue().nodePos() != null);
+			if (entry.getValue().nodePos() != null) {
+				buffer.writeBlockPos(entry.getValue().nodePos());
+			}
 		}
 	}
 
 	public static SyncSignalAspectsPacket decode(FriendlyByteBuf buffer) {
 		final Map<ServerAspectCache.Key, ServerAspectCache.DisplayState> aspects = new HashMap<>();
 		for (int i = 0, count = buffer.readInt(); i < count; i++) {
-			aspects.put(new ServerAspectCache.Key(buffer.readBlockPos(), buffer.readBoolean()), new ServerAspectCache.DisplayState((int) buffer.readByte(), buffer.readUtf(256), buffer.readUtf(64), buffer.readLong()));
+			aspects.put(new ServerAspectCache.Key(buffer.readBlockPos(), buffer.readBoolean()), new ServerAspectCache.DisplayState((int) buffer.readByte(), buffer.readUtf(256), buffer.readUtf(64), buffer.readLong(), buffer.readBoolean() ? buffer.readBlockPos() : null));
 		}
 		return new SyncSignalAspectsPacket(aspects);
 	}

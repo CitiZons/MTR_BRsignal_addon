@@ -15,6 +15,7 @@ import org.mtrbr.block.LedIndicatorBlockEntity;
 import org.mtrbr.data.ClientBindings;
 import org.mtrbr.data.ClientIndicatorBindings;
 import org.mtrbr.data.ClientSignalNames;
+import org.mtrbr.data.NodeBinding;
 import org.mtrbr.data.RouteBinding;
 import org.mtrbr.data.RouteContent;
 import org.mtrbr.logic.SignalLogic;
@@ -23,6 +24,7 @@ import org.mtrbr.network.Network;
 import org.mtrbr.network.RemoveRouteBindingPacket;
 import org.mtrbr.network.SetRouteBindingPacket;
 import org.mtrbr.network.SetSignalNamePacket;
+import org.mtrbr.network.ToggleNodeBindingDirectionPacket;
 import org.mtrbr.network.UnbindIndicatorPacket;
 
 import java.util.ArrayList;
@@ -83,6 +85,7 @@ public final class SignalDebugScreen extends Screen {
 		}
 		addRenderableWidget(nameBox);
 		addRenderableWidget(Button.builder(Component.literal("保存"), button -> saveName()).bounds(sx(NAME_SAVE), 40, 42, 16).build());
+		addRenderableWidget(Button.builder(Component.literal("切换方向"), button -> toggleNodeBindingDirection()).bounds(sx(210), 86, 66, 16).build());
 
 		int y = 118;
 		for (final BlockPos indicatorPos : boundIndicatorPositions) {
@@ -140,7 +143,9 @@ public final class SignalDebugScreen extends Screen {
 		}
 
 		final BlockPos nodePos = SignalLogic.findAppliedNode(level, signalPos);
-		guiGraphics.drawString(font, "节点  " + (nodePos == null ? "未找到" : nodePos), sx(0), 92, 0xFFFFFFFF);
+		final NodeBinding nodeBinding = ClientBindings.getNodeBinding(signalPos);
+		final boolean reversed = nodeBinding != null && nodeBinding.reversed();
+		guiGraphics.drawString(font, "节点  " + (nodePos == null ? "未找到" : nodePos + (reversed ? "（反向）" : "")), sx(0), 92, 0xFFFFFFFF);
 
 		guiGraphics.drawString(font, "指示器  " + (boundIndicatorPositions.isEmpty() ? "未绑定" : "已绑定"), sx(0), 110, 0xFFFFFFFF);
 		for (int i = 0; i < boundIndicatorPositions.size(); i++) {
@@ -185,6 +190,11 @@ public final class SignalDebugScreen extends Screen {
 		}
 		error = null;
 		Network.CHANNEL.sendToServer(new SetSignalNamePacket(signalPos, value));
+		needsRebuild = true;
+	}
+
+	private void toggleNodeBindingDirection() {
+		Network.CHANNEL.sendToServer(new ToggleNodeBindingDirectionPacket(signalPos));
 		needsRebuild = true;
 	}
 

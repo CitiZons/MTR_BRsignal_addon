@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.LevelChunk;
 import org.mtrbr.logic.SignalLogic;
+import org.mtrbr.client.ServerAspectCache;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,19 +55,6 @@ public final class SignalCache {
 		}
 	}
 
-	/** 查找作用节点为该节点的信号机（用于沿进路找下一信号机）。 */
-	public static BlockPos getSignalForNode(BlockPos nodePos) {
-		if (nodePos == null) {
-			return null;
-		}
-		for (final Entry entry : ENTRIES) {
-			if (nodePos.equals(entry.nodePos())) {
-				return entry.signalPos();
-			}
-		}
-		return null;
-	}
-
 	private static void refresh(ClientLevel level, BlockPos center) {
 		ENTRIES.clear();
 		final int chunkRadius = SCAN_RADIUS / 16 + 1;
@@ -83,7 +71,9 @@ public final class SignalCache {
 						continue;
 					}
 					if (SignalLogic.isSignalBlock(level.getBlockState(pos))) {
-						ENTRIES.add(new Entry(pos.immutable(), SignalLogic.findAppliedNode(level, pos)));
+						final ServerAspectCache.DisplayState display = ServerAspectCache.getState(pos, false);
+						final BlockPos nodePos = display != null && display.nodePos() != null ? display.nodePos() : SignalLogic.findAppliedNode(level, pos);
+						ENTRIES.add(new Entry(pos.immutable(), nodePos));
 					}
 				}
 			}

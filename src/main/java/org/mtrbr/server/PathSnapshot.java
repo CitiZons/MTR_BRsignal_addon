@@ -123,6 +123,36 @@ public final class PathSnapshot {
 		return sections.stream().filter(section -> section.endDistance() > startDistance && section.startDistance() < endDistance).toList();
 	}
 
+	/** 把路径按 SignalFace 边界切成闭塞块，每个块内包含若干 Rail Section。 */
+	public List<SignalBlock> getSignalBlocksBetween(List<FaceDistance> faces, double startDistance, double endDistance) {
+		final List<SignalBlock> blocks = new ArrayList<>();
+		for (final PathSection section : getSectionsBetween(startDistance, endDistance)) {
+			final double center = (section.startDistance() + section.endDistance()) / 2;
+			FaceDistance previous = null;
+			FaceDistance next = null;
+			for (final FaceDistance faceDistance : faces) {
+				if (faceDistance.distance() <= center) {
+					previous = faceDistance;
+				} else {
+					next = faceDistance;
+					break;
+				}
+			}
+			final String startId = previous == null ? "path-start" : previous.face().id();
+			final String endId = next == null ? "path-end" : next.face().id();
+			final String blockId = startId + "->" + endId;
+			if (blocks.isEmpty() || !blocks.get(blocks.size() - 1).blockId().equals(blockId)) {
+				blocks.add(new SignalBlock(blockId, section.startDistance(), section.endDistance(), new ArrayList<>()));
+			}
+			final SignalBlock last = blocks.get(blocks.size() - 1);
+			last.railIds().add(section.sectionId());
+			if (section.endDistance() > last.endDistance()) {
+				blocks.set(blocks.size() - 1, new SignalBlock(last.blockId(), last.startDistance(), section.endDistance(), last.railIds()));
+			}
+		}
+		return List.copyOf(blocks);
+	}
+
 	/** 路径上第一个终点距离大于给定位置的路段终点（用于“授权只到下一段”的出库/出站请求）。 */
 	public double getFirstSectionEndAfter(double distance) {
 		for (final PathSection section : sections) {
@@ -228,6 +258,9 @@ public final class PathSnapshot {
 	}
 
 	public record FaceDistance(SignalFace face, double distance) {
+	}
+
+	public record SignalBlock(String blockId, double startDistance, double endDistance, List<String> railIds) {
 	}
 
 	private record SignalPoints(long revision, List<FaceDistance> points) {

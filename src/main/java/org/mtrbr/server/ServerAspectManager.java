@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import org.mtr.core.simulation.Simulator;
 import org.mtrbr.data.RouteBinding;
 import org.mtrbr.data.RouteBindingsSavedData;
+import org.mtrbr.data.SignalBlockSavedData;
 
 import java.util.HashMap;
 import java.util.Collections;
@@ -49,7 +50,11 @@ public final class ServerAspectManager {
 		}
 		final RouteBindingsSavedData savedBindings = RouteBindingsSavedData.get(level);
 		final List<RouteRequestManager.AuthorizedPath> authorizations = RouteRequestManager.getAuthorizedPaths(simulator);
-		final List<RouteRequestManager.VehicleSnapshot> vehicles = RouteRequestManager.getVehicleSnapshots(simulator);
+		final Map<String, SectionStateManager.SectionSnapshot> sectionStates = SectionStateManager.getPublishedSections(simulator);
+		final SignalBlockSavedData signalBlocks = SignalBlockSavedData.get(level);
+		if (rebuildTopology) {
+			signalBlocks.rebuild(simulator, faces);
+		}
 		if (faces.size() != lastFacesCount) {
 			lastFacesCount = faces.size();
 			final long now = System.currentTimeMillis();
@@ -68,7 +73,7 @@ public final class ServerAspectManager {
 		final StringBuilder aspectDebug = new StringBuilder();
 		for (final SignalFace face : faces.values()) {
 			// 列车进入该信号防护的闭塞区段后立即变红，不等待整段 request 释放。
-			if (isSectionOccupied(faces, face, vehicles)) {
+			if (isSectionOccupied(signalBlocks, face, sectionStates)) {
 				next.put(key(dimension, face.signalPos(), face.backSide()), new SignalDisplay(ServerAspect.RED, "", "", 0));
 				continue;
 			}
@@ -119,7 +124,7 @@ public final class ServerAspectManager {
 			for (final SignalFace face : getFaceSnapshot(dimension).faces().values()) {
 				final SignalDisplay display = ASPECTS.get(key(dimension, face.signalPos(), face.backSide()));
 				if (display != null) {
-					result.put(new ServerAspectCache.Key(face.signalPos(), face.backSide()), new ServerAspectCache.DisplayState(display.aspect().getValue(), display.authorizationId(), display.routeContent(), display.revision()));
+					result.put(new ServerAspectCache.Key(face.signalPos(), face.backSide()), new ServerAspectCache.DisplayState(display.aspect().getValue(), display.authorizationId(), display.routeContent(), display.revision(), face.nodePos()));
 				}
 			}
 		}
@@ -187,36 +192,19 @@ public final class ServerAspectManager {
 		return distance >= authorization.startDistance() && distance < authorization.endDistance() && travelsInFaceDirection(authorization.path(), face);
 	}
 
-	/** 该信号防护区段（本信号节点到下一同向信号节点）是否被任意列车占用。 */
-	private static boolean isSectionOccupied(Map<String, SignalFace> faces, SignalFace face, List<RouteRequestManager.VehicleSnapshot> vehicles) {
-		for (final RouteRequestManager.VehicleSnapshot vehicle : vehicles) {
-			final double faceDistance = vehicle.path().getDistanceAtNode(face.nodePos());
-			if (faceDistance < 0 || !travelsInFaceDirection(vehicle.path(), face)) {
-				continue;
-			}
-			if (vehicle.head() <= faceDistance) {
-				continue; // 车头尚未越过本信号
-			}
-			final double nextDistance = nextFaceDistance(faces, vehicle.path(), face, faceDistance);
-			if (vehicle.tail() < nextDistance) {
-				return true; // 车头已过本信号、车尾未到下一信号：区段占用
+	/**
+	 * 该信号防护区段（本信号节点到下一同向信号节点）是否被占用。
+	 * 只把 VehicleSnapshot 的 path 用于把 SignalFace 映射到 Section ID；占用事实一律
+	 * 读取 SectionStateManager 的服务端权威 snapshot，不再用头/尾里程自行重算。
+	 */
+	private static boolean isSectionOccupied(SignalBlockSavedData signalBlocks, SignalFace face, Map<String, SectionStateManager.SectionSnapshot> sectionStates) {
+		for (final String sectionId : signalBlocks.getRailIds(face.id())) {
+			final SectionStateManager.SectionSnapshot state = sectionStates.get(sectionId);
+			if (state != null && !state.occupiedBy.isEmpty()) {
+				return true;
 			}
 		}
 		return false;
-	}
-
-	private static double nextFaceDistance(Map<String, SignalFace> faces, PathSnapshot path, SignalFace face, double faceDistance) {
-		double best = Double.MAX_VALUE;
-		for (final SignalFace candidate : faces.values()) {
-			if (candidate.id().equals(face.id()) || !travelsInFaceDirection(path, candidate)) {
-				continue;
-			}
-			final double distance = path.getDistanceAtNode(candidate.nodePos());
-			if (distance > faceDistance && distance < best) {
-				best = distance;
-			}
-		}
-		return best == Double.MAX_VALUE ? path.getTotalDistance() : best;
 	}
 
 	/**

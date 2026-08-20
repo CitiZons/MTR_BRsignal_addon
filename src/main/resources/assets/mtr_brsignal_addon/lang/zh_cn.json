@@ -1,6 +1,8 @@
 {
   "item.mtr_brsignal_addon.signal_debug_tool": "信号机调试工具",
   "item.mtr_brsignal_addon.route_tool": "进路工具",
+  "item.mtr_brsignal_addon.dispatcher_tool": "调度工具",
+  "block.mtr_brsignal_addon.dispatcher_console": "调度台",
   "block.mtr_brsignal_addon.led_indicator": "LED进路显示器",
   "block.mtr_brsignal_addon.indicator_1": "色灯进路指示器(1)",
   "tooltip.mtr_brsignal_addon.hold_shift": "按住 SHIFT 查看用法",

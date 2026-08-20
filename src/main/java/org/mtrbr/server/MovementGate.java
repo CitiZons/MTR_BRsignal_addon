@@ -80,4 +80,17 @@ public final class MovementGate {
 		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
 		return simulator != null && RouteRequestManager.shouldBypassNativeBlock(simulator, vehicle.getId());
 	}
+
+	/**
+	 * 只有当前受本 addon MovementGate 管理的车辆才禁用 MTR 原生阻塞；其余车辆保留 MTR
+	 * 原生兜底，避免“全局禁用 + 无 boundary”造成未受控车辆无约束冲过信号。
+	 */
+	public static boolean shouldDisableNativeBlock(Vehicle vehicle) {
+		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
+		if (simulator == null) {
+			return false;
+		}
+		return RouteRequestManager.isManaged(simulator, vehicle.getId())
+				|| RouteRequestManager.shouldBypassNativeBlock(simulator, vehicle.getId());
+	}
 }

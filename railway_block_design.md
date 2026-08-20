@@ -10,20 +10,20 @@
   -> 计算 triggerDistance
        = min(到下一运营停车点距离, 向前约 4 个信号机控制边界距离)
   -> 进入预告区域
-  -> 创建 RouteRequest（完整进路 + Path fingerprint）
+  -> 创建 RouteRequest（基于 immutablePath 的完整进路申请 + Path fingerprint）
   -> 展开 Request 对应的有序 Section 序列
   -> 对每个 Section 查询拓扑、occupied、reserved、locked
   -> SectionCheck 生成逐段结果
        -> Path 失效/Section 冲突
-            -> Request = DENIED 或 INVALID
-            -> 无 Authorization
+            -> 若第一段即冲突，Request = DENIED
+            -> Authorization 长度为 0
             -> 相关 Signal Aspect = 红
             -> Movement Gate 制动/停车
        -> 检查通过
             -> Request = WAITING
             -> Dispatcher 选择 Request（自动 FCFS 或人工选择）
+            -> Authorization = Request 内当前可开放前缀
             -> Section = reserved
-            -> 创建 Authorization
             -> Section = locked
             -> 多个 Signal Aspect 投影授权结果
             -> Movement Gate 允许车辆按授权进路运行
@@ -77,12 +77,11 @@ Vehicle
 
 Signal Aspect 是 Authorization 的表现，不负责选择车辆；Movement Gate 才是实际阻止未授权车辆运行的执行层。
 
-## 3. Section 与 SectionState
+## 3. 闭塞块与 SectionState
 
-- Section = MTR 中相邻两个 Rail Node 之间的一条 Rail。
-- Section 无方向，A-B 与 B-A 相同。
-- Section ID 直接使用 `Rail.getHexId()`。
-- 方向属于 Signal Face、Route、Path 和 Vehicle。
+- 闭塞块由相邻 SignalFace 绑定节点切分，块内包含一条或多条 Rail。
+- 闭塞块无方向，A-B 与 B-A 相同。
+- 安全/锁闭/占用以闭塞块为单位；方向属于 Signal Face、Route、Path 和 Vehicle。
 
 SectionState 是服务端权威状态库，按 Section 保存三类独立事实：
 
@@ -96,7 +95,7 @@ SectionState 是服务端权威状态库，按 Section 保存三类独立事实�
 
 ## 4. RouteRequest
 
-一个普通 Vehicle 同时只有一个 active RouteRequest。Request 对象是一条完整进路，而不是一个信号边界。
+一个普通 Vehicle 同时只有一个 active RouteRequest。Request 对象是基于 `immutablePath` 的一条完整进路申请，而不是一个信号边界；Authorization 是同一 Request 当前实际获批并锁闭的前缀，且 `Authorization ⊆ Request`。
 
 Request 至少包含：
 
@@ -147,7 +146,7 @@ Request 由 Vehicle 根据自身完整 `immutablePath` 触发，不由 Signal �
 - Terminal；
 - 临时停车点。
 
-车辆进入前方控制边界的预告区域后创建 Request；Request 的 SectionCheck 仍检查完整进路。
+车辆进入前方控制边界的预告区域后创建 Request；Request 对应完整进路，Authorization 只按当前可安全开放的 Section 前缀动态扩展和释放。
 
 ## 6. SectionCheck、Dispatcher 与 Authorization
 
@@ -168,7 +167,7 @@ Dispatcher 只负责选择 Request：
 
 这里的 `Dispatcher Override` 与人工驾驶 Override 不同：前者只改变调度优先级；后者是人工驾驶车辆的特殊运行权限，可以突破红灯和 occupied 检查，但不能改变其他车辆的 Aspect 或 Authorization。
 
-Authorization 可以覆盖多个 Signal Aspect。Signal 读取对应授权的派生结果；没有有效 Request/Authorization 时默认红灯。
+Authorization 可以覆盖多个 Signal Aspect，且长度可以小于 Request。Signal 读取对应授权的派生结果；没有有效 Authorization 时默认红灯。
 
 ## 7. 拓扑失效与执行层
 
@@ -208,7 +207,7 @@ Rail/Path topology change
 ## 10. 已确定的设计决策
 
 1. **Request 触发距离**：`min(到下一运营停车点距离, 向前约 4 个信号机控制边界距离)`。制动距离只属于 Movement Gate 的安全约束。
-2. **授权范围**：一个 RouteRequest 对应一条完整进路及其全部 Section 序列，并可投影到多个 Signal Aspect。
+2. **授权范围**：一个 RouteRequest 对应一条完整进路；Authorization 是它的当前可开放前缀，范围为 `0..Request 长度`，可投影到多个 Signal Aspect。
 3. **Request 重试**：`WAITING`/`DENIED` 在相关 SectionState 变化时立即重新检查，并由周期任务兜底；不使用固定等待时间。
 4. **FCFS 排序**：剩余 Path 距离、Request 创建 tick、Vehicle ID；人工 Dispatcher 可覆盖优先级。
 5. **进路结束边界**：由 RouteRequest 定义；普通情况为信号边界，特殊情况为 Terminal、Depot 或折返点。

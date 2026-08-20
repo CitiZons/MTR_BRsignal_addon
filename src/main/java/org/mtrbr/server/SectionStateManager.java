@@ -29,6 +29,8 @@ public final class SectionStateManager {
 
 	private static final ThreadLocal<SimulationState> CURRENT = new ThreadLocal<>();
 	private static final Map<Simulator, SimulationState> STATES = Collections.synchronizedMap(new IdentityHashMap<>());
+	/** Published only after a complete simulation tick; safe for the Forge server thread to read. */
+	private static volatile Map<Simulator, Map<String, SectionSnapshot>> SECTION_SNAPSHOTS = Map.of();
 
 	private SectionStateManager() {
 	}
@@ -70,6 +72,7 @@ public final class SectionStateManager {
 	public static void resetAll() {
 		CURRENT.remove();
 		STATES.clear();
+		SECTION_SNAPSHOTS = Map.of();
 	}
 
 	public static void onTopologySync(Data data) {
@@ -115,6 +118,11 @@ public final class SectionStateManager {
 		return state == null ? Map.of() : state.snapshot();
 	}
 
+	/** Immutable, post-tick Section snapshot for server-thread readers such as Aspect projection. */
+	public static Map<String, SectionSnapshot> getPublishedSections(Simulator simulator) {
+		return SECTION_SNAPSHOTS.getOrDefault(simulator, Map.of());
+	}
+
 	/** Snapshot only the Sections required by one request; never clone the whole network for a check. */
 	public static Map<String, SectionSnapshot> getSections(Simulator simulator, Collection<String> sectionIds) {
 		final SimulationState state = STATES.get(simulator);
@@ -122,15 +130,15 @@ public final class SectionStateManager {
 	}
 
 	/** Checks the current physical facts without scanning vehicles. */
-	public static boolean areSectionsAvailable(Simulator simulator, Collection<String> sectionIds, String ownerId, boolean manualDrivingOverride) {
+	public static boolean areSectionsAvailable(Simulator simulator, Collection<String> sectionIds, String ownerId, long vehicleId, boolean manualDrivingOverride) {
 		final SimulationState state = STATES.get(simulator);
-		return state != null && state.areSectionsAvailable(sectionIds, ownerId, manualDrivingOverride);
+		return state != null && state.areSectionsAvailable(sectionIds, ownerId, vehicleId, manualDrivingOverride);
 	}
 
 	/** Adds a request reservation. This method must be called on the simulation thread. */
-	public static boolean reserveSections(Simulator simulator, Collection<String> sectionIds, String ownerId, boolean manualDrivingOverride) {
+	public static boolean reserveSections(Simulator simulator, Collection<String> sectionIds, String ownerId, long vehicleId, boolean manualDrivingOverride) {
 		final SimulationState state = STATES.get(simulator);
-		return state != null && state.reserveSections(sectionIds, ownerId, manualDrivingOverride);
+		return state != null && state.reserveSections(sectionIds, ownerId, vehicleId, manualDrivingOverride);
 	}
 
 	/** Promotes a reservation to a route lock. */
@@ -215,6 +223,14 @@ public final class SectionStateManager {
 					applyVehicleOccupancy(vehicleId, Set.of(), false);
 				}
 			}
+			publishSnapshot();
+		}
+
+		private void publishSnapshot() {
+			final Map<String, SectionSnapshot> snapshot = snapshot();
+			final Map<Simulator, Map<String, SectionSnapshot>> next = new IdentityHashMap<>(SECTION_SNAPSHOTS);
+			next.put(simulator, snapshot);
+			SECTION_SNAPSHOTS = Collections.unmodifiableMap(next);
 		}
 
 		private void refreshTopology() {
@@ -314,13 +330,13 @@ public final class SectionStateManager {
 			}
 		}
 
-		private boolean areSectionsAvailable(Collection<String> sectionIds, String ownerId, boolean manualDrivingOverride) {
+		private boolean areSectionsAvailable(Collection<String> sectionIds, String ownerId, long vehicleId, boolean manualDrivingOverride) {
 			for (final String sectionId : sectionIds) {
 				final SectionRecord section = sections.get(sectionId);
 				if (section == null || !section.exists) {
 					return false;
 				}
-				if (!manualDrivingOverride && !section.occupiedBy.isEmpty()) {
+				if (!manualDrivingOverride && section.occupiedBy.stream().anyMatch(occupant -> occupant != vehicleId)) {
 					return false;
 				}
 				if (section.lockedBy.stream().anyMatch(owner -> !owner.equals(ownerId)) || section.reservedBy.stream().anyMatch(owner -> !owner.equals(ownerId))) {
@@ -330,8 +346,8 @@ public final class SectionStateManager {
 			return true;
 		}
 
-		private boolean reserveSections(Collection<String> sectionIds, String ownerId, boolean manualDrivingOverride) {
-			if (!areSectionsAvailable(sectionIds, ownerId, manualDrivingOverride)) {
+		private boolean reserveSections(Collection<String> sectionIds, String ownerId, long vehicleId, boolean manualDrivingOverride) {
+			if (!areSectionsAvailable(sectionIds, ownerId, vehicleId, manualDrivingOverride)) {
 				return false;
 			}
 			sectionIds.forEach(sectionId -> sections.get(sectionId).reservedBy.add(ownerId));

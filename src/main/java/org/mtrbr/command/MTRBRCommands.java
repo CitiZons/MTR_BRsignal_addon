@@ -29,7 +29,14 @@ public final class MTRBRCommands {
 										.executes(context -> setPriority(context.getSource().getLevel(), LongArgumentType.getLong(context, "vehicle_id"), IntegerArgumentType.getInteger(context, "value"), context.getSource())))))
 				.then(Commands.literal("revoke_pending")
 						.then(Commands.argument("vehicle_id", LongArgumentType.longArg(0))
-								.executes(context -> revokePending(context.getSource().getLevel(), LongArgumentType.getLong(context, "vehicle_id"), context.getSource())))));
+								.executes(context -> revokePending(context.getSource().getLevel(), LongArgumentType.getLong(context, "vehicle_id"), context.getSource()))))
+				.then(Commands.literal("requests")
+						.executes(context -> listRequests(context.getSource().getLevel(), context.getSource())))
+				.then(Commands.literal("approve")
+						.then(Commands.argument("vehicle_id", LongArgumentType.longArg(0))
+								.executes(context -> approve(context.getSource().getLevel(), LongArgumentType.getLong(context, "vehicle_id"), context.getSource()))))
+				.then(Commands.literal("audit")
+						.executes(context -> audit(context.getSource().getLevel(), context.getSource()))));
 	}
 
 	private static int setManualOverride(ServerLevel level, long vehicleId, boolean enabled, net.minecraft.commands.CommandSourceStack source) {
@@ -61,6 +68,43 @@ public final class MTRBRCommands {
 		}
 		RouteRequestManager.revokePendingAuthorization(simulator, vehicleId);
 		source.sendSuccess(() -> Component.literal("Pending authorization revoke queued for vehicle " + vehicleId + "."), false);
+		return 1;
+	}
+
+	private static int listRequests(ServerLevel level, net.minecraft.commands.CommandSourceStack source) {
+		final Simulator simulator = getSimulator(level, source);
+		if (simulator == null) {
+			return 0;
+		}
+		final StringBuilder message = new StringBuilder("Requests:");
+		for (final RouteRequestManager.RequestSnapshot request : RouteRequestManager.getRequestSnapshots(simulator)) {
+			message.append("\n vehicle=").append(request.vehicleId())
+					.append(" state=").append(request.state())
+					.append(" control=").append(String.format("%.1f", request.controlDistance()))
+					.append(" reqEnd=").append(String.format("%.1f", request.endDistance()))
+					.append(" authEnd=").append(String.format("%.1f", request.authorizationEndDistance()))
+					.append(" authorized=").append(request.authorized());
+		}
+		source.sendSuccess(() -> Component.literal(message.toString()), false);
+		return 1;
+	}
+
+	private static int approve(ServerLevel level, long vehicleId, net.minecraft.commands.CommandSourceStack source) {
+		final Simulator simulator = getSimulator(level, source);
+		if (simulator == null) {
+			return 0;
+		}
+		RouteRequestManager.setManualPriority(simulator, vehicleId, 100000);
+		source.sendSuccess(() -> Component.literal("Approval priority queued for vehicle " + vehicleId + "."), false);
+		return 1;
+	}
+
+	private static int audit(ServerLevel level, net.minecraft.commands.CommandSourceStack source) {
+		final Simulator simulator = getSimulator(level, source);
+		if (simulator == null) {
+			return 0;
+		}
+		source.sendSuccess(() -> Component.literal(String.join("\n", RouteRequestManager.getAudit(simulator))), false);
 		return 1;
 	}
 

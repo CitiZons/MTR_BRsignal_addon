@@ -42,6 +42,8 @@ public abstract class VehicleMixin {
 			method = "simulateMoving",
 			at = @At("STORE"),
 			index = 5,
+			require = 1,
+			expect = 1,
 			remap = false
 	)
 	private double mtrbr$clampStoppingPointLocal(double mtrStoppingPoint) {
@@ -54,10 +56,13 @@ public abstract class VehicleMixin {
 			remap = false
 	)
 	private double mtrbr$manualOverrideNativeBlock(Vehicle vehicle, int pathIndex, double railProgress, double brakingDistance, ObjectArrayList<Object2ObjectAVLTreeMap<Position, Object2ObjectAVLTreeMap<Position, VehiclePosition>>> vehiclePositions, boolean includeBlocked, boolean includeReserved) {
-		// MTR 原生 railBlockedDistance 与本 addon 的闭塞/授权系统冲突：已授权列车会被它
-		// 挡在控制边界前，未授权列车又被它提前挡住，导致列车不发车、信号与执行不一致。
-		// 这里完全禁用原生阻塞，停车/减速统一由 MovementGate 按 Authorization 控制。
-		return -1;
+		// 只有受本 addon 管理的车辆才关闭 MTR 原生阻塞，改由 MovementGate 统一停车/减速；
+		// 未进入受控区或前方无信号的车辆仍走 MTR 原生兜底，避免出现安全真空。
+		final Vehicle self = (Vehicle) (Object) this;
+		if (MovementGate.shouldDisableNativeBlock(self)) {
+			return -1;
+		}
+		return ((VehicleNativeAccess) self).mtrbr$invokeRailBlockedDistance(pathIndex, railProgress, brakingDistance, vehiclePositions, includeBlocked, includeReserved);
 	}
 
 	@Inject(method = "simulate", at = @At("TAIL"), remap = false)

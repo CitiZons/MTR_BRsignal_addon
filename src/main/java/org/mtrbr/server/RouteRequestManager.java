@@ -1,28 +1,29 @@
 package org.mtrbr.server;
 
-import org.mtr.core.data.Vehicle;
 import org.mtr.core.data.Siding;
+import org.mtr.core.data.Vehicle;
 import org.mtr.core.simulation.Simulator;
 import org.mtr.libraries.it.unimi.dsi.fastutil.longs.LongArrayList;
 import org.mtrbr.mixin.SidingAccess;
-import org.mtrbr.mixin.VehicleNativeAccess;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /** Simulation-thread owner of RouteRequest, FCFS selection and authorization lifecycles. */
 public final class RouteRequestManager {
-	private static final Map<Simulator, State> STATES = new java.util.IdentityHashMap<>();
+	private static final Map<Simulator, State> STATES = new IdentityHashMap<>();
 	/** Published only after a complete simulation tick; safe for the Forge server thread to read. */
 	private static volatile Map<Simulator, List<AuthorizedPath>> AUTHORIZATION_SNAPSHOTS = Map.of();
-	/** 车辆实时位置快照，供服务端信号灯计算“区段占用立即变红”。 */
+	/** Vehicle position snapshots used only to map SignalFace -> Section IDs for authoritative occupancy reads. */
 	private static volatile Map<Simulator, List<VehicleSnapshot>> VEHICLE_SNAPSHOTS = Map.of();
+	private static volatile Map<Simulator, List<RequestSnapshot>> REQUEST_SNAPSHOTS = Map.of();
+	private static volatile Map<Simulator, List<String>> AUDIT_SNAPSHOTS = Map.of();
 
 	private RouteRequestManager() {
 	}
@@ -44,7 +45,7 @@ public final class RouteRequestManager {
 		if (path.isEmpty()) {
 			return;
 		}
-		// 记录车头本次越过哪些信号节点（用于停站后的出站信号 10 秒延迟开放）。
+
 		final List<PathSnapshot.FaceDistance> faceDistances = path.getFaceDistances(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension));
 		for (final PathSnapshot.FaceDistance faceDistance : faceDistances) {
 			if (faceDistance.distance() > current.lastHead && faceDistance.distance() <= head) {
@@ -52,20 +53,16 @@ public final class RouteRequestManager {
 			}
 		}
 		current.lastHead = head;
+
 		if (!path.matchesTopology(simulator)) {
 			releaseAll(simulator, current);
 			current.managed = true;
 			if (current.request != null) {
 				transition(current.request, RequestState.INVALID, "Path topology changed before vehicle movement");
 			}
-			if (current.pendingRequest != null) {
-				transition(current.pendingRequest, RequestState.INVALID, "Path topology changed before vehicle movement");
-			}
 			return;
 		}
-		// 车库/折返段（siding）内的车辆出库也需要信号授权，因此仍然创建 Request；
-		// 但授权范围只到出库段（一个 Section），不一次锁到 4 个信号/下一站，
-		// 避免提前占用前方进路导致后续车辆全部 DENIED 并把车库堵死。
+
 		boolean inSiding = false;
 		for (final PathSnapshot.PathSection section : path.getSections()) {
 			if (head >= section.startDistance() && head <= section.endDistance()) {
@@ -74,21 +71,30 @@ public final class RouteRequestManager {
 			}
 		}
 		current.inSiding = inSiding;
-		if (current.authorization != null && !current.request.getPathFingerprint().equals(path.getFingerprint())) {
+
+		if (current.authorization != null && current.request != null && !current.request.getPathFingerprint().equals(path.getFingerprint())) {
 			release(simulator, current);
 			transition(current.request, RequestState.INVALID, "MTR regenerated immutablePath");
 		}
+
 		if (current.authorization != null) {
-			// 只要前方仍存在未被任何授权覆盖的信号（即下一灯非绿），就持续申请下一段，
-			// 每秒兜底重试一次，让信号随列车前进逐级开放。
-			maybeCreatePendingRequest(simulator, current);
-			return;
-		}
-		if (current.request != null && current.request.getState() != RequestState.RELEASED && current.request.getState() != RequestState.INVALID && current.request.getState() != RequestState.CANCELED && current.request.getPathFingerprint().equals(path.getFingerprint())) {
+			// Request 是完整进路申请，Authorization 是当前前缀。列车推进时由
+			// finishSimulationTick 动态扩展 Authorization，无需在此处重建 Request。
 			current.managed = true;
-			current.request.setRemainingPathDistance(Math.max(0, current.controlDistance - head));
 			return;
 		}
+
+		if (current.request != null
+				&& current.request.getState() != RequestState.RELEASED
+				&& current.request.getState() != RequestState.INVALID
+				&& current.request.getState() != RequestState.REVOKED
+				&& current.request.getState() != RequestState.CANCELED
+				&& current.request.getPathFingerprint().equals(path.getFingerprint())) {
+			current.managed = true;
+			current.request.setRemainingPathDistance(Math.max(0, current.endDistance - head));
+			return;
+		}
+
 		final ControlRange range = findControlRange(simulator, path, head);
 		if (range == null) {
 			final long now = System.currentTimeMillis();
@@ -104,29 +110,48 @@ public final class RouteRequestManager {
 			current.managed = false;
 			return;
 		}
+
 		if (current.request == null && head < range.triggerStart()) {
 			current.managed = false;
 			return;
 		}
 		current.managed = true;
-		if (current.request != null && current.authorization == null) {
-			current.request.setRemainingPathDistance(Math.max(0, range.controlDistance() - head));
-		}
-		// A complete authorization remains attached to its original control face
-		// until the tail clears the requested route. Passing that face must not
-		// silently turn the next signal into a new request and release its locks.
-		if (current.request == null || current.request.getState() == RequestState.RELEASED || current.request.getState() == RequestState.INVALID || current.request.getState() == RequestState.REVOKED || current.request.getState() == RequestState.CANCELED || !current.request.getPathFingerprint().equals(path.getFingerprint()) || !current.controlFaceId.equals(range.faceId())) {
+
+		final boolean needsNewRequest = current.request == null
+				|| current.request.getState() == RequestState.RELEASED
+				|| current.request.getState() == RequestState.INVALID
+				|| current.request.getState() == RequestState.REVOKED
+				|| current.request.getState() == RequestState.CANCELED
+				|| !current.request.getPathFingerprint().equals(path.getFingerprint())
+				|| !current.controlFaceId.equals(range.faceId());
+
+		if (needsNewRequest) {
 			release(simulator, current);
 			current.generation++;
 			current.controlFaceId = range.faceId();
 			current.controlDistance = range.controlDistance();
+			// triggerDistance only decides when a Request is created. The authorized
+			// route itself is generated from the complete immutablePath, except for a
+			// siding departure where the route stops at the first section end so the
+			// siding exit does not pre-lock the whole mainline.
 			final double endDistance = inSiding ? path.getFirstSectionEndAfter(range.controlDistance()) : range.endDistance();
+			if (endDistance <= current.controlDistance) {
+				current.managed = false;
+				return;
+			}
 			current.endDistance = endDistance;
-			final List<String> sectionIds = path.getSectionIdsBetween(range.controlDistance(), endDistance);
-			current.request = new RouteRequest(vehicle.getId(), path.getFingerprint(), current.generation, SectionStateManager.getCurrentTick(), Math.max(0, range.controlDistance() - head), sectionIds, range.signalFaceIds());
+			final List<String> sectionIds = path.getSectionIdsBetween(current.controlDistance, current.endDistance);
+			final List<String> signalFaceIds = path.getFaceDistances(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension)).stream()
+					.filter(point -> point.distance() >= current.controlDistance && point.distance() <= current.endDistance)
+					.map(point -> point.face().id())
+					.toList();
+			current.request = new RouteRequest(vehicle.getId(), path.getFingerprint(), current.generation, SectionStateManager.getCurrentTick(),
+					Math.max(0, current.endDistance - head), sectionIds, signalFaceIds);
 			transition(current.request, RequestState.APPROACHING, "Entered control approach");
 			transition(current.request, RequestState.REQUESTED, "Complete route request created");
 			transition(current.request, RequestState.CHECKING, "Section check scheduled");
+		} else if (current.authorization == null) {
+			current.request.setRemainingPathDistance(Math.max(0, current.endDistance - head));
 		}
 	}
 
@@ -140,6 +165,7 @@ public final class RouteRequestManager {
 			return true;
 		});
 		state.vehicles.values().forEach(vehicle -> vehicle.observed = false);
+
 		for (final VehicleState vehicle : state.vehicles.values()) {
 			if (!vehicle.managed || vehicle.request == null) {
 				continue;
@@ -147,9 +173,6 @@ public final class RouteRequestManager {
 			if (!vehicle.path.matchesTopology(simulator)) {
 				releaseAll(simulator, vehicle);
 				transition(vehicle.request, RequestState.INVALID, "Path topology changed");
-				if (vehicle.pendingRequest != null) {
-					transition(vehicle.pendingRequest, RequestState.INVALID, "Path topology changed");
-				}
 				continue;
 			}
 			if (vehicle.request.getState() == RequestState.REVOKED || vehicle.request.getState() == RequestState.CANCELED) {
@@ -157,12 +180,10 @@ public final class RouteRequestManager {
 			}
 			if (vehicle.authorization != null) {
 				updateAuthorizedLifecycle(simulator, vehicle);
-				processPendingRequest(simulator, vehicle);
-				if (vehicle.head >= vehicle.endDistance && vehicle.pendingRequest != null) {
-					promotePending(simulator, vehicle);
-				}
+				extendAuthorization(simulator, vehicle);
 				continue;
 			}
+
 			final long stateRevision = SectionStateManager.getStateRevision(simulator);
 			final long tick = SectionStateManager.getCurrentTick();
 			if (vehicle.request.getState() == RequestState.DENIED && (vehicle.lastCheckedStateRevision != stateRevision || tick - vehicle.lastCheckedTick >= 20)) {
@@ -171,19 +192,17 @@ public final class RouteRequestManager {
 			if (vehicle.request.getState() == RequestState.DENIED || vehicle.request.getState() == RequestState.WAITING && vehicle.lastCheckedStateRevision == stateRevision) {
 				continue;
 			}
-			final SectionCheck.Result check = SectionCheck.check(simulator, true, vehicle.request.getSectionIds(), vehicle.request.getVehicleId(), vehicle.request.getRequestId(), false);
+			final Clearance clearance = clearancePrefix(simulator, vehicle, vehicle.controlDistance, vehicle.endDistance);
 			vehicle.lastCheckedStateRevision = stateRevision;
 			vehicle.lastCheckedTick = tick;
-			transition(vehicle.request, check.safe() ? RequestState.WAITING : RequestState.DENIED, check.safe() ? "Waiting for FCFS" : "Section check failed");
+			transition(vehicle.request, clearance.sectionIds().isEmpty() ? RequestState.DENIED : RequestState.WAITING,
+					clearance.sectionIds().isEmpty() ? "First section unavailable" : "Waiting for FCFS");
 		}
 
 		final List<RouteRequest> waiting = new ArrayList<>();
 		for (final VehicleState vehicle : state.vehicles.values()) {
 			if (vehicle.request != null && vehicle.request.getState() == RequestState.WAITING) {
 				waiting.add(vehicle.request);
-			}
-			if (vehicle.pendingRequest != null && vehicle.pendingRequest.getState() == RequestState.WAITING) {
-				waiting.add(vehicle.pendingRequest);
 			}
 		}
 		while (!waiting.isEmpty()) {
@@ -196,69 +215,44 @@ public final class RouteRequestManager {
 			if (vehicle == null) {
 				continue;
 			}
-			final double requestStart = vehicle.request == request ? vehicle.controlDistance : vehicle.pendingControlDistance;
-			final double requestEnd = vehicle.request == request ? vehicle.endDistance : vehicle.pendingEndDistance;
-			// 出库信号按时刻表开放：车库车在预计发车前 10 秒内才授权出库请求。
 			if (vehicle.inSiding && !isDepartureWindow(simulator, vehicle)) {
 				continue;
 			}
-			// 部分授权：按路径顺序开放到最后一个空闲 Section；一旦遇到被占用/冲突的
-			// Section 就截断，而不是整条进路全开或全拒。
-			final List<PathSnapshot.PathSection> spans = vehicle.path.getSectionsBetween(requestStart, requestEnd);
-			final List<String> authorizedSections = new ArrayList<>();
-			double authorizedEnd = requestStart;
-			boolean truncated = false;
-			for (final PathSnapshot.PathSection span : spans) {
-				final SectionStateManager.SectionSnapshot sectionState = SectionStateManager.getSections(simulator, List.of(span.sectionId())).get(span.sectionId());
-				final boolean available = sectionState != null && sectionState.exists
-						&& sectionState.lockedBy.stream().noneMatch(owner -> !owner.equals(request.getRequestId()))
-						&& sectionState.reservedBy.stream().noneMatch(owner -> !owner.equals(request.getRequestId()))
-						&& sectionState.occupiedBy.stream().noneMatch(vehicleId -> vehicleId != request.getVehicleId());
-				if (!available) {
-					truncated = true;
-					break;
-				}
-				authorizedSections.add(span.sectionId());
-				authorizedEnd = span.endDistance();
-			}
+
+			// Request 覆盖完整进路；Authorization 只开放到第一个被占用/冲突 Section 之前，
+			// 因此授权范围始终小于等于 Request 范围，不会因为前方占用而整条 DENIED。
+			final Clearance clearance = clearancePrefix(simulator, vehicle, vehicle.controlDistance, vehicle.endDistance);
+			final List<String> authorizedSections = clearance.sectionIds();
 			if (authorizedSections.isEmpty()) {
-				continue; // 第一段就不可用：本段不开，等 SectionState 变化后重试。
+				continue;
 			}
-			final Set<String> requestNodes = new HashSet<>(vehicle.path.getNodeKeysBetween(requestStart, authorizedEnd));
+			final Set<String> requestNodes = new HashSet<>(vehicle.path.getNodeKeysBetween(vehicle.controlDistance, clearance.endDistance()));
 			boolean nodeConflict = false;
 			for (final VehicleState other : state.vehicles.values()) {
-				if (other == vehicle) {
+				if (other == vehicle || other.authorization == null) {
 					continue;
 				}
-				if (other.authorization != null && !Collections.disjoint(other.authorization.getNodeKeys(), requestNodes)) {
-					nodeConflict = true;
-					break;
-				}
-				if (other.pendingAuthorization != null && !Collections.disjoint(other.pendingAuthorization.getNodeKeys(), requestNodes)) {
+				if (!Collections.disjoint(other.authorization.getNodeKeys(), requestNodes)) {
 					nodeConflict = true;
 					break;
 				}
 			}
 			if (nodeConflict) {
-				// 一个节点同时只能被一条进路开放：与其它车辆授权路径节点冲突时拒绝。
 				continue;
 			}
-			if (!SectionStateManager.reserveSections(simulator, authorizedSections, request.getRequestId(), false)) {
+			if (!SectionStateManager.reserveSections(simulator, authorizedSections, request.getRequestId(), request.getVehicleId(), false)) {
 				continue;
 			}
 			if (!SectionStateManager.lockSections(simulator, authorizedSections, request.getRequestId())) {
 				SectionStateManager.releaseSections(simulator, authorizedSections, request.getRequestId());
 				continue;
 			}
-			final Authorization authorization = new Authorization(request.getRequestId() + ":auth", request.getRequestId(), authorizedSections, vehicle.path.getNodeKeysBetween(requestStart, authorizedEnd), SectionStateManager.getTopologyRevision(simulator), ++state.authorizationRevision, false);
-			if (vehicle.request == request) {
-				vehicle.authorization = authorization;
-				vehicle.endDistance = authorizedEnd;
-			} else {
-				vehicle.pendingAuthorization = authorization;
-				vehicle.pendingEndDistance = authorizedEnd;
-			}
-			transition(request, RequestState.AUTHORIZED, truncated ? "Partial authorization up to last clear section" : "FCFS authorization");
+			final Authorization authorization = new Authorization(request.getRequestId() + ":auth", request.getRequestId(), authorizedSections,
+					vehicle.path.getNodeKeysBetween(vehicle.controlDistance, clearance.endDistance()), SectionStateManager.getTopologyRevision(simulator),
+					++state.authorizationRevision, false);
+			vehicle.authorization = authorization;
+			vehicle.authorizationEndDistance = clearance.endDistance();
+			transition(request, RequestState.AUTHORIZED, "FCFS progressive authorization");
 		}
 		debugVehicles(simulator, state);
 		publishAuthorizations(simulator, state);
@@ -274,10 +268,8 @@ public final class RouteRequestManager {
 		}
 		final double controlDistance = ahead.get(0).distance();
 		final double stopDistance = path.getNextStoppingDistance(controlDistance);
-		// Request 覆盖长度 = min(到下一运营停站距离, 向前约 4 架信号控制边界距离)。
-		// 列车通过已授权区段后，由 maybeCreatePendingRequest 提前申请下一段，
-		// 信号随车前进逐步开放，而不是把单次授权无限延伸到停站。
 		final double fourthControlDistance = ahead.size() > 3 ? ahead.get(3).distance() : path.getTotalDistance();
+		// Request 窗口长度 = min(下一运营停车点距离, 前方约 4 个信号控制边界距离)。
 		final double endDistance = Math.min(stopDistance, fourthControlDistance);
 		if (endDistance <= controlDistance) {
 			return null;
@@ -290,6 +282,64 @@ public final class RouteRequestManager {
 		return new ControlRange(ahead.get(0).face().id(), controlDistance, endDistance, Math.max(0, controlDistance - triggerLength), signalFaceIds);
 	}
 
+	/** 沿 Request 区段向前，取到第一个不可用 Section 之前的所有 Section。 */
+	private static Clearance clearancePrefix(Simulator simulator, VehicleState vehicle, double startDistance, double endDistance) {
+		final List<String> authorizedRailIds = new ArrayList<>();
+		double authorizedEnd = startDistance;
+		final List<PathSnapshot.FaceDistance> faces = vehicle.path.getFaceDistances(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension));
+		for (final PathSnapshot.SignalBlock block : vehicle.path.getSignalBlocksBetween(faces, startDistance, endDistance)) {
+			final SectionCheck.Result check = SectionCheck.check(simulator, true, block.railIds(), vehicle.request.getVehicleId(), vehicle.request.getRequestId(), false);
+			if (!check.safe()) {
+				break;
+			}
+			authorizedRailIds.addAll(block.railIds());
+			authorizedEnd = block.endDistance();
+		}
+		return new Clearance(List.copyOf(authorizedRailIds), authorizedEnd);
+	}
+
+	/** 在已授权前缀之后继续尝试锁闭下一段空闲 Section，使 Authorization 随列车推进动态扩展。 */
+	private static void extendAuthorization(Simulator simulator, VehicleState vehicle) {
+		if (vehicle.authorization == null || vehicle.request == null || vehicle.authorizationEndDistance >= vehicle.endDistance) {
+			return;
+		}
+		final Clearance extension = clearancePrefix(simulator, vehicle, vehicle.authorizationEndDistance, vehicle.endDistance);
+		if (extension.sectionIds().isEmpty()) {
+			return;
+		}
+
+		final Set<String> extensionNodes = new HashSet<>(vehicle.path.getNodeKeysBetween(vehicle.authorizationEndDistance, extension.endDistance()));
+		final State state = STATES.get(simulator);
+		if (state != null) {
+			for (final VehicleState other : state.vehicles.values()) {
+				if (other == vehicle || other.authorization == null) {
+					continue;
+				}
+				if (!Collections.disjoint(other.authorization.getNodeKeys(), extensionNodes)) {
+					return;
+				}
+			}
+		}
+
+		if (!SectionStateManager.reserveSections(simulator, extension.sectionIds(), vehicle.request.getRequestId(), vehicle.request.getVehicleId(), false)) {
+			return;
+		}
+		if (!SectionStateManager.lockSections(simulator, extension.sectionIds(), vehicle.request.getRequestId())) {
+			SectionStateManager.releaseSections(simulator, extension.sectionIds(), vehicle.request.getRequestId());
+			return;
+		}
+
+		final Set<String> combinedSections = new java.util.LinkedHashSet<>(vehicle.authorization.getSectionIds());
+		combinedSections.addAll(extension.sectionIds());
+		final Set<String> combinedNodes = new java.util.LinkedHashSet<>(vehicle.authorization.getNodeKeys());
+		combinedNodes.addAll(vehicle.path.getNodeKeysBetween(vehicle.authorizationEndDistance, extension.endDistance()));
+		final Authorization extended = new Authorization(vehicle.request.getRequestId() + ":auth", vehicle.request.getRequestId(),
+				List.copyOf(combinedSections), List.copyOf(combinedNodes), SectionStateManager.getTopologyRevision(simulator),
+				state == null ? vehicle.authorization.getRevision() + 1 : ++state.authorizationRevision, false);
+		vehicle.authorization = extended;
+		vehicle.authorizationEndDistance = extension.endDistance();
+	}
+
 	private static void updateAuthorizedLifecycle(Simulator simulator, VehicleState vehicle) {
 		if (vehicle.head >= vehicle.controlDistance) {
 			transition(vehicle.request, RequestState.ACTIVE, "Entered authorized route");
@@ -297,7 +347,9 @@ public final class RouteRequestManager {
 		if (vehicle.head >= vehicle.endDistance) {
 			transition(vehicle.request, RequestState.PASSED, "Passed route end boundary");
 		}
-		for (final PathSnapshot.PathSection section : vehicle.path.getSectionsBetween(vehicle.controlDistance, vehicle.endDistance)) {
+		// Section 逐条释放：车尾离开某个 Section 即释放该 Section 的 reserved/locked；
+		// Request 只在完整进路走完后才 RELEASED。
+		for (final PathSnapshot.PathSection section : vehicle.path.getSectionsBetween(vehicle.controlDistance, vehicle.authorizationEndDistance)) {
 			if (vehicle.tail >= section.endDistance()) {
 				SectionStateManager.releaseSections(simulator, List.of(section.sectionId()), vehicle.request.getRequestId());
 			}
@@ -309,7 +361,7 @@ public final class RouteRequestManager {
 	}
 
 	private static void release(Simulator simulator, VehicleState vehicle) {
-		if (vehicle.authorization != null) {
+		if (vehicle.authorization != null && vehicle.request != null) {
 			SectionStateManager.releaseSections(simulator, vehicle.authorization.getSectionIds(), vehicle.request.getRequestId());
 			vehicle.authorization = null;
 		}
@@ -317,76 +369,15 @@ public final class RouteRequestManager {
 
 	private static void releaseAll(Simulator simulator, VehicleState vehicle) {
 		release(simulator, vehicle);
-		if (vehicle.pendingAuthorization != null) {
-			SectionStateManager.releaseSections(simulator, vehicle.pendingAuthorization.getSectionIds(), vehicle.pendingRequest.getRequestId());
-			vehicle.pendingAuthorization = null;
-		}
 	}
 
-	/**
-	 * 只要列车下一灯已离开当前授权范围（即不再是绿灯），就为下一段进路创建
-	 * 预请求。预请求通过 SectionCheck/Dispatcher 后获得自己的 Authorization，
-	 * 灯序链随之向前延伸；车头越过当前段终点时提升为活动请求。
-	 */
-	private static void maybeCreatePendingRequest(Simulator simulator, VehicleState vehicle) {
-		if (vehicle.pendingRequest != null) {
-			return;
-		}
-		final List<PathSnapshot.FaceDistance> faces = vehicle.path.getFaceDistances(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension)).stream()
-				.filter(point -> point.distance() > vehicle.head)
-				.toList();
-		if (faces.isEmpty()) {
-			return;
-		}
-		final PathSnapshot.FaceDistance nextLight = faces.get(0);
-		double maxAuthorizedEnd = -1;
-		if (vehicle.authorization != null) {
-			maxAuthorizedEnd = Math.max(maxAuthorizedEnd, vehicle.endDistance);
-		}
-		if (vehicle.pendingAuthorization != null) {
-			maxAuthorizedEnd = Math.max(maxAuthorizedEnd, vehicle.pendingEndDistance);
-		}
-		PathSnapshot.FaceDistance firstUncovered = null;
-		for (final PathSnapshot.FaceDistance faceDistance : faces) {
-			if (faceDistance.distance() > maxAuthorizedEnd) {
-				firstUncovered = faceDistance;
-				break;
+	private static void transition(RouteRequest request, RequestState next, String reason) {
+		if (request.getState() != next) {
+			try {
+				request.transitionTo(next, reason);
+			} catch (IllegalStateException ignored) {
 			}
 		}
-		if (firstUncovered == null) {
-			return; // 授权覆盖到线路终点：下一个灯为绿，无需继续 request
-		}
-		// 判断“下一个灯是否绿灯”：下一个灯到红点之间至少隔 3 个已授权信号
-		// （绿 -> 双黄 -> 黄 -> 红）。不足 3 个说明下一个灯是黄/双黄/红，必须持续 request。
-		final PathSnapshot.FaceDistance redPoint = firstUncovered;
-		final long coveredBetween = faces.stream()
-				.filter(point -> point.distance() >= nextLight.distance() && point.distance() < redPoint.distance())
-				.count();
-		if (coveredBetween >= 3) {
-			return;
-		}
-		final double nextControl = firstUncovered.distance();
-		final double nextStop = vehicle.path.getNextStoppingDistance(nextControl);
-		final List<PathSnapshot.FaceDistance> beyond = faces.stream()
-				.filter(point -> point.distance() >= nextControl)
-				.toList();
-		final double nextFourth = beyond.size() > 3 ? beyond.get(3).distance() : vehicle.path.getTotalDistance();
-		final double nextEnd = Math.min(nextStop, nextFourth);
-		if (nextEnd <= nextControl) {
-			return;
-		}
-		final List<String> sectionIds = vehicle.path.getSectionIdsBetween(nextControl, nextEnd);
-		final List<String> faceIds = beyond.stream()
-				.filter(point -> point.distance() >= nextControl && point.distance() <= nextEnd)
-				.map(point -> point.face().id())
-				.toList();
-		vehicle.pendingRequest = new RouteRequest(vehicle.request.getVehicleId(), vehicle.path.getFingerprint(), vehicle.request.getGeneration() + 1, SectionStateManager.getCurrentTick(), Math.max(0, nextControl - vehicle.head), sectionIds, faceIds);
-		vehicle.pendingControlFaceId = beyond.get(0).face().id();
-		vehicle.pendingControlDistance = nextControl;
-		vehicle.pendingEndDistance = nextEnd;
-		transition(vehicle.pendingRequest, RequestState.APPROACHING, "Next control boundary left current authorization");
-		transition(vehicle.pendingRequest, RequestState.REQUESTED, "Next route segment requested before current segment cleared");
-		transition(vehicle.pendingRequest, RequestState.CHECKING, "Next route segment section check scheduled");
 	}
 
 	/** 出库时刻表窗口：车库车在预计发车前 10 秒内才允许授权出库信号。 */
@@ -400,11 +391,11 @@ public final class RouteRequestManager {
 		}
 		final LongArrayList departures = ((SidingAccess) (Object) siding).mtrbr$getDepartures();
 		if (departures == null || departures.isEmpty()) {
-			return false; // 尚未生成发车时刻：出库信号不开
+			return false;
 		}
 		final int index = (int) vehicle.vehicle.getDepartureIndex();
 		if (index < 0 || index >= departures.size()) {
-			return false; // 尚未匹配到发车时刻：出库信号不开
+			return false;
 		}
 		final long departureTime = departures.getLong(index);
 		if (departureTime <= 0) {
@@ -413,76 +404,10 @@ public final class RouteRequestManager {
 		return simulator.getCurrentMillis() >= departureTime - 10_000;
 	}
 
-	private static void processPendingRequest(Simulator simulator, VehicleState vehicle) {
-		if (vehicle.pendingRequest == null || vehicle.pendingAuthorization != null) {
-			return;
-		}
-		final long stateRevision = SectionStateManager.getStateRevision(simulator);
-		final long tick = SectionStateManager.getCurrentTick();
-		if (vehicle.pendingRequest.getState() == RequestState.DENIED && (vehicle.pendingLastCheckedStateRevision != stateRevision || tick - vehicle.pendingLastCheckedTick >= 20)) {
-			transition(vehicle.pendingRequest, RequestState.CHECKING, "Relevant SectionState changed");
-		}
-		if (vehicle.pendingRequest.getState() == RequestState.DENIED || vehicle.pendingRequest.getState() == RequestState.WAITING && vehicle.pendingLastCheckedStateRevision == stateRevision) {
-			return;
-		}
-		final SectionCheck.Result check = SectionCheck.check(simulator, true, vehicle.pendingRequest.getSectionIds(), vehicle.pendingRequest.getVehicleId(), vehicle.pendingRequest.getRequestId(), false);
-		vehicle.pendingLastCheckedStateRevision = stateRevision;
-		vehicle.pendingLastCheckedTick = tick;
-		transition(vehicle.pendingRequest, check.safe() ? RequestState.WAITING : RequestState.DENIED, check.safe() ? "Waiting for FCFS" : "Section check failed");
-	}
-
-	private static void promotePending(Simulator simulator, VehicleState vehicle) {
-		if (vehicle.pendingRequest == null) {
-			return;
-		}
-		release(simulator, vehicle);
-		transition(vehicle.request, RequestState.PASSED, "Passed route end boundary");
-		transition(vehicle.request, RequestState.RELEASED, "Authorization superseded by next route segment");
-		vehicle.request = vehicle.pendingRequest;
-		vehicle.authorization = vehicle.pendingAuthorization;
-		vehicle.controlFaceId = vehicle.pendingControlFaceId;
-		vehicle.controlDistance = vehicle.pendingControlDistance;
-		vehicle.endDistance = vehicle.pendingEndDistance;
-		vehicle.pendingRequest = null;
-		vehicle.pendingAuthorization = null;
-	}
-
-	private static void transition(RouteRequest request, RequestState next, String reason) {
-		if (request.getState() != next) {
-			try {
-				request.transitionTo(next, reason);
-			} catch (IllegalStateException ignored) {
-			}
-		}
-	}
-
-	/** Returns the control boundary at which an unauthorised managed vehicle must stop. */
-	public static double getMovementBoundary(Simulator simulator, long vehicleId) {
-		final State state = STATES.get(simulator);
-		final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
-		if (vehicle == null || !vehicle.managed || vehicle.authorization != null) {
-			return Double.NaN;
-		}
-		if (vehicle.request == null) {
-			return vehicle.path != null && !vehicle.path.matchesTopology(simulator) ? vehicle.head : Double.NaN;
-		}
-		if (vehicle.request.getState() == RequestState.INVALID || vehicle.request.getState() == RequestState.REVOKED) {
-			return vehicle.head;
-		}
-		// Manual driving is the explicit operational override: it bypasses this
-		// addon's red-signal gate only. It does not convert an unsafe request into
-		// an authorization, and occupancy remains visible to automatic traffic.
-		if (vehicle.manualDrivingOverride && vehicle.vehicle.vehicleExtraData.getIsCurrentlyManual()) {
-			return Double.NaN;
-		}
-		return vehicle.controlDistance;
-	}
-
 	/**
-	 * 渐进减速的红灯位置：沿车辆路径找“第一个不在任何有效授权覆盖内”的信号节点。
-	 * 所有车辆（含已授权车）都以此为目标点按 MTR 制动曲线渐进减速；授权向前延伸时
-	 * 该点后移，MTR 每 tick 重新评估，从而表现为“黄灯减速、红灯前停、可重新加速”。
-	 * 无红点（授权覆盖到进路终点）或车辆尚未进入受控区域时返回 NaN（不限速）。
+	 * 渐进减速的红灯位置：未授权时取当前控制边界；已授权时取授权末端之后第一个信号。
+	 * 所有车辆（含已授权车）都以此为目标点按 MTR 制动曲线渐进减速。无红点（授权覆盖到
+	 * 进路终点）时返回 NaN（不限速）。
 	 */
 	public static double getStopBoundary(Simulator simulator, long vehicleId) {
 		final State state = STATES.get(simulator);
@@ -490,43 +415,37 @@ public final class RouteRequestManager {
 		if (vehicle == null || vehicle.path == null || vehicle.path.isEmpty()) {
 			return Double.NaN;
 		}
-		// 人工驾驶 Override：确认处于手动驾驶的车辆不受本系统红灯限速/停车约束。
 		if (vehicle.manualDrivingOverride && vehicle.vehicle.vehicleExtraData.getIsCurrentlyManual()) {
 			return Double.NaN;
 		}
 		if (vehicle.request != null && (vehicle.request.getState() == RequestState.INVALID || vehicle.request.getState() == RequestState.REVOKED)) {
-			return vehicle.head; // 立即停车
+			return vehicle.head;
 		}
-		// 防撞边界：前方第一个被其他车辆占用的主线区段起点（车库段忽略，由 MTR 管理）。
+
+		final double maxAuthorizedEnd = vehicle.authorization == null ? -1 : vehicle.authorizationEndDistance;
+		final List<PathSnapshot.FaceDistance> faces = vehicle.path.getFaceDistances(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension));
 		double collisionBoundary = Double.NaN;
-		final List<String> sectionIds = vehicle.path.getSections().stream().map(PathSnapshot.PathSection::sectionId).toList();
-		final Map<String, SectionStateManager.SectionSnapshot> sectionStates = SectionStateManager.getSections(simulator, sectionIds);
-		for (final PathSnapshot.PathSection section : vehicle.path.getSections()) {
-			if (section.isSiding() || section.endDistance() <= vehicle.head) {
-				continue;
+		final Map<String, SectionStateManager.SectionSnapshot> sectionStates = SectionStateManager.getSections(simulator, vehicle.path.getSections().stream().map(PathSnapshot.PathSection::sectionId).toList());
+		for (final PathSnapshot.SignalBlock block : vehicle.path.getSignalBlocksBetween(faces, vehicle.head, vehicle.path.getTotalDistance())) {
+			boolean occupied = false;
+			for (final String railId : block.railIds()) {
+				final SectionStateManager.SectionSnapshot sectionState = sectionStates.get(railId);
+				if (sectionState != null && sectionState.occupiedBy.stream().anyMatch(other -> other != vehicleId)) {
+					occupied = true;
+					break;
+				}
 			}
-			final SectionStateManager.SectionSnapshot sectionState = sectionStates.get(section.sectionId());
-			if (sectionState != null && sectionState.occupiedBy.stream().anyMatch(other -> other != vehicleId)) {
-				collisionBoundary = section.startDistance();
+			if (occupied) {
+				collisionBoundary = block.startDistance();
 				break;
 			}
 		}
-		double maxAuthorizedEnd = -1;
-		if (vehicle.authorization != null) {
-			maxAuthorizedEnd = Math.max(maxAuthorizedEnd, vehicle.endDistance);
-		}
-		if (vehicle.pendingAuthorization != null) {
-			maxAuthorizedEnd = Math.max(maxAuthorizedEnd, vehicle.pendingEndDistance);
-		}
-		final List<PathSnapshot.FaceDistance> faces = vehicle.path.getFaceDistances(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension));
+
 		double signalBoundary = Double.NaN;
 		if (maxAuthorizedEnd < 0) {
-			// 未授权：红点固定为 request 的控制边界，不能随车头动态后移，
-			// 否则车每越过一个信号红点就顺延一个，导致连续闯红灯。
 			if (vehicle.request != null) {
 				signalBoundary = vehicle.controlDistance;
 			} else {
-				// 尚无 request（尚未进入预告区）：以车头前方第一个同向信号为预告红点。
 				for (final PathSnapshot.FaceDistance faceDistance : faces) {
 					if (faceDistance.distance() > vehicle.head) {
 						signalBoundary = faceDistance.distance();
@@ -542,6 +461,7 @@ public final class RouteRequestManager {
 				}
 			}
 		}
+
 		if (Double.isNaN(collisionBoundary)) {
 			return signalBoundary;
 		}
@@ -577,6 +497,20 @@ public final class RouteRequestManager {
 		});
 	}
 
+	/** 人工批准：提升优先级并强制下一 tick 重新执行 SectionCheck。 */
+	public static void approveWaiting(Simulator simulator, long vehicleId) {
+		simulator.run(() -> {
+			final State state = STATES.get(simulator);
+			final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
+			if (vehicle != null && vehicle.request != null && vehicle.authorization == null) {
+				vehicle.request.setManualPriority(100000);
+				vehicle.lastCheckedStateRevision = -1;
+				vehicle.lastCheckedTick = -20;
+				state.audit.add("tick=" + SectionStateManager.getCurrentTick() + " dispatcher-approve vehicle=" + vehicleId);
+			}
+		});
+	}
+
 	/** Revokes a not-yet-entered authorization. A live route cannot be revoked through this API. */
 	public static void revokePendingAuthorization(Simulator simulator, long vehicleId) {
 		simulator.run(() -> {
@@ -596,6 +530,13 @@ public final class RouteRequestManager {
 		return vehicle != null && vehicle.manualDrivingOverride && vehicle.vehicle != null && vehicle.vehicle.vehicleExtraData.getIsCurrentlyManual();
 	}
 
+	/** Whether this vehicle's movement is currently owned by the addon MovementGate. */
+	public static boolean isManaged(Simulator simulator, long vehicleId) {
+		final State state = STATES.get(simulator);
+		final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
+		return vehicle != null && vehicle.managed;
+	}
+
 	/** Native MTR block bypass, valid only for an explicitly approved manual vehicle. */
 	public static boolean shouldBypassNativeBlock(Simulator simulator, long vehicleId) {
 		final State state = STATES.get(simulator);
@@ -609,9 +550,17 @@ public final class RouteRequestManager {
 		return AUTHORIZATION_SNAPSHOTS.getOrDefault(simulator, List.of());
 	}
 
-	/** 车辆实时位置快照（path/head/tail），供服务端灯序与占用判定使用。 */
+	/** Vehicle position snapshots used only for SignalFace -> Section ID mapping; not an occupancy source. */
 	public static List<VehicleSnapshot> getVehicleSnapshots(Simulator simulator) {
 		return VEHICLE_SNAPSHOTS.getOrDefault(simulator, List.of());
+	}
+
+	public static List<RequestSnapshot> getRequestSnapshots(Simulator simulator) {
+		return REQUEST_SNAPSHOTS.getOrDefault(simulator, List.of());
+	}
+
+	public static List<String> getAudit(Simulator simulator) {
+		return AUDIT_SNAPSHOTS.getOrDefault(simulator, List.of());
 	}
 
 	/** Clears all request/authorization state when the server stops. */
@@ -619,31 +568,48 @@ public final class RouteRequestManager {
 		STATES.clear();
 		AUTHORIZATION_SNAPSHOTS = Map.of();
 		VEHICLE_SNAPSHOTS = Map.of();
+		REQUEST_SNAPSHOTS = Map.of();
+		AUDIT_SNAPSHOTS = Map.of();
 	}
 
 	private static void publishAuthorizations(Simulator simulator, State state) {
-		final Map<Simulator, List<AuthorizedPath>> next = new java.util.IdentityHashMap<>(AUTHORIZATION_SNAPSHOTS);
+		final Map<Simulator, List<AuthorizedPath>> next = new IdentityHashMap<>(AUTHORIZATION_SNAPSHOTS);
 		final List<AuthorizedPath> paths = new ArrayList<>();
 		for (final VehicleState vehicle : state.vehicles.values()) {
 			if (vehicle.authorization != null) {
-				paths.add(new AuthorizedPath(vehicle.path, vehicle.controlDistance, vehicle.endDistance, vehicle.authorization.getAuthorizationId(), vehicle.authorization.getRevision()));
-			}
-			if (vehicle.pendingAuthorization != null) {
-				paths.add(new AuthorizedPath(vehicle.path, vehicle.pendingControlDistance, vehicle.pendingEndDistance, vehicle.pendingAuthorization.getAuthorizationId(), vehicle.pendingAuthorization.getRevision()));
+				// 授权范围从“车头当前位置”开始，而不是固定从请求创建时的 controlDistance 开始；
+				// 这样列车已经驶过的信号不会继续被判定为“已授权绿灯”。
+				final double activeStart = Math.max(vehicle.controlDistance, vehicle.head);
+				if (activeStart < vehicle.authorizationEndDistance) {
+					paths.add(new AuthorizedPath(vehicle.path, activeStart, vehicle.authorizationEndDistance, vehicle.authorization.getAuthorizationId(), vehicle.authorization.getRevision()));
+				}
 			}
 		}
 		next.put(simulator, List.copyOf(paths));
 		AUTHORIZATION_SNAPSHOTS = Collections.unmodifiableMap(next);
-		final Map<Simulator, List<VehicleSnapshot>> nextVehicles = new java.util.IdentityHashMap<>(VEHICLE_SNAPSHOTS);
+
+		final Map<Simulator, List<VehicleSnapshot>> nextVehicles = new IdentityHashMap<>(VEHICLE_SNAPSHOTS);
 		nextVehicles.put(simulator, state.vehicles.values().stream()
 				.map(vehicle -> new VehicleSnapshot(vehicle.path, vehicle.head, vehicle.tail))
 				.toList());
 		VEHICLE_SNAPSHOTS = Collections.unmodifiableMap(nextVehicles);
+
+		final Map<Simulator, List<RequestSnapshot>> nextRequests = new IdentityHashMap<>(REQUEST_SNAPSHOTS);
+		nextRequests.put(simulator, state.vehicles.values().stream()
+				.filter(vehicle -> vehicle.request != null)
+				.map(vehicle -> new RequestSnapshot(vehicle.request.getVehicleId(), vehicle.request.getState(), vehicle.controlDistance, vehicle.endDistance, vehicle.authorizationEndDistance, vehicle.authorization != null,
+						routeName(vehicle), routeDestination(vehicle)))
+				.toList());
+		REQUEST_SNAPSHOTS = Collections.unmodifiableMap(nextRequests);
+
+		final Map<Simulator, List<String>> nextAudit = new IdentityHashMap<>(AUDIT_SNAPSHOTS);
+		nextAudit.put(simulator, List.copyOf(state.audit));
+		AUDIT_SNAPSHOTS = Collections.unmodifiableMap(nextAudit);
 	}
 
 	private static long lastDebugMillis;
 
-	/** 5 秒限流的服务端诊断：每辆车的请求/授权/预请求状态，用于定位信号不开放问题。 */
+	/** 5 秒限流的服务端诊断：每辆车的请求/授权状态。 */
 	private static void debugVehicles(Simulator simulator, State state) {
 		final long now = System.currentTimeMillis();
 		if (now - lastDebugMillis < 5000) {
@@ -657,9 +623,7 @@ public final class RouteRequestManager {
 					+ " control=" + String.format("%.1f", vehicle.controlDistance)
 					+ " end=" + String.format("%.1f", vehicle.endDistance)
 					+ " req=" + (vehicle.request == null ? "-" : vehicle.request.getState())
-					+ " auth=" + (vehicle.authorization != null)
-					+ " pending=" + (vehicle.pendingRequest == null ? "-" : vehicle.pendingRequest.getState())
-					+ " pendingAuth=" + (vehicle.pendingAuthorization != null));
+					+ " auth=" + (vehicle.authorization != null));
 		}
 	}
 
@@ -669,10 +633,31 @@ public final class RouteRequestManager {
 	public record VehicleSnapshot(PathSnapshot path, double head, double tail) {
 	}
 
+	public record RequestSnapshot(long vehicleId, RequestState state, double controlDistance, double endDistance, double authorizationEndDistance, boolean authorized, String routeName, String destination) {
+	}
+
+	private static String routeName(VehicleState vehicle) {
+		final String name = vehicle.vehicle.vehicleExtraData.getThisRouteName();
+		final String number = vehicle.vehicle.vehicleExtraData.getThisRouteNumber();
+		return (number == null || number.isEmpty() ? "" : number + " ") + (name == null ? "" : name);
+	}
+
+	private static String routeDestination(VehicleState vehicle) {
+		final String destination = vehicle.vehicle.vehicleExtraData.getThisRouteDestination();
+		if (destination != null && !destination.isEmpty()) {
+			return destination;
+		}
+		final String station = vehicle.vehicle.vehicleExtraData.getThisStationName();
+		return station == null ? "" : station;
+	}
+
 	private record ControlPoint(SignalFace face, double distance) {
 	}
 
 	private record ControlRange(String faceId, double controlDistance, double endDistance, double triggerStart, List<String> signalFaceIds) {
+	}
+
+	private record Clearance(List<String> sectionIds, double endDistance) {
 	}
 
 	private static final class State {
@@ -686,16 +671,12 @@ public final class RouteRequestManager {
 		private PathSnapshot path;
 		private RouteRequest request;
 		private Authorization authorization;
-		private RouteRequest pendingRequest;
-		private Authorization pendingAuthorization;
-		private String pendingControlFaceId = "";
-		private double pendingControlDistance;
-		private double pendingEndDistance;
 		private Set<String> sections = Set.of();
 		private double head;
 		private double tail;
 		private double controlDistance;
 		private double endDistance;
+		private double authorizationEndDistance;
 		private String controlFaceId = "";
 		private boolean inSiding;
 		private double lastHead = -1;
@@ -707,7 +688,5 @@ public final class RouteRequestManager {
 		private boolean manualDrivingOverride;
 		private long lastCheckedStateRevision = -1;
 		private long lastCheckedTick = -20;
-		private long pendingLastCheckedStateRevision = -1;
-		private long pendingLastCheckedTick = -20;
 	}
 }

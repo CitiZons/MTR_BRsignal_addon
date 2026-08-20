@@ -21,6 +21,7 @@ import org.mtr.mod.render.StoredMatrixTransformations;
 import org.mtrbr.MTRBR;
 import org.mtrbr.client.SignalCache;
 import org.mtrbr.data.ClientBindings;
+import org.mtrbr.data.NodeBinding;
 import org.mtrbr.data.RouteBinding;
 import org.mtrbr.logic.SignalLogic;
 
@@ -65,6 +66,7 @@ public final class SignalOverlayRenderer {
 		for (final SignalCache.Entry entry : SignalCache.getEntries(level, player.blockPosition())) {
 			if (debugHeld && entry.nodePos() != null) {
 				drawThickLine(entry.signalPos(), entry.nodePos(), DEBUG_LINE_COLOR);
+				drawBindingDirectionArrow(level, entry.signalPos(), entry.nodePos());
 			}
 			if (routeHeld) {
 				for (final RouteBinding binding : ClientBindings.get(entry.signalPos())) {
@@ -73,6 +75,48 @@ public final class SignalOverlayRenderer {
 				}
 			}
 		}
+	}
+
+	/** 在已绑定节点的正中央高度（节点 y+0.5）绘制浮空白色箭头，方向由 NodeBinding.reversed 决定。 */
+	private static void drawBindingDirectionArrow(Level level, BlockPos signalPos, BlockPos nodePos) {
+		final NodeBinding binding = ClientBindings.getNodeBinding(signalPos);
+		final boolean reversed = binding != null && binding.reversed();
+		double[] direction = SignalLogic.getTrackDirection(level, signalPos, nodePos);
+		if (direction == null) {
+			// positionsToRail 尚未同步时，用信号机自身朝向兜底，保证箭头立即可见。
+			final float travelAngle = SignalLogic.getSignalAngle(level.getBlockState(signalPos)) + 90 + (reversed ? 180 : 0);
+			final double radians = Math.toRadians(travelAngle);
+			direction = new double[]{Math.cos(radians), Math.sin(radians)};
+		} else if (reversed) {
+			direction[0] = -direction[0];
+			direction[1] = -direction[1];
+		}
+		double dx = direction[0];
+		double dz = direction[1];
+		final double length = Math.sqrt(dx * dx + dz * dz);
+		if (length < 1.0E-4) {
+			return;
+		}
+		dx /= length;
+		dz /= length;
+
+		final double baseX = nodePos.getX() + 0.5;
+		final double baseY = nodePos.getY() + 0.5;
+		final double baseZ = nodePos.getZ() + 0.5;
+		final double tailX = baseX - dx * 0.20;
+		final double tailZ = baseZ - dz * 0.20;
+		final double tipX = baseX + dx * 0.35;
+		final double tipZ = baseZ + dz * 0.35;
+		final double leftX = tipX - dx * 0.12 + dz * 0.08;
+		final double leftZ = tipZ - dz * 0.12 - dx * 0.08;
+		final double rightX = tipX - dx * 0.12 - dz * 0.08;
+		final double rightZ = tipZ - dz * 0.12 + dx * 0.08;
+
+		MainRenderer.scheduleRender(QueuedRenderLayer.LINES, (graphicsHolder, cameraOffset) -> {
+			drawLine(graphicsHolder, cameraOffset, tailX, baseY, tailZ, tipX, baseY, tipZ, 0xFFFFFFFF);
+			drawLine(graphicsHolder, cameraOffset, tipX, baseY, tipZ, leftX, baseY, leftZ, 0xFFFFFFFF);
+			drawLine(graphicsHolder, cameraOffset, tipX, baseY, tipZ, rightX, baseY, rightZ, 0xFFFFFFFF);
+		});
 	}
 
 	private static boolean isHolding(Minecraft minecraft, Item item) {

@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "mtr_brsignal_addon:item/dispatcher_tool"
+  }
+}

@@ -14,9 +14,7 @@
     "SidingAccess",
     "ServerSignalAspectMixin"
   ],
-  "client": [
-    "BlockSignalBlockEntityMixin"
-  ],
+  "client": [],
   "injectors": {
     "defaultRequire": 1
   }

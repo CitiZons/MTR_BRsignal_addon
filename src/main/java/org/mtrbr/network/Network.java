@@ -31,5 +31,8 @@ public final class Network {
 		CHANNEL.registerMessage(nextId++, SetSignalNamePacket.class, SetSignalNamePacket::encode, SetSignalNamePacket::decode, SetSignalNamePacket::handle);
 		CHANNEL.registerMessage(nextId++, SyncRouteBindingsPacket.class, SyncRouteBindingsPacket::encode, SyncRouteBindingsPacket::decode, SyncRouteBindingsPacket::handle);
 		CHANNEL.registerMessage(nextId++, SyncSignalAspectsPacket.class, SyncSignalAspectsPacket::encode, SyncSignalAspectsPacket::decode, SyncSignalAspectsPacket::handle);
+		CHANNEL.registerMessage(nextId++, SyncDispatcherDataPacket.class, SyncDispatcherDataPacket::encode, SyncDispatcherDataPacket::decode, SyncDispatcherDataPacket::handle);
+		CHANNEL.registerMessage(nextId++, RequestDispatcherDataPacket.class, RequestDispatcherDataPacket::encode, RequestDispatcherDataPacket::decode, RequestDispatcherDataPacket::handle);
+		CHANNEL.registerMessage(nextId++, DispatcherActionPacket.class, DispatcherActionPacket::encode, DispatcherActionPacket::decode, DispatcherActionPacket::handle);
 	}
 }

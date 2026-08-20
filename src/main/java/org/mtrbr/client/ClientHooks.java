@@ -9,6 +9,7 @@ import org.mtrbr.render.VehicleHudRenderer;
 import org.mtrbr.screen.IndicatorInfoScreen;
 import org.mtrbr.screen.RouteTextInputScreen;
 import org.mtrbr.screen.SignalDebugScreen;
+import org.mtrbr.screen.DispatcherScreen;
 
 public final class ClientHooks {
 
@@ -33,5 +34,9 @@ public final class ClientHooks {
 
 	public static void openRouteTextInputScreen(BlockPos signalPos, BlockPos nodePos) {
 		Minecraft.getInstance().setScreen(new RouteTextInputScreen(signalPos, nodePos));
+	}
+
+	public static void openDispatcherScreen() {
+		Minecraft.getInstance().setScreen(new DispatcherScreen());
 	}
 }

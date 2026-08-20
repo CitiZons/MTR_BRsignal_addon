@@ -18,10 +18,13 @@ import org.mtr.mod.render.QueuedRenderLayer;
 import org.mtrbr.MTRBR;
 import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
+import org.mtrbr.client.ServerAspectCache;
 import org.mtrbr.data.ClientBindings;
 import org.mtrbr.data.ClientIndicatorBindings;
+import org.mtrbr.data.RouteBinding;
 import org.mtrbr.logic.SignalLogic;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -85,19 +88,26 @@ public final class ColorLightIndicatorRenderer implements BlockEntityRenderer<Co
 			debugLog(level, pos + " -> " + boundSignalPos + " SIGNAL-MISSING " + (signalEntity == null ? "null" : signalEntity.getClass().getSimpleName()));
 			return;
 		}
-		// 红灯熄灭；route=NULL 或没有 route 绑定也熄灭
 		final int aspect = SignalLogic.getSignalAspect(level, boundSignalPos, signalEntity, false);
 		if (aspect == 1) {
 			debugLog(level, pos + " -> " + boundSignalPos + " ASPECT-RED");
 			return;
 		}
-		final boolean hasRouteBinding = ClientBindings.get(boundSignalPos).stream()
-				.anyMatch(binding -> binding.content().toLowerCase(Locale.ROOT).startsWith("route=") && !binding.content().equalsIgnoreCase("route=NULL"));
-		if (!hasRouteBinding) {
-			debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " NO-ROUTE-BINDING");
+		final ServerAspectCache.DisplayState serverState = ServerAspectCache.getState(boundSignalPos, false);
+		final List<RouteBinding> bindings;
+		if (serverState != null && !serverState.authorizationId().isEmpty()) {
+			final String authorizedContent = serverState.routeContent();
+			bindings = ClientBindings.get(boundSignalPos).stream()
+					.filter(binding -> binding.content().equalsIgnoreCase(authorizedContent))
+					.toList();
+		} else {
+			bindings = List.of();
+		}
+		if (bindings.isEmpty()) {
+			debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " NO-AUTHORIZED-ROUTE");
 			return;
 		}
-		debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " route-bindings=" + ClientBindings.get(boundSignalPos));
+		debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " open=" + bindings);
 
 		for (final float[] light : LIGHTS) {
 			drawLight(pos, angle, light[0], light[1], light[2], light[3]);
