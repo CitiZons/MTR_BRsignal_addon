@@ -38,6 +38,7 @@ public final class SetRouteBindingPacket {
 			final String validated = RouteContent.validate(message.content);
 			if (validated != null && context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
 				RouteBindingsSavedData.get(serverLevel).set(message.signalPos, message.nodePos, validated);
+				org.mtrbr.server.ServerAspectManager.invalidateTopology(serverLevel);
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 				Network.CHANNEL.send(net.minecraftforge.network.PacketDistributor.ALL.noArg(), new SyncRouteBindingsPacket(data.toClientMap(), data.getNodeBindings(), data.getIndicatorBindings(), data.getSignalNames()));
 			}

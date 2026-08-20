@@ -1,7 +1,8 @@
 {
   "textures": {
     "t0": "mtr_brsignal_addon:block/black",
-    "t1": "mtr_brsignal_addon:block/grey"
+    "t1": "mtr_brsignal_addon:block/grey",
+    "particle": "mtr_brsignal_addon:block/grey"
   },
   "parent": "block/block",
   "elements": [

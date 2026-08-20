@@ -1,6 +1,7 @@
 package org.mtrbr.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
@@ -9,28 +10,52 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import org.mtr.mod.block.BlockSignalBase;
 import org.mtr.mapping.mapper.GraphicsHolder;
+import org.mtr.mod.block.BlockSignalBase;
 import org.mtr.mod.client.IDrawing;
 import org.mtr.mod.render.MainRenderer;
 import org.mtr.mod.render.QueuedRenderLayer;
+import org.mtrbr.MTRBR;
 import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.data.ClientBindings;
 import org.mtrbr.data.ClientIndicatorBindings;
 import org.mtrbr.logic.SignalLogic;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 
 /**
- * 色灯式进路指示器渲染：直接从 indicator_1_NULL.bbmodel 运行时解析并绘制全部面。
- * 按贴图分组渲染（多贴图）；route 图层仅当绑定信号机进路开放时绘制（Java 控制 NULL/lit）。
+ * 色灯式进路指示器渲染（与 LED 相同思路）：
+ * 方块本体用 JSON 模型（indicator_1.json），本渲染器只画“点亮”的 5 个白色色灯，
+ * 位置来自 indicator_1_1.bbmodel 的白色灯块（平移 +3.5/+3 后 /16），
+ * 用全亮光照（getDefaultLight）实现发光效果。
  */
 public final class ColorLightIndicatorRenderer implements BlockEntityRenderer<ColorLightIndicatorBlockEntity> {
 
+	private static final float Z = 0.42F; // 灯块北面 z=6.8，/16 再向内一点（与 LED 同侧显示）
+	private static final org.mtr.mapping.holder.Identifier WHITE_TEXTURE = new org.mtr.mapping.holder.Identifier(MTRBR.MOD_ID, "textures/block/white.png");
+
+	private static final float[][] LIGHTS = {
+			{0.375F, 0.125F, 0.4375F, 0.1875F},
+			{0.484375F, 0.234375F, 0.546875F, 0.296875F},
+			{0.59375F, 0.34375F, 0.65625F, 0.40625F},
+			{0.703125F, 0.453125F, 0.765625F, 0.515625F},
+			{0.8125F, 0.5625F, 0.875F, 0.625F},
+	};
+
+
+	/** 节流调试日志：内容变化或每 100 tick 输出一次，用于定位指示器不显示的原因。 */
+	private static String lastDebugLine = "";
+	private static long lastDebugTick = -1;
+
+	private static void debugLog(Level level, String line) {
+		final long tick = level == null ? 0 : level.getGameTime();
+		if (!line.equals(lastDebugLine) || tick - lastDebugTick >= 100) {
+			lastDebugLine = line;
+			lastDebugTick = tick;
+			System.out.println("[MTRBR-RENDER] " + line);
+		}
+	}
 	public ColorLightIndicatorRenderer(BlockEntityRendererProvider.Context context) {
 	}
 
@@ -47,51 +72,51 @@ public final class ColorLightIndicatorRenderer implements BlockEntityRenderer<Co
 		}
 		final float angle = SignalLogic.getIndicatorAngle(state);
 
-		final List<ColorLightModel.Face> allFaces = ColorLightModel.getFaces();
-		if (allFaces.isEmpty()) {
-			return;
-		}
-
 		BlockPos boundSignalPos = ClientIndicatorBindings.get(pos);
 		if (boundSignalPos == null) {
 			boundSignalPos = blockEntity.getBoundSignalPos();
 		}
-		final boolean hasRouteBinding = boundSignalPos != null && ClientBindings.get(boundSignalPos).stream()
-				.anyMatch(binding -> binding.content().toLowerCase(java.util.Locale.ROOT).startsWith("route=") && !binding.content().equalsIgnoreCase("route=NULL"));
-		boolean signalRed = false;
-		if (boundSignalPos != null) {
-			final BlockEntity signalEntity = level.getBlockEntity(boundSignalPos);
-			signalRed = signalEntity instanceof BlockSignalBase.BlockEntityBase && SignalLogic.getSignalAspect(level, boundSignalPos, signalEntity, false) == 1;
+		if (boundSignalPos == null) {
+			debugLog(level, pos + " NO-BINDING");
+			return;
 		}
+		final BlockEntity signalEntity = level.getBlockEntity(boundSignalPos);
+		if (!(signalEntity instanceof BlockSignalBase.BlockEntityBase)) {
+			debugLog(level, pos + " -> " + boundSignalPos + " SIGNAL-MISSING " + (signalEntity == null ? "null" : signalEntity.getClass().getSimpleName()));
+			return;
+		}
+		// 红灯熄灭；route=NULL 或没有 route 绑定也熄灭
+		final int aspect = SignalLogic.getSignalAspect(level, boundSignalPos, signalEntity, false);
+		if (aspect == 1) {
+			debugLog(level, pos + " -> " + boundSignalPos + " ASPECT-RED");
+			return;
+		}
+		final boolean hasRouteBinding = ClientBindings.get(boundSignalPos).stream()
+				.anyMatch(binding -> binding.content().toLowerCase(Locale.ROOT).startsWith("route=") && !binding.content().equalsIgnoreCase("route=NULL"));
+		if (!hasRouteBinding) {
+			debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " NO-ROUTE-BINDING");
+			return;
+		}
+		debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " route-bindings=" + ClientBindings.get(boundSignalPos));
 
-		final Map<Integer, List<ColorLightModel.Face>> byTexture = new LinkedHashMap<>();
-		for (final ColorLightModel.Face face : allFaces) {
-			byTexture.computeIfAbsent(face.texture(), key -> new ArrayList<>()).add(face);
+		for (final float[] light : LIGHTS) {
+			drawLight(pos, angle, light[0], light[1], light[2], light[3]);
 		}
+	}
 
-		for (final Map.Entry<Integer, List<ColorLightModel.Face>> entry : byTexture.entrySet()) {
-			final int textureId = entry.getKey();
-			if (textureId == 2 && (!hasRouteBinding || signalRed)) {
-				continue; // route 图层：无 route 绑定或信号红灯时不渲染
-			}
-			final List<ColorLightModel.Face> faces = entry.getValue();
-			final ResourceLocation texture = ColorLightModel.getTexture(textureId);
-			MainRenderer.scheduleRender(new org.mtr.mapping.holder.Identifier(texture.getNamespace(), texture.getPath()), false, QueuedRenderLayer.EXTERIOR, (graphicsHolder, cameraOffset) -> {
-				graphicsHolder.push();
-				graphicsHolder.translate(pos.getX() + 0.5 - cameraOffset.getXMapped(), pos.getY() + 0.5 - cameraOffset.getYMapped(), pos.getZ() + 0.5 - cameraOffset.getZMapped());
-				graphicsHolder.rotateYDegrees(-angle);
-				graphicsHolder.translate(-0.5, -0.5, -0.5);
-				for (final ColorLightModel.Face face : faces) {
-					IDrawing.drawTexture(graphicsHolder,
-							face.x1(), face.y1(), face.z1(),
-							face.x2(), face.y2(), face.z2(),
-							face.x3(), face.y3(), face.z3(),
-							face.x4(), face.y4(), face.z4(),
-							face.u1(), face.v1(), face.u2(), face.v2(),
-							face.direction(), 0xFFFFFFFF, GraphicsHolder.getDefaultLight());
-				}
-				graphicsHolder.pop();
-			});
-		}
+	private static void drawLight(BlockPos pos, float angle, float x1, float y1, float x2, float y2) {
+		MainRenderer.scheduleRender(WHITE_TEXTURE, false, QueuedRenderLayer.EXTERIOR, (graphicsHolder, cameraOffset) -> {
+			graphicsHolder.push();
+			graphicsHolder.translate(pos.getX() + 0.5 - cameraOffset.getXMapped(), pos.getY() + 0.5 - cameraOffset.getYMapped(), pos.getZ() + 0.5 - cameraOffset.getZMapped());
+			graphicsHolder.rotateYDegrees(-(angle + 180));
+			graphicsHolder.translate(-0.5, -0.5, -0.5);
+			IDrawing.drawTexture(graphicsHolder,
+					x1, y2, Z,
+					x2, y2, Z,
+					x2, y1, Z,
+					x1, y1, Z,
+					0, 1, 1, 0, org.mtr.mapping.holder.Direction.UP, 0xFFFFFFFF, GraphicsHolder.getDefaultLight());
+			graphicsHolder.pop();
+		});
 	}
 }

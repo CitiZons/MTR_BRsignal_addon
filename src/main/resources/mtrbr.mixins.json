@@ -4,6 +4,16 @@
   "package": "org.mtrbr.mixin",
   "compatibilityLevel": "JAVA_17",
   "refmap": "mtrbr.refmap.json",
+  "mixins": [
+    "DataMixin",
+    "SimulatorMixin",
+    "VehicleMixin",
+    "VehicleAccess",
+    "VehicleNativeAccess",
+    "VehicleExtraDataAccess",
+    "SidingAccess",
+    "ServerSignalAspectMixin"
+  ],
   "client": [
     "BlockSignalBlockEntityMixin"
   ],

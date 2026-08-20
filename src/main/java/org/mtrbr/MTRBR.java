@@ -13,7 +13,9 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -34,6 +36,8 @@ import org.mtrbr.item.DebugToolItem;
 import org.mtrbr.item.RouteToolItem;
 import org.mtrbr.network.Network;
 import org.mtrbr.network.SyncRouteBindingsPacket;
+import org.mtrbr.network.SyncSignalAspectsPacket;
+import org.mtrbr.command.MTRBRCommands;
 
 @Mod(MTRBR.MOD_ID)
 public final class MTRBR {
@@ -74,14 +78,41 @@ public final class MTRBR {
 
 		Network.init();
 		MinecraftForge.EVENT_BUS.addListener(MTRBR::onPlayerLoggedIn);
+		MinecraftForge.EVENT_BUS.addListener(MTRBR::onServerTick);
+		MinecraftForge.EVENT_BUS.addListener(MTRBR::onServerStopping);
+		MinecraftForge.EVENT_BUS.addListener(MTRBRCommands::register);
+		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.server.ServerSignalRegistry::onChunkLoad);
+		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.server.ServerSignalRegistry::onChunkUnload);
+		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.server.ServerSignalRegistry::onBlockPlace);
+		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.server.ServerSignalRegistry::onBlockBreak);
 		MinecraftForge.EVENT_BUS.addListener(LeftClickHandler::onLeftClickBlock);
 		DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> ClientHooks::init);
+	}
+
+	private static void onServerTick(TickEvent.ServerTickEvent event) {
+		if (event.phase == TickEvent.Phase.END && event.getServer() != null) {
+			final boolean periodicSync = event.getServer().getTickCount() % 20 == 0;
+			event.getServer().getAllLevels().forEach(level -> {
+				final boolean changed = org.mtrbr.server.ServerAspectManager.update(level);
+				if (changed || periodicSync) {
+					Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncSignalAspectsPacket(org.mtrbr.server.ServerAspectManager.snapshot(level)));
+				}
+			});
+		}
+	}
+
+	private static void onServerStopping(ServerStoppingEvent event) {
+		org.mtrbr.server.SectionStateManager.resetAll();
+		org.mtrbr.server.RouteRequestManager.resetAll();
+		org.mtrbr.server.ServerAspectManager.resetAll();
+		org.mtrbr.server.ServerSignalRegistry.resetAll();
 	}
 
 	private static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
 		if (event.getEntity() instanceof ServerPlayer serverPlayer && serverPlayer.level() instanceof ServerLevel serverLevel) {
 			final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 			Network.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new SyncRouteBindingsPacket(data.toClientMap(), data.getNodeBindings(), data.getIndicatorBindings(), data.getSignalNames()));
+			Network.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new SyncSignalAspectsPacket(org.mtrbr.server.ServerAspectManager.snapshot(serverLevel)));
 		}
 	}
 

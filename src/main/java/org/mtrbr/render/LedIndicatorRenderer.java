@@ -30,6 +30,19 @@ import org.mtrbr.logic.SignalLogic;
  */
 public final class LedIndicatorRenderer implements BlockEntityRenderer<LedIndicatorBlockEntity> {
 
+
+	/** 节流调试日志：内容变化或每 100 tick 输出一次，用于定位指示器不显示的原因。 */
+	private static String lastDebugLine = "";
+	private static long lastDebugTick = -1;
+
+	private static void debugLog(Level level, String line) {
+		final long tick = level == null ? 0 : level.getGameTime();
+		if (!line.equals(lastDebugLine) || tick - lastDebugTick >= 100) {
+			lastDebugLine = line;
+			lastDebugTick = tick;
+			System.out.println("[MTRBR-RENDER] " + line);
+		}
+	}
 	public LedIndicatorRenderer(BlockEntityRendererProvider.Context context) {
 	}
 
@@ -51,16 +64,32 @@ public final class LedIndicatorRenderer implements BlockEntityRenderer<LedIndica
 			boundSignalPos = blockEntity.getBoundSignalPos();
 		}
 		if (boundSignalPos == null) {
+			debugLog(level, pos + " NO-BINDING");
 			return;
 		}
 		final BlockEntity signalEntity = level.getBlockEntity(boundSignalPos);
 		if (!(signalEntity instanceof BlockSignalBase.BlockEntityBase)) {
-			return; // 绑定的信号机不可见时不显示
+			debugLog(level, pos + " -> " + boundSignalPos + " SIGNAL-MISSING " + (signalEntity == null ? "null" : signalEntity.getClass().getSimpleName()));
+			return;
 		}
-		if (SignalLogic.getSignalAspect(level, boundSignalPos, signalEntity, false) == 1) {
+		final int aspect = SignalLogic.getSignalAspect(level, boundSignalPos, signalEntity, false);
+		if (aspect == 1) {
+			debugLog(level, pos + " -> " + boundSignalPos + " ASPECT-RED");
 			return; // 信号红灯：进路显示立即熄灭
 		}
-		final java.util.List<RouteBinding> bindings = ClientBindings.get(boundSignalPos);
+		final org.mtrbr.client.ServerAspectCache.DisplayState serverState = org.mtrbr.client.ServerAspectCache.getState(boundSignalPos, false);
+		final java.util.List<RouteBinding> bindings;
+		if (serverState != null && !serverState.authorizationId().isEmpty()) {
+			// 服务端已授权：只显示该授权实际开放的进路内容，不再扫描客户端车辆 Path。
+			final String authorizedContent = serverState.routeContent();
+			bindings = ClientBindings.get(boundSignalPos).stream()
+					.filter(binding -> binding.content().equalsIgnoreCase(authorizedContent))
+					.toList();
+		} else {
+			// 服务端未授权：进路指示器不显示。
+			bindings = java.util.List.of();
+		}
+		debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " open=" + bindings);
 		for (final RouteBinding binding : bindings) {
 			if (binding.content().equalsIgnoreCase("path=NULL")) {
 				continue; // path=NULL：不显示

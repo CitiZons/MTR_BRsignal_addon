@@ -27,7 +27,7 @@ public final class ColorLightIndicatorBlock extends Block implements EntityBlock
 	public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
 	public static final BooleanProperty IS_22_5 = BooleanProperty.create("is_22_5");
 	public static final BooleanProperty IS_45 = BooleanProperty.create("is_45");
-	private static final VoxelShape SHAPE = Block.box(0, 0, 0, 16, 16, 16);
+	private static final VoxelShape SHAPE = Block.box(4.5, 0, 5, 16, 11.5, 10);
 
 	public ColorLightIndicatorBlock(Properties properties) {
 		super(properties);

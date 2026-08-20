@@ -34,6 +34,7 @@ public final class RemoveRouteBindingPacket {
 			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 				data.remove(message.signalPos, message.nodePos);
+				org.mtrbr.server.ServerAspectManager.invalidateTopology(serverLevel);
 				Network.CHANNEL.send(net.minecraftforge.network.PacketDistributor.ALL.noArg(), new SyncRouteBindingsPacket(data.toClientMap(), data.getNodeBindings(), data.getIndicatorBindings(), data.getSignalNames()));
 			}
 		});

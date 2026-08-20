@@ -18,6 +18,7 @@ import org.mtr.mod.block.BlockSignalBase;
 import org.mtr.mod.client.MinecraftClientData;
 import org.mtr.mod.data.VehicleExtension;
 import org.mtrbr.client.SignalCache;
+import org.mtrbr.client.ServerAspectCache;
 import org.mtrbr.data.ClientBindings;
 import org.mtrbr.data.NodeBinding;
 import org.mtrbr.data.RouteBinding;
@@ -224,6 +225,10 @@ public final class SignalLogic {
 			if (thisIndex < 0) {
 				continue;
 			}
+			// 只作用于从信号机正面驶来的列车（站台两端对向信号只认各自方向）
+			if (!travelsInSignalDirection(level, signalPos, path, thisIndex, thisNode)) {
+				continue;
+			}
 			final double sectionStart = distanceAtNode(path.get(thisIndex), thisNode);
 			final double sectionEnd = nextSignalDistanceOnPath(level, path, thisIndex, signalPos);
 			final double head = getRailProgress(vehicle);
@@ -236,6 +241,39 @@ public final class SignalLogic {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * 判断该列车在该节点处的行进方向是否与信号机朝向一致。
+	 * 信号机只作用于“从正面驶来”的列车（防止站台两端对向信号机同时放行）。
+	 */
+	private static boolean travelsInSignalDirection(Level level, BlockPos signalPos, List<PathData> path, int nodeIndex, BlockPos nodePos) {
+		final BlockState state = level.getBlockState(signalPos);
+		if (!isSignalBlock(state)) {
+			return false;
+		}
+		final float signalAngle = getSignalAngle(state);
+		final PathData segment = path.get(nodeIndex);
+		double dx;
+		double dz;
+		if (matches(nodePos, segment.getOrderedPosition1())) {
+			dx = segment.getOrderedPosition2().getX() - segment.getOrderedPosition1().getX();
+			dz = segment.getOrderedPosition2().getZ() - segment.getOrderedPosition1().getZ();
+		} else if (matches(nodePos, segment.getOrderedPosition2())) {
+			if (nodeIndex + 1 < path.size()) {
+				final PathData next = path.get(nodeIndex + 1);
+				dx = next.getOrderedPosition2().getX() - next.getOrderedPosition1().getX();
+				dz = next.getOrderedPosition2().getZ() - next.getOrderedPosition1().getZ();
+			} else {
+				dx = segment.getOrderedPosition2().getX() - segment.getOrderedPosition1().getX();
+				dz = segment.getOrderedPosition2().getZ() - segment.getOrderedPosition1().getZ();
+			}
+		} else {
+			return false;
+		}
+		final double railAngle = Math.toDegrees(Math.atan2(dz, dx));
+		// MTR 信号机正面约定：正面朝向角 = signalAngle + 90（与 getAspectData 一致）
+		return Math.abs(circularDifference(railAngle, signalAngle + 90)) < 90;
 	}
 
 	/** 节点在进路上的累计里程：匹配段起点则用段起点距离，匹配段终点则用段终点距离。 */
@@ -264,22 +302,13 @@ public final class SignalLogic {
 
 	/** BR 闭塞链 aspect：0 绿 / 1 红 / 2 单黄 / 3 双黄（带每 tick 缓存）。 */
 	public static int getSignalAspect(Level level, BlockPos signalPos, BlockEntity blockEntity, boolean isBackSide) {
-		if (!(blockEntity instanceof BlockSignalBase.BlockEntityBase)) {
-			return 0;
+		final Integer serverAspect = ServerAspectCache.get(signalPos, isBackSide);
+		if (serverAspect != null) {
+			return serverAspect;
 		}
-		final long gameTime = level.getGameTime();
-		if (gameTime != lastAspectCacheTime) {
-			lastAspectCacheTime = gameTime;
-			ASPECT_CACHE.clear();
-		}
-		final long cacheKey = (signalPos.asLong() << 1) | (isBackSide ? 1 : 0);
-		final Integer cached = ASPECT_CACHE.get(cacheKey);
-		if (cached != null) {
-			return cached;
-		}
-		final int aspect = resolveAspect(level, signalPos, isBackSide, 0, new HashSet<>());
-		ASPECT_CACHE.put(cacheKey, aspect);
-		return aspect;
+		// 服务端是唯一权威：没有同步到服务端 aspect 时保持红灯，不做客户端推算。
+		// 旧的回退逻辑不检查列车行进方向，导致反向列车经过同一节点时信号误开放。
+		return 1;
 	}
 
 	private static int resolveAspect(Level level, BlockPos signalPos, boolean isBackSide, int depth, Set<BlockPos> visited) {
@@ -355,14 +384,14 @@ public final class SignalLogic {
 				final PathData pathData = path.get(i);
 				final BlockPos nextSignal = SignalCache.getSignalForNode(toBlockPos(pathData.getOrderedPosition1()));
 				if (nextSignal != null) {
-					if (!nextSignal.equals(signalPos)) {
+					if (!nextSignal.equals(signalPos) && travelsInSignalDirection(level, nextSignal, path, i, toBlockPos(pathData.getOrderedPosition1()))) {
 						nextSignals.add(nextSignal);
 					}
 					break;
 				}
 				final BlockPos nextSignal2 = SignalCache.getSignalForNode(toBlockPos(pathData.getOrderedPosition2()));
 				if (nextSignal2 != null) {
-					if (!nextSignal2.equals(signalPos)) {
+					if (!nextSignal2.equals(signalPos) && travelsInSignalDirection(level, nextSignal2, path, i, toBlockPos(pathData.getOrderedPosition2()))) {
 						nextSignals.add(nextSignal2);
 					}
 					break;
@@ -380,6 +409,10 @@ public final class SignalLogic {
 			}
 		}
 		return -1;
+	}
+
+	private static String posStr(Position position) {
+		return "(" + position.getX() + "," + position.getZ() + ")";
 	}
 
 	private static BlockPos toBlockPos(Position position) {
@@ -420,27 +453,112 @@ public final class SignalLogic {
 	 * 该信号机当前“已开放”的进路绑定（供进路显示器/车上提示使用）：
 	 * 绑定节点出现在某辆列车进路上、且位于本信号之后。
 	 */
+
+
+	/** 沿轨道网从信号节点向绑定节点方向搜索（每步只走与目标方向夹角 <90° 的轨道），返回是否可达。 */
+	private static boolean isReachableForward(BlockPos bindingNode, BlockPos thisNode) {
+		final double targetX = bindingNode.getX() - thisNode.getX();
+		final double targetZ = bindingNode.getZ() - thisNode.getZ();
+		final double length = Math.sqrt(targetX * targetX + targetZ * targetZ);
+		if (length < 1.0E-4) {
+			return false;
+		}
+		final double tx = targetX / length;
+		final double tz = targetZ / length;
+		final MinecraftClientData clientData = MinecraftClientData.getInstance();
+		final java.util.Set<BlockPos> visited = new java.util.HashSet<>();
+		final java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+		queue.add(thisNode);
+		visited.add(thisNode);
+		for (int step = 0; step < 8 && !queue.isEmpty(); step++) {
+			final int size = queue.size();
+			for (int i = 0; i < size; i++) {
+				final BlockPos cur = queue.poll();
+				if (cur.equals(bindingNode)) {
+					return true;
+				}
+				final Position start = new Position(cur.getX(), cur.getY(), cur.getZ());
+				clientData.positionsToRail.getOrDefault(start, new Object2ObjectOpenHashMap<>()).forEach((end, rail) -> {
+					final BlockPos next = toBlockPos(end);
+					if (visited.contains(next)) {
+						return;
+					}
+					final double dx = end.getX() - cur.getX();
+					final double dz = end.getZ() - cur.getZ();
+					if (dx * tx + dz * tz <= 0) {
+						return; // 只沿目标方向前进
+					}
+					visited.add(next);
+					queue.add(next);
+				});
+			}
+		}
+		return visited.contains(bindingNode);
+	}
+
+	/** 节流调试日志：用于定位进路读取失败原因。 */
+	private static String lastLogicDebug = "";
+	private static long lastLogicDebugTick = -1;
+
+	private static void debugLog(Level level, String line) {
+		final long tick = level == null ? 0 : level.getGameTime();
+		if (!line.equals(lastLogicDebug) || tick - lastLogicDebugTick >= 100) {
+			lastLogicDebug = line;
+			lastLogicDebugTick = tick;
+			System.out.println("[MTRBR-LOGIC] " + line);
+		}
+	}
+
 	public static List<RouteBinding> getOpenRouteBindings(Level level, BlockPos signalPos) {
 		final List<RouteBinding> result = new ArrayList<>();
 		final BlockPos thisNode = findAppliedNode(level, signalPos);
 		final List<RouteBinding> allBindings = ClientBindings.get(signalPos);
 		if (thisNode == null || allBindings.isEmpty()) {
+			debugLog(level, "route-read " + signalPos + " node=" + thisNode + " bindings=" + allBindings.size());
 			return result;
 		}
 		SignalCache.tick(level);
+		final StringBuilder dbg = new StringBuilder("route-read " + signalPos + " node=" + thisNode + " angle=" + getSignalAngle(level.getBlockState(signalPos)) + " bindings=" + allBindings);
 		for (final VehicleExtension vehicle : MinecraftClientData.getInstance().vehicles) {
 			final List<PathData> path = vehicle.vehicleExtraData.immutablePath;
 			final int thisIndex = indexOfNode(path, thisNode);
 			if (thisIndex < 0) {
+				dbg.append(" |v:no-node");
 				continue;
 			}
+			final String segDbg = "seg=" + posStr(path.get(thisIndex).getOrderedPosition1()) + "->" + posStr(path.get(thisIndex).getOrderedPosition2())
+					+ (thisIndex + 1 < path.size() ? " nxt=" + posStr(path.get(thisIndex + 1).getOrderedPosition1()) + "->" + posStr(path.get(thisIndex + 1).getOrderedPosition2()) : "");
+			if (!travelsInSignalDirection(level, signalPos, path, thisIndex, thisNode)) {
+				dbg.append(" |v:idx=").append(thisIndex).append(":").append(segDbg).append(":dir=false");
+				continue;
+			}
+			// 同一列车只显示进路上最先遇到的绑定（避免多个绑定叠加、后画的盖住先画的）
+			int bestIndex = Integer.MAX_VALUE;
+			RouteBinding best = null;
 			for (final RouteBinding binding : allBindings) {
 				final int bindingIndex = indexOfNode(path, binding.node());
-				if (bindingIndex > thisIndex && !result.contains(binding)) {
-					result.add(binding);
+				if (bindingIndex > thisIndex && bindingIndex < bestIndex) {
+					bestIndex = bindingIndex;
+					best = binding;
 				}
 			}
+			if (best == null) {
+				// 回退：路径窗口太短时，沿轨道网向绑定节点方向搜索（仅列车行进方向一侧）
+				for (final RouteBinding binding : allBindings) {
+					final BlockPos node = binding.node();
+					if (isReachableForward(node, thisNode)) {
+						best = binding;
+						break;
+					}
+				}
+			}
+			dbg.append(" |v:idx=").append(thisIndex).append(":").append(segDbg).append(":pathN=").append(path.size()).append(":dir=true:best=").append(best == null ? "null" : best.content());
+			if (best != null && !result.contains(best)) {
+				result.add(best);
+			}
 		}
+		dbg.append(" => ").append(result);
+		debugLog(level, dbg.toString());
 		return result;
 	}
 

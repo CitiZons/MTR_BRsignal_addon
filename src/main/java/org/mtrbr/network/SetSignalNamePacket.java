@@ -41,6 +41,7 @@ public final class SetSignalNamePacket {
 				}
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 				data.setSignalName(message.signalPos, trimmed);
+				org.mtrbr.server.ServerAspectManager.invalidateTopology(serverLevel);
 				Network.CHANNEL.send(net.minecraftforge.network.PacketDistributor.ALL.noArg(),
 						new SyncRouteBindingsPacket(data.toClientMap(), data.getNodeBindings(), data.getIndicatorBindings(), data.getSignalNames()));
 			}

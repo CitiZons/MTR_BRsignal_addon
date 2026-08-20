@@ -146,6 +146,11 @@ public final class RouteBindingsSavedData extends SavedData {
 		return copy;
 	}
 
+	/** Server-side read used to project which route content an authorization opens. */
+	public List<RouteBinding> getBindings(BlockPos signalPos) {
+		return new ArrayList<>(bindings.getOrDefault(signalPos, List.of()));
+	}
+
 	public void setNodeBinding(BlockPos signalPos, BlockPos nodePos) {
 		nodeBindings.put(signalPos.immutable(), new NodeBinding(nodePos.immutable(), false));
 		setDirty();
@@ -164,6 +169,18 @@ public final class RouteBindingsSavedData extends SavedData {
 
 	public Map<BlockPos, NodeBinding> getNodeBindings() {
 		return new LinkedHashMap<>(nodeBindings);
+	}
+
+	/**
+	 * Signal positions explicitly managed by this addon. The server must not
+	 * discover arbitrary unloaded signal blocks as authoritative control faces.
+	 */
+	public java.util.Set<BlockPos> getManagedSignalPositions() {
+		final java.util.Set<BlockPos> result = new java.util.LinkedHashSet<>();
+		result.addAll(bindings.keySet());
+		result.addAll(nodeBindings.keySet());
+		result.addAll(signalNames.keySet());
+		return java.util.Set.copyOf(result);
 	}
 
 	/** 记录进路指示器 -> 信号机的绑定（与服务端方块实体 NBT 双写，防止区块保存时序导致丢失）。 */

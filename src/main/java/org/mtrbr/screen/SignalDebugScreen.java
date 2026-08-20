@@ -18,6 +18,7 @@ import org.mtrbr.data.ClientSignalNames;
 import org.mtrbr.data.RouteBinding;
 import org.mtrbr.data.RouteContent;
 import org.mtrbr.logic.SignalLogic;
+import org.mtrbr.client.ServerAspectCache;
 import org.mtrbr.network.Network;
 import org.mtrbr.network.RemoveRouteBindingPacket;
 import org.mtrbr.network.SetRouteBindingPacket;
@@ -132,11 +133,16 @@ public final class SignalDebugScreen extends Screen {
 			status = "非信号机";
 		}
 		guiGraphics.drawString(font, "状态  " + status, sx(0), 66, 0xFFFFFFFF);
+		final ServerAspectCache.DisplayState displayState = ServerAspectCache.getState(signalPos, false);
+		if (displayState != null) {
+			final String authorization = displayState.authorizationId().isEmpty() ? "无" : displayState.authorizationId();
+			guiGraphics.drawString(font, "授权  " + authorization + "  rev=" + displayState.revision(), sx(0), 75, 0xFFCCCCCC);
+		}
 
 		final BlockPos nodePos = SignalLogic.findAppliedNode(level, signalPos);
-		guiGraphics.drawString(font, "节点  " + (nodePos == null ? "未找到" : nodePos), sx(0), 84, 0xFFFFFFFF);
+		guiGraphics.drawString(font, "节点  " + (nodePos == null ? "未找到" : nodePos), sx(0), 92, 0xFFFFFFFF);
 
-		guiGraphics.drawString(font, "指示器  " + (boundIndicatorPositions.isEmpty() ? "未绑定" : "已绑定"), sx(0), 102, 0xFFFFFFFF);
+		guiGraphics.drawString(font, "指示器  " + (boundIndicatorPositions.isEmpty() ? "未绑定" : "已绑定"), sx(0), 110, 0xFFFFFFFF);
 		for (int i = 0; i < boundIndicatorPositions.size(); i++) {
 			final BlockPos indicatorPos = boundIndicatorPositions.get(i);
 			final String type = level.getBlockEntity(indicatorPos) instanceof LedIndicatorBlockEntity ? "LED" : "色灯";

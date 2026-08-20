@@ -1,0 +1,6 @@
+{
+  "loader": "forge:obj",
+  "model": "mtr_brsignal_addon:models/block/indicator_1_67_5.obj",
+  "flip_v": false,
+  "automatic_culling": false
+}
