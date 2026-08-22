@@ -9,13 +9,16 @@ import org.mtrbr.mixin.VehicleExtraDataAccess;
 /** Server-side stopping-point clamp for managed vehicles without authorization. */
 public final class MovementGate {
 	private static final Map<Long, Long> LAST_DEBUG = new HashMap<>();
+	private static final Map<Long, Double> LAST_ENFORCED_BOUNDARY = new HashMap<>();
 
 	private MovementGate() {
 	}
 
 	public static void beforeVehicleSimulation(Vehicle vehicle) {
-		// MTR calculates its stopping point during simulateMoving. The actual
-		// enforcement is therefore the ModifyArg hook below, not this tick head.
+		// Enforce before MTR advances as well as at tick end. The stopping-point
+		// hook handles braking; this closes the one-tick gap for a vehicle which
+		// was already at or beyond an unauthorized boundary when simulation starts.
+		enforce(vehicle);
 	}
 
 	public static double clampStoppingPoint(Vehicle vehicle, double mtrStoppingPoint) {
@@ -31,10 +34,17 @@ public final class MovementGate {
 		// 文档：制动距离属于 Movement Gate 的安全约束。用 MTR 的减速度把停车点
 		// 前推到“控制边界 - 所需制动距离”，保证未授权列车在红灯前物理停住；
 		// 若已越过安全点则就地停车，绝不越过控制边界。
-		final double speed = ((VehicleAccess) vehicle).mtrbr$getSpeed();
+		// VehicleExtension#getSpeed is a client extension value and is 0 on this
+		// simulation path. Read VehicleSchema.speed, the value MTR actually advances.
+		final double speed = Math.max(0, ((VehicleAccess) vehicle).mtrbr$getSpeed());
 		final double deceleration = vehicle.vehicleExtraData.getDeceleration();
 		final double brakingDistance = deceleration > 0 ? (speed * speed) / (2 * deceleration) : 0;
-		final double safetyBoundary = Math.max(head, boundary - brakingDistance);
+		// The braking point may be behind the current head, but the requested
+		// stopping point must never be allowed beyond the physical red boundary.
+		// The previous max(head, ...) could return a value greater than boundary
+		// once the train had advanced into the signal, leaving enforce() to pull it
+		// back one tick later.
+		final double safetyBoundary = Math.min(boundary - 1.0E-6, Math.max(head, boundary - brakingDistance));
 		final double clamped = Math.min(mtrStoppingPoint, safetyBoundary);
 		final long now = System.currentTimeMillis();
 		final Long lastDebug = LAST_DEBUG.get(vehicle.getId());
@@ -43,8 +53,9 @@ public final class MovementGate {
 			System.out.println("[MTRBR-GATE] vehicle=" + vehicle.getId()
 					+ " head=" + String.format("%.1f", head)
 					+ " speed=" + String.format("%.1f", speed)
-					+ " braking=" + String.format("%.1f", brakingDistance)
-					+ " boundary=" + String.format("%.1f", boundary)
+				+ " braking=" + String.format("%.1f", brakingDistance)
+				+ " activityEnd=" + String.format("%.1f", RouteRequestManager.getActivityEnd(simulator, vehicle.getId()))
+				+ " boundary=" + String.format("%.1f", boundary)
 					+ " mtrStop=" + String.format("%.1f", mtrStoppingPoint)
 					+ " clamped=" + String.format("%.1f", clamped));
 		}
@@ -66,19 +77,28 @@ public final class MovementGate {
 			return;
 		}
 		final double head = ((VehicleAccess) vehicle).mtrbr$getRailProgress();
-		if (head > boundary + 1e-6) {
-			((VehicleAccess) vehicle).mtrbr$setRailProgress(boundary);
+		if (head >= boundary - 1e-6) {
+			if (head > boundary) {
+				((VehicleAccess) vehicle).mtrbr$setRailProgress(boundary);
+			}
 			((VehicleAccess) vehicle).mtrbr$setSpeed(0);
 			((VehicleExtraDataAccess) vehicle.vehicleExtraData).mtrbr$setSpeedTarget(0);
-			System.out.println("[MTRBR-ENFORCE] vehicle=" + vehicle.getId()
-					+ " head=" + String.format("%.1f", head)
-					+ " pulledBack=" + String.format("%.1f", boundary));
+			final Double previous = LAST_ENFORCED_BOUNDARY.put(vehicle.getId(), boundary);
+			if (previous == null || Math.abs(previous - boundary) > 1e-6) {
+				final org.mtrbr.server.RouteRequestManager.GateBoundaryInfo info = RouteRequestManager.getGateBoundaryInfo(simulator, vehicle.getId());
+				System.out.println("[MTRBR-ENFORCE] vehicle=" + vehicle.getId()
+						+ " head=" + String.format("%.1f", head)
+						+ " activityEnd=" + String.format("%.1f", info.activityEnd())
+						+ " activityFaces=" + info.activityFaces()
+						+ " nextSignalCandidate=" + info.nextSignalCandidate()
+						+ " stopBoundarySource=" + info.stopBoundarySource()
+						+ " finalBoundary=" + String.format("%.1f", boundary));
+			}
 		}
 	}
 
 	public static boolean shouldBypassNativeBlock(Vehicle vehicle) {
-		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
-		return simulator != null && RouteRequestManager.shouldBypassNativeBlock(simulator, vehicle.getId());
+		return false;
 	}
 
 	/**
@@ -90,7 +110,6 @@ public final class MovementGate {
 		if (simulator == null) {
 			return false;
 		}
-		return RouteRequestManager.isManaged(simulator, vehicle.getId())
-				|| RouteRequestManager.shouldBypassNativeBlock(simulator, vehicle.getId());
+		return RouteRequestManager.hasAuthorization(simulator, vehicle.getId());
 	}
 }

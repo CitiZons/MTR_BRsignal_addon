@@ -14,16 +14,17 @@ public final class RouteRequest {
 	private final long createdTick;
 	private double remainingPathDistance;
 	private final List<String> sectionIds;
+	private final List<PathSnapshot.PathTraversal> traversals;
 	private final List<String> signalFaceIds;
 	private RequestState state = RequestState.NONE;
 	private String reason = "";
 	private int manualPriority;
 
-	public RouteRequest(long vehicleId, String pathFingerprint, long generation, long createdTick, List<String> sectionIds, List<String> signalFaceIds) {
-		this(vehicleId, pathFingerprint, generation, createdTick, Double.POSITIVE_INFINITY, sectionIds, signalFaceIds);
+	public RouteRequest(long vehicleId, String pathFingerprint, long generation, long createdTick, List<String> sectionIds, List<PathSnapshot.PathTraversal> traversals, List<String> signalFaceIds) {
+		this(vehicleId, pathFingerprint, generation, createdTick, Double.POSITIVE_INFINITY, sectionIds, traversals, signalFaceIds);
 	}
 
-	public RouteRequest(long vehicleId, String pathFingerprint, long generation, long createdTick, double remainingPathDistance, List<String> sectionIds, List<String> signalFaceIds) {
+	public RouteRequest(long vehicleId, String pathFingerprint, long generation, long createdTick, double remainingPathDistance, List<String> sectionIds, List<PathSnapshot.PathTraversal> traversals, List<String> signalFaceIds) {
 		this.vehicleId = vehicleId;
 		this.pathFingerprint = pathFingerprint;
 		this.generation = generation;
@@ -31,6 +32,7 @@ public final class RouteRequest {
 		this.remainingPathDistance = remainingPathDistance;
 		this.requestId = vehicleId + ":" + pathFingerprint + ":" + generation;
 		this.sectionIds = List.copyOf(sectionIds);
+		this.traversals = List.copyOf(traversals);
 		this.signalFaceIds = List.copyOf(signalFaceIds);
 	}
 
@@ -65,6 +67,10 @@ public final class RouteRequest {
 
 	public List<String> getSectionIds() {
 		return sectionIds;
+	}
+
+	public List<PathSnapshot.PathTraversal> getTraversals() {
+		return traversals;
 	}
 
 	public List<String> getSignalFaceIds() {
@@ -102,15 +108,17 @@ public final class RouteRequest {
 		}
 		return switch (from) {
 			case NONE -> to == RequestState.APPROACHING || to == RequestState.CANCELED;
+			case OVERRIDE -> to == RequestState.CHECKING || to == RequestState.ACTIVE || to == RequestState.REVOKED || to == RequestState.INVALID;
 			case APPROACHING -> to == RequestState.REQUESTED || to == RequestState.CANCELED;
-			case REQUESTED -> to == RequestState.CHECKING || to == RequestState.CANCELED || to == RequestState.INVALID;
-			case CHECKING -> to == RequestState.WAITING || to == RequestState.DENIED || to == RequestState.INVALID;
-			case WAITING -> to == RequestState.CHECKING || to == RequestState.AUTHORIZED || to == RequestState.DENIED || to == RequestState.INVALID || to == RequestState.CANCELED;
+			case REQUESTED -> to == RequestState.CHECKING || to == RequestState.REVOKED || to == RequestState.CANCELED || to == RequestState.INVALID;
+			case CHECKING -> to == RequestState.WAITING || to == RequestState.DENIED || to == RequestState.REVOKED || to == RequestState.INVALID;
+			case WAITING -> to == RequestState.CHECKING || to == RequestState.AUTHORIZED || to == RequestState.DENIED || to == RequestState.REVOKED || to == RequestState.INVALID || to == RequestState.CANCELED;
 			case AUTHORIZED -> to == RequestState.ACTIVE || to == RequestState.REVOKED || to == RequestState.INVALID;
 			case ACTIVE -> to == RequestState.PASSED || to == RequestState.REVOKED || to == RequestState.INVALID;
 			case PASSED -> to == RequestState.RELEASED || to == RequestState.REVOKED || to == RequestState.INVALID;
-			case DENIED -> to == RequestState.CHECKING || to == RequestState.CANCELED || to == RequestState.INVALID;
-			case REVOKED, INVALID, CANCELED -> to == RequestState.RELEASED;
+			case DENIED -> to == RequestState.CHECKING || to == RequestState.REVOKED || to == RequestState.CANCELED || to == RequestState.INVALID;
+			case REVOKED -> to == RequestState.RELEASED || to == RequestState.CHECKING || to == RequestState.WAITING;
+			case INVALID, CANCELED -> to == RequestState.RELEASED;
 			case RELEASED -> false;
 		};
 	}

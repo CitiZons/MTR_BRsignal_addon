@@ -4,8 +4,6 @@
 
 本项目仍处于**开发测试阶段**，不适用于生产环境。当前版本已完成服务端闭塞、Request/Authorization、Movement Gate、调度面板和调度工具的主要链路，但仍存在以下已知问题：
 
-- 西行方向的部分信号机可能不响应列车路径，表现为一直红灯。
-- 尽头式站台前的进站信号可能长时间不开放，列车停在站外。
 - 调度面板的 Approve/Revoke 在部分车辆状态下可能仍需人工确认或补充日志排查。
 - 模型和贴图仍有部分资源未最终完成。
 
@@ -27,7 +25,7 @@ Minecraft Transit Railway（MTR）的英式闭塞信号扩展，Forge 1.20.1。
 - 服务端 `SectionState`、`RouteRequest`、`Authorization`、`MovementGate`。
 - `Request` 基于列车完整 `immutablePath` 申请，窗口长度限制为 `min(下一运营停车点距离, 前方约 4 个信号控制边界距离)`。
 - `Authorization` 是 Request 当前可开放前缀，随列车推进动态扩展，遇占用 Section 前截断。
-- 闭塞区间按相邻 SignalFace 绑定节点切分，不再按单条 Rail 判断。
+- 闭塞身份使用持久化 `A->B`：相邻同向 `SignalFace` 生成唯一 `blockId`，并保存完整 `railIds`；Aspect、Authorization 与 Activity 共用该身份链。
 - 色灯式 / LED 式进路指示器。
 - 信号机调试工具：命名、节点绑定、方向切换、进路绑定、指示器绑定。
 - 进路工具：绑定 `route=X` 或 `path=Y`，手持显示连线和乘车 HUD。
@@ -38,12 +36,15 @@ Minecraft Transit Railway（MTR）的英式闭塞信号扩展，Forge 1.20.1。
 
 ```text
 /mtrbr requests
-/mtrbr approve <vehicle_id>
-/mtrbr revoke_pending <vehicle_id>
-/mtrbr manual_override <vehicle_id> <true|false>
-/mtrbr priority <vehicle_id> <value>
+/mtrbr approve <vehicle_code>
+/mtrbr revoke_pending <vehicle_code>
+/mtrbr manual_override <vehicle_code> <true|false>
+/mtrbr priority <vehicle_code> <value>
 /mtrbr audit
+/mtrbr protection regenerate
 ```
+
+首次部署或调整信号拓扑后执行 `/mtrbr protection regenerate`，重新生成规范的 `SignalFace -> A->B -> railIds` 闭塞映射；无法确定下一同向信号的 face 保持无映射并按安全侧处理。
 
 ## 构建与部署
 

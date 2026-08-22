@@ -14,8 +14,6 @@ import org.mtr.mod.client.MinecraftClientData;
 import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.LedIndicatorBlock;
 import org.mtrbr.client.ServerAspectCache;
-import org.mtrbr.data.ClientBindings;
-import org.mtrbr.data.NodeBinding;
 
 /**
  * 纯客户端显示工具层。
@@ -81,37 +79,6 @@ public final class SignalLogic {
 		return facing.toYRot() + (is22_5 ? 22.5F : 0) + (is45 ? 45 : 0);
 	}
 
-	/** 信号机作用的轨道节点：优先手动绑定，否则复刻 RenderSignalBase.getNodePos 自动寻找。 */
-	public static BlockPos findAppliedNode(Level level, BlockPos signalPos) {
-		final NodeBinding nodeBinding = ClientBindings.getNodeBinding(signalPos);
-		if (nodeBinding != null && nodeBinding.node() != null) {
-			return nodeBinding.node();
-		}
-		final BlockState state = level.getBlockState(signalPos);
-		if (!isSignalBlock(state)) {
-			return null;
-		}
-		final float angle = getSignalAngle(state);
-		final Direction facing = Direction.fromYRot(angle);
-		int closestDistance = Integer.MAX_VALUE;
-		BlockPos closestPos = null;
-		for (int z = -4; z <= 4; z++) {
-			for (int x = -4; x <= 4; x++) {
-				for (int y = -5; y <= 5; y++) {
-					final BlockPos checkPos = signalPos.above(y).relative(facing.getClockWise(), x).relative(facing, z);
-					if (level.getBlockState(checkPos).getBlock() instanceof BlockNode) {
-						final int distance = checkPos.distManhattan(signalPos);
-						if (distance < closestDistance) {
-							closestDistance = distance;
-							closestPos = checkPos;
-						}
-					}
-				}
-			}
-		}
-		return closestPos;
-	}
-
 	/**
 	 * 该节点处、与信号机朝向最接近的轨道方向（单位向量 dx,dz）。
 	 * 用于在轨道上绘制绑定方向箭头。
@@ -119,7 +86,7 @@ public final class SignalLogic {
 	public static double[] getTrackDirection(Level level, BlockPos signalPos, BlockPos nodePos) {
 		final float signalAngle = getSignalAngle(level.getBlockState(signalPos));
 		// MTR 信号机正面约定：列车行进方向 = 方块朝向 + 90°。
-		final float travelAngle = signalAngle + 90;
+		final float travelAngle = signalAngle - 90;
 		final MinecraftClientData clientData = MinecraftClientData.getInstance();
 		final Position startPosition = new Position(nodePos.getX(), nodePos.getY(), nodePos.getZ());
 		final double[] best = {Double.MAX_VALUE, 1, 0};

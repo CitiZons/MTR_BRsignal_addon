@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
@@ -24,13 +25,14 @@ public abstract class VehicleMixin {
 		MovementGate.beforeVehicleSimulation((Vehicle) (Object) this);
 	}
 
-	@Redirect(
+	@ModifyArg(
 			method = "simulateMoving",
 			at = @At(value = "INVOKE", target = "Lorg/mtr/core/data/VehicleExtraData;setStoppingPoint(D)V"),
+			index = 0,
 			remap = false
 	)
-	private void mtrbr$clampStoppingPointWrite(VehicleExtraData extraData, double stoppingPoint) {
-		((VehicleExtraDataAccess) extraData).mtrbr$setStoppingPoint(MovementGate.clampStoppingPoint((Vehicle) (Object) this, stoppingPoint));
+	private double mtrbr$clampStoppingPointWrite(double stoppingPoint) {
+		return MovementGate.clampStoppingPoint((Vehicle) (Object) this, stoppingPoint);
 	}
 
 	/**

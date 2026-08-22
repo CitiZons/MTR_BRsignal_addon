@@ -1,8 +1,10 @@
 package org.mtrbr.command;
 
 import com.mojang.brigadier.arguments.BoolArgumentType;
-import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.core.BlockPos;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -10,6 +12,11 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import org.mtr.core.simulation.Simulator;
 import org.mtrbr.server.RouteRequestManager;
 import org.mtrbr.server.SectionStateManager;
+import org.mtrbr.server.MtrbrDebugLog;
+import org.mtrbr.data.SignalBlockSavedData;
+
+import java.util.List;
+import java.util.Map;
 
 /** Temporary operator surface; a later dispatcher panel calls the same server API. */
 public final class MTRBRCommands {
@@ -20,26 +27,137 @@ public final class MTRBRCommands {
 		event.getDispatcher().register(Commands.literal("mtrbr")
 				.requires(source -> source.hasPermission(2))
 				.then(Commands.literal("manual_override")
-						.then(Commands.argument("vehicle_id", LongArgumentType.longArg(0))
+						.then(Commands.argument("vehicle_code", StringArgumentType.word())
 								.then(Commands.argument("enabled", BoolArgumentType.bool())
-										.executes(context -> setManualOverride(context.getSource().getLevel(), LongArgumentType.getLong(context, "vehicle_id"), BoolArgumentType.getBool(context, "enabled"), context.getSource())))))
+										.executes(context -> setManualOverride(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), BoolArgumentType.getBool(context, "enabled"), context.getSource())))))
 				.then(Commands.literal("priority")
-						.then(Commands.argument("vehicle_id", LongArgumentType.longArg(0))
+						.then(Commands.argument("vehicle_code", StringArgumentType.word())
 								.then(Commands.argument("value", IntegerArgumentType.integer(0, 1000))
-										.executes(context -> setPriority(context.getSource().getLevel(), LongArgumentType.getLong(context, "vehicle_id"), IntegerArgumentType.getInteger(context, "value"), context.getSource())))))
+										.executes(context -> setPriority(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), IntegerArgumentType.getInteger(context, "value"), context.getSource())))))
 				.then(Commands.literal("revoke_pending")
-						.then(Commands.argument("vehicle_id", LongArgumentType.longArg(0))
-								.executes(context -> revokePending(context.getSource().getLevel(), LongArgumentType.getLong(context, "vehicle_id"), context.getSource()))))
+						.then(Commands.argument("vehicle_code", StringArgumentType.word())
+								.executes(context -> revokePending(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), context.getSource()))))
 				.then(Commands.literal("requests")
 						.executes(context -> listRequests(context.getSource().getLevel(), context.getSource())))
 				.then(Commands.literal("approve")
-						.then(Commands.argument("vehicle_id", LongArgumentType.longArg(0))
-								.executes(context -> approve(context.getSource().getLevel(), LongArgumentType.getLong(context, "vehicle_id"), context.getSource()))))
+						.then(Commands.argument("vehicle_code", StringArgumentType.word())
+								.executes(context -> approve(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), context.getSource()))))
 				.then(Commands.literal("audit")
-						.executes(context -> audit(context.getSource().getLevel(), context.getSource()))));
+						.executes(context -> audit(context.getSource().getLevel(), context.getSource())))
+				.then(Commands.literal("protection")
+						.then(Commands.literal("initialize")
+								.executes(context -> initializeProtection(context.getSource().getLevel(), context.getSource())))
+						.then(Commands.literal("regenerate")
+								.executes(context -> regenerateProtection(context.getSource().getLevel(), context.getSource())))
+						.then(Commands.literal("set")
+								.then(Commands.argument("signal_pos", BlockPosArgument.blockPos())
+										.then(Commands.argument("reverse", BoolArgumentType.bool())
+												.then(Commands.argument("rail_ids", StringArgumentType.greedyString())
+														.executes(context -> setProtection(context.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(context, "signal_pos"), BoolArgumentType.getBool(context, "reverse"), StringArgumentType.getString(context, "rail_ids"), context.getSource()))))))
+						.then(Commands.literal("clear")
+								.then(Commands.argument("signal_pos", BlockPosArgument.blockPos())
+										.then(Commands.argument("reverse", BoolArgumentType.bool())
+												.executes(context -> clearProtection(context.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(context, "signal_pos"), BoolArgumentType.getBool(context, "reverse"), context.getSource())))))
+						.then(Commands.literal("show")
+								.then(Commands.argument("signal_pos", BlockPosArgument.blockPos())
+										.then(Commands.argument("reverse", BoolArgumentType.bool())
+												.executes(context -> showProtection(context.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(context, "signal_pos"), BoolArgumentType.getBool(context, "reverse"), context.getSource())))))));
 	}
 
-	private static int setManualOverride(ServerLevel level, long vehicleId, boolean enabled, net.minecraft.commands.CommandSourceStack source) {
+	private static int setProtection(ServerLevel level, BlockPos signalPos, boolean reverse, String rawRailIds, net.minecraft.commands.CommandSourceStack source) {
+		final Simulator simulator = getSimulator(level, source);
+		if (simulator == null) {
+			return 0;
+		}
+		final String faceId = org.mtrbr.server.SignalTopology.id(signalPos, reverse);
+		final List<String> railIds = java.util.Arrays.stream(rawRailIds.split("[,\\s]+"))
+				.map(String::trim).filter(value -> !value.isEmpty()).distinct().toList();
+		final List<String> unknown = railIds.stream().filter(id -> !simulator.railIdMap.containsKey(id)).toList();
+		if (!unknown.isEmpty()) {
+			source.sendFailure(Component.literal("Unknown MTR Rail ID(s): " + String.join(", ", unknown)));
+			return 0;
+		}
+		final SignalBlockSavedData saved = SignalBlockSavedData.get(level);
+		final String blockId = saved.getBlockId(faceId);
+		if (blockId.isBlank()) {
+			source.sendFailure(Component.literal("No canonical A->B block exists for " + faceId + "; regenerate protection first."));
+			return 0;
+		}
+		saved.setBlock(faceId, blockId, railIds);
+		MtrbrDebugLog.event("TOPOLOGY", "protection-set face=" + faceId + " block=" + blockId + " rails=" + railIds + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Protection binding saved for " + faceId + " (" + blockId + "): " + String.join(", ", railIds)), false);
+		return 1;
+	}
+
+	/** Persists only currently missing mappings; it never replaces an operator-approved topology. */
+	private static int initializeProtection(ServerLevel level, net.minecraft.commands.CommandSourceStack source) {
+		final Simulator simulator = getSimulator(level, source);
+		if (simulator == null) return 0;
+		final SignalBlockSavedData saved = SignalBlockSavedData.get(level);
+		final Map<String, RouteRequestManager.GeneratedProtection> generated = RouteRequestManager.getGeneratedProtectionBlocks(simulator,
+				org.mtrbr.server.ServerAspectManager.getFaceSnapshot(simulator.dimension));
+		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
+			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
+			final String blockAudit = "face=" + entry.getKey() + " blockId=" + protection.blockId() + " nextFace=" + protection.nextFace() + " railCount=" + protection.railIds().size();
+			MtrbrDebugLog.event("BLOCK", blockAudit);
+			System.out.println("[MTRBR-BLOCK] " + blockAudit);
+		}
+		final int written = saved.addGeneratedBlocks(generated);
+		final int savedCount = written;
+		MtrbrDebugLog.event("TOPOLOGY", "protection-initialize written=" + written + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Saved " + savedCount + " missing SignalBlock mappings from observed paths."), false);
+		return written > 0 ? 1 : 0;
+	}
+
+	private static int regenerateProtection(ServerLevel level, net.minecraft.commands.CommandSourceStack source) {
+		final Simulator simulator = getSimulator(level, source);
+		if (simulator == null) return 0;
+		final org.mtrbr.server.ServerAspectManager.FaceSnapshot topology = org.mtrbr.server.ServerAspectManager.getFaceSnapshot(simulator.dimension);
+		final Map<String, RouteRequestManager.GeneratedProtection> generated = RouteRequestManager.getGeneratedProtectionBlocks(simulator,
+				topology);
+		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
+			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
+			final String blockAudit = "face=" + entry.getKey() + " blockId=" + protection.blockId() + " nextFace=" + protection.nextFace() + " railCount=" + protection.railIds().size();
+			MtrbrDebugLog.event("BLOCK", blockAudit);
+			System.out.println("[MTRBR-BLOCK] " + blockAudit);
+		}
+		for (final String faceId : topology.faces().keySet()) {
+			if (!generated.containsKey(faceId)) {
+				final String diagnostic = "face=" + faceId + " blockId=<missing> nextFace=<unknown> railCount=0 reason=NEXT_SAME_DIRECTION_UNCERTAIN";
+				MtrbrDebugLog.event("BLOCK", diagnostic);
+				System.out.println("[MTRBR-BLOCK] " + diagnostic);
+			}
+		}
+		final SignalBlockSavedData saved = SignalBlockSavedData.get(level);
+		final int legacyBefore = saved.legacyFaceCount();
+		saved.migrateLegacyBlocks(generated);
+		final int written = generated.size();
+		MtrbrDebugLog.event("TOPOLOGY", "protection-regenerate generated=" + written + " legacyMigrated=" + legacyBefore + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Regenerated " + written + " canonical SignalBlock mappings; migrated legacy faces: " + legacyBefore), false);
+		return written > 0 ? 1 : 0;
+	}
+
+	private static int clearProtection(ServerLevel level, BlockPos signalPos, boolean reverse, net.minecraft.commands.CommandSourceStack source) {
+		final String faceId = org.mtrbr.server.SignalTopology.id(signalPos, reverse);
+		final SignalBlockSavedData saved = SignalBlockSavedData.get(level);
+		saved.setBlock(faceId, saved.getBlockId(faceId), List.of());
+		MtrbrDebugLog.event("TOPOLOGY", "protection-clear face=" + faceId + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Protection binding cleared for " + faceId + "."), false);
+		return 1;
+	}
+
+	private static int showProtection(ServerLevel level, BlockPos signalPos, boolean reverse, net.minecraft.commands.CommandSourceStack source) {
+		final String faceId = org.mtrbr.server.SignalTopology.id(signalPos, reverse);
+		final List<String> railIds = SignalBlockSavedData.get(level).getRailIds(faceId);
+		source.sendSuccess(() -> Component.literal(faceId + " -> " + (railIds.isEmpty() ? "<unbound>" : String.join(", ", railIds))), false);
+		return 1;
+	}
+
+	private static int setManualOverride(ServerLevel level, String vehicleCode, boolean enabled, net.minecraft.commands.CommandSourceStack source) {
+		final Long vehicleId = resolveVehicleId(source, vehicleCode);
+		if (vehicleId == null) {
+			return 0;
+		}
 		final String dimension = level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
 		final Simulator simulator = SectionStateManager.getSimulator(dimension);
 		if (simulator == null) {
@@ -47,27 +165,38 @@ public final class MTRBRCommands {
 			return 0;
 		}
 		RouteRequestManager.setManualDrivingOverride(simulator, vehicleId, enabled);
-		source.sendSuccess(() -> Component.literal("Manual override " + (enabled ? "queued" : "cleared") + " for vehicle " + vehicleId + "."), false);
+		MtrbrDebugLog.event("DISPATCH", "command=manual_override vehicle=" + vehicleId + " enabled=" + enabled + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Manual override " + (enabled ? "queued" : "cleared") + " for vehicle " + vehicleCode + "."), false);
 		return 1;
 	}
 
-	private static int setPriority(ServerLevel level, long vehicleId, int priority, net.minecraft.commands.CommandSourceStack source) {
+	private static int setPriority(ServerLevel level, String vehicleCode, int priority, net.minecraft.commands.CommandSourceStack source) {
+		final Long vehicleId = resolveVehicleId(source, vehicleCode);
+		if (vehicleId == null) {
+			return 0;
+		}
 		final Simulator simulator = getSimulator(level, source);
 		if (simulator == null) {
 			return 0;
 		}
 		RouteRequestManager.setManualPriority(simulator, vehicleId, priority);
-		source.sendSuccess(() -> Component.literal("Dispatcher priority queued for vehicle " + vehicleId + ": " + priority + "."), false);
+		MtrbrDebugLog.event("DISPATCH", "command=priority vehicle=" + vehicleId + " value=" + priority + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Dispatcher priority queued for vehicle " + vehicleCode + ": " + priority + "."), false);
 		return 1;
 	}
 
-	private static int revokePending(ServerLevel level, long vehicleId, net.minecraft.commands.CommandSourceStack source) {
+	private static int revokePending(ServerLevel level, String vehicleCode, net.minecraft.commands.CommandSourceStack source) {
+		final Long vehicleId = resolveVehicleId(source, vehicleCode);
+		if (vehicleId == null) {
+			return 0;
+		}
 		final Simulator simulator = getSimulator(level, source);
 		if (simulator == null) {
 			return 0;
 		}
 		RouteRequestManager.revokePendingAuthorization(simulator, vehicleId);
-		source.sendSuccess(() -> Component.literal("Pending authorization revoke queued for vehicle " + vehicleId + "."), false);
+		MtrbrDebugLog.event("DISPATCH", "command=revoke_pending vehicle=" + vehicleId + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Pending authorization revoke queued for vehicle " + vehicleCode + "."), false);
 		return 1;
 	}
 
@@ -78,7 +207,7 @@ public final class MTRBRCommands {
 		}
 		final StringBuilder message = new StringBuilder("Requests:");
 		for (final RouteRequestManager.RequestSnapshot request : RouteRequestManager.getRequestSnapshots(simulator)) {
-			message.append("\n vehicle=").append(request.vehicleId())
+			message.append("\n vehicle=").append(request.vehicleCode())
 					.append(" state=").append(request.state())
 					.append(" control=").append(String.format("%.1f", request.controlDistance()))
 					.append(" reqEnd=").append(String.format("%.1f", request.endDistance()))
@@ -89,13 +218,18 @@ public final class MTRBRCommands {
 		return 1;
 	}
 
-	private static int approve(ServerLevel level, long vehicleId, net.minecraft.commands.CommandSourceStack source) {
+	private static int approve(ServerLevel level, String vehicleCode, net.minecraft.commands.CommandSourceStack source) {
+		final Long vehicleId = resolveVehicleId(source, vehicleCode);
+		if (vehicleId == null) {
+			return 0;
+		}
 		final Simulator simulator = getSimulator(level, source);
 		if (simulator == null) {
 			return 0;
 		}
 		RouteRequestManager.setManualPriority(simulator, vehicleId, 100000);
-		source.sendSuccess(() -> Component.literal("Approval priority queued for vehicle " + vehicleId + "."), false);
+		MtrbrDebugLog.event("DISPATCH", "command=approve vehicle=" + vehicleId + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Approval priority queued for vehicle " + vehicleCode + "."), false);
 		return 1;
 	}
 
@@ -115,5 +249,13 @@ public final class MTRBRCommands {
 			source.sendFailure(Component.literal("MTR simulator is not ready for this dimension."));
 		}
 		return simulator;
+	}
+
+	private static Long resolveVehicleId(net.minecraft.commands.CommandSourceStack source, String vehicleCode) {
+		final Long vehicleId = RouteRequestManager.resolveVehicleCode(vehicleCode.toUpperCase(java.util.Locale.ROOT));
+		if (vehicleId == null) {
+			source.sendFailure(Component.literal("Unknown vehicle code: " + vehicleCode));
+		}
+		return vehicleId;
 	}
 }

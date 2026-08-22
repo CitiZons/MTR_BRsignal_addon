@@ -22,6 +22,7 @@ public final class ServerAspectManager {
 	private static final Map<String, Long> REGISTRY_REVISIONS = new HashMap<>();
 	private static final java.util.Set<String> TOPOLOGY_DIRTY = new java.util.HashSet<>();
 	private static long lastAspectDebugMillis;
+	private static long lastSnapshotDebugMillis;
 	private static long lastFacesDebugMillis;
 	private static int lastFacesCount = -1;
 
@@ -41,19 +42,36 @@ public final class ServerAspectManager {
 		synchronized (ASPECTS) {
 			rebuildTopology = existing == null || TOPOLOGY_DIRTY.remove(dimension) || REGISTRY_REVISIONS.getOrDefault(dimension, -1L) != registryRevision;
 		}
+		final FaceSnapshot topology;
 		final Map<String, SignalFace> faces;
 		if (rebuildTopology) {
-			faces = SignalTopology.build(level);
-			publishFaces(dimension, faces, registryRevision);
+			final Map<String, SignalFace> rebuiltFaces = SignalTopology.build(level);
+			// A transient registry/chunk refresh can return an empty topology. Do
+			// not replace a known-good server topology with that empty result;
+			// otherwise every vehicle loses its control faces for one tick window.
+			faces = rebuiltFaces.isEmpty() && existing != null && !existing.faces().isEmpty() ? existing.faces() : rebuiltFaces;
+			if (faces != rebuiltFaces) {
+				// Keep the published revision and persisted topology unchanged.
+				synchronized (ASPECTS) {
+					REGISTRY_REVISIONS.put(dimension, registryRevision);
+				}
+			} else {
+				publishFaces(dimension, faces, registryRevision);
+			}
+			topology = getFaceSnapshot(dimension);
 		} else {
 			faces = existing.faces();
+			topology = existing;
 		}
 		final RouteBindingsSavedData savedBindings = RouteBindingsSavedData.get(level);
 		final List<RouteRequestManager.AuthorizedPath> authorizations = RouteRequestManager.getAuthorizedPaths(simulator);
 		final Map<String, SectionStateManager.SectionSnapshot> sectionStates = SectionStateManager.getPublishedSections(simulator);
 		final SignalBlockSavedData signalBlocks = SignalBlockSavedData.get(level);
-		if (rebuildTopology) {
-			signalBlocks.rebuild(simulator, faces);
+		final long nowSnapshot = System.currentTimeMillis();
+		if (nowSnapshot - lastSnapshotDebugMillis >= 5000) {
+			lastSnapshotDebugMillis = nowSnapshot;
+			System.out.println("[MTRBR-ASPECT-SNAPSHOT] dim=" + dimension + " faces=" + faces.size()
+					+ " authorizations=" + authorizations.size() + " sections=" + sectionStates.size());
 		}
 		if (faces.size() != lastFacesCount) {
 			lastFacesCount = faces.size();
@@ -71,36 +89,53 @@ public final class ServerAspectManager {
 			}
 		}
 		final StringBuilder aspectDebug = new StringBuilder();
+		final Map<String, String> diagnostics = new HashMap<>();
 		for (final SignalFace face : faces.values()) {
-			// 列车进入该信号防护的闭塞区段后立即变红，不等待整段 request 释放。
-			if (isSectionOccupied(signalBlocks, face, sectionStates)) {
-				next.put(key(dimension, face.signalPos(), face.backSide()), new SignalDisplay(ServerAspect.RED, "", "", 0));
+			// Resolve the physical traversal identity first. Occupancy must know which
+			// authorized vehicle owns this face; otherwise the train's own occupied
+			// section makes its already-authorized signal permanently red.
+			RouteRequestManager.AuthorizedPath coveringAuthorization = null;
+			PathSnapshot.FaceTraversal coveredTraversal = null;
+			for (final RouteRequestManager.AuthorizedPath authorization : authorizations) {
+				final PathSnapshot.FaceTraversal candidate = coveredFaceTraversal(dimension, topology, authorization, face);
+				if (candidate != null) {
+					coveringAuthorization = authorization;
+					coveredTraversal = candidate;
+					break;
+				}
+			}
+			final long owningVehicleId = coveringAuthorization == null ? Long.MIN_VALUE : coveringAuthorization.vehicleId();
+			final String faceKey = key(dimension, face.signalPos(), face.backSide());
+			final boolean occupancyConflict = isSectionOccupied(simulator, signalBlocks, face, sectionStates, owningVehicleId, coveringAuthorization == null ? "" : coveringAuthorization.authorizationId().replace(":auth", ""));
+			if (occupancyConflict) {
+				next.put(faceKey, new SignalDisplay(ServerAspect.RED, "", "", 0));
+				diagnostics.put(faceKey, signalDiagnostic(signalBlocks, face, false, true, ServerAspect.RED));
 				continue;
 			}
 			ServerAspect aspect = ServerAspect.RED;
 			String authorizationId = "";
 			String routeContent = "";
 			long revision = 0;
-			for (final RouteRequestManager.AuthorizedPath authorization : authorizations) {
-				if (covers(authorization, face)) {
-					aspect = resolveAspect(faces, authorizations, authorization.path(), face, new HashSet<>());
-					authorizationId = authorization.authorizationId();
-					routeContent = authorizedRouteContent(savedBindings, authorization, face, authorization.path().getDistanceAtNode(face.nodePos()));
-					revision = authorization.revision();
+			if (coveringAuthorization != null && coveredTraversal != null) {
+				aspect = resolveAspect(dimension, topology, coveringAuthorization, coveredTraversal, new HashSet<>());
+				// Keep the requestId internal for lock/occupancy checks; expose only
+				// the stable dispatcher vehicle code to the client panel.
+				authorizationId = coveringAuthorization.vehicleCode();
+				routeContent = authorizedRouteContent(savedBindings, coveringAuthorization, face, coveredTraversal.distance());
+				revision = coveringAuthorization.revision();
 					if (aspect != ServerAspect.RED) {
 						aspectDebug.append(" | ")
 								.append(face.signalPos().getX()).append(',').append(face.signalPos().getY()).append(',').append(face.signalPos().getZ())
 								.append(" side=").append(face.backSide() ? 'B' : 'F')
 								.append(" faceAng=").append(String.format("%.0f", face.travelAngle()))
-								.append(" pathAng=").append(String.format("%.0f", authorization.path().getTravelAngleAtNode(face.nodePos())))
+								.append(" pathAng=").append(String.format("%.0f", coveredTraversal.travelAngle()))
 								.append(" node=").append(face.nodePos().getX()).append(',').append(face.nodePos().getY()).append(',').append(face.nodePos().getZ())
 								.append(" a=").append(aspect)
 								.append(" auth=").append(authorizationId);
 					}
-					break;
-				}
 			}
-			next.put(key(dimension, face.signalPos(), face.backSide()), new SignalDisplay(aspect, authorizationId, routeContent, revision));
+			next.put(faceKey, new SignalDisplay(aspect, authorizationId, routeContent, revision));
+			diagnostics.put(faceKey, signalDiagnostic(signalBlocks, face, coveredTraversal != null, false, aspect));
 		}
 		if (aspectDebug.length() > 0) {
 			final long now = System.currentTimeMillis();
@@ -111,6 +146,18 @@ public final class ServerAspectManager {
 		}
 		synchronized (ASPECTS) {
 			final Map<String, SignalDisplay> oldAspects = new HashMap<>(ASPECTS);
+			for (final Map.Entry<String, SignalDisplay> entry : next.entrySet()) {
+				final SignalDisplay previous = oldAspects.get(entry.getKey());
+				if (!java.util.Objects.equals(previous, entry.getValue())) {
+					final SignalDisplay current = entry.getValue();
+					MtrbrDebugLog.event("SIGNAL", "key=" + entry.getKey()
+							+ " aspect=" + (previous == null ? "<none>" : previous.aspect()) + "->" + current.aspect()
+							+ " authorization=" + current.authorizationId()
+							+ " routeIndicator=" + current.routeContent()
+							+ " revision=" + current.revision());
+					System.out.println("[MTRBR-SIGNAL] " + diagnostics.getOrDefault(entry.getKey(), "key=" + entry.getKey()) + " aspect=" + current.aspect());
+				}
+			}
 			ASPECTS.keySet().removeIf(key -> key.startsWith(dimension + "|"));
 			ASPECTS.putAll(next);
 			return !oldAspects.equals(ASPECTS);
@@ -138,6 +185,7 @@ public final class ServerAspectManager {
 	public static FaceSnapshot getFaceSnapshot(String simulatorDimension) {
 		return FACE_SNAPSHOTS.getOrDefault(simulatorDimension, new FaceSnapshot(Map.of(), 0));
 	}
+
 
 	public static void invalidateTopology(ServerLevel level) {
 		synchronized (ASPECTS) {
@@ -176,6 +224,7 @@ public final class ServerAspectManager {
 		}
 	}
 
+
 	private static void publishFaces(String dimension, Map<String, SignalFace> faces, long registryRevision) {
 		final FaceSnapshot old = FACE_SNAPSHOTS.get(dimension);
 		final Map<String, FaceSnapshot> next = new HashMap<>(FACE_SNAPSHOTS);
@@ -187,24 +236,52 @@ public final class ServerAspectManager {
 		}
 	}
 
-	private static boolean covers(RouteRequestManager.AuthorizedPath authorization, SignalFace face) {
-		final double distance = authorization.path().getDistanceAtNode(face.nodePos());
-		return distance >= authorization.startDistance() && distance < authorization.endDistance() && travelsInFaceDirection(authorization.path(), face);
+
+	private static PathSnapshot.FaceTraversal coveredFaceTraversal(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, SignalFace face) {
+		return authorization.path().getFaceTraversals(dimension, topology).stream()
+				.filter(point -> point.faceId().equals(face.id()))
+				.filter(PathSnapshot::isDirectionMatched)
+				.filter(point -> point.distance() >= authorization.startDistance() && point.distance() < authorization.endDistance())
+				.filter(point -> authorization.activeFaceTraversalKeys().contains(point.key()))
+				.findFirst().orElse(null);
+	}
+
+	private static boolean covers(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, SignalFace face) {
+		return coveredFaceTraversal(dimension, topology, authorization, face) != null;
 	}
 
 	/**
 	 * 该信号防护区段（本信号节点到下一同向信号节点）是否被占用。
-	 * 只把 VehicleSnapshot 的 path 用于把 SignalFace 映射到 Section ID；占用事实一律
+	 * VehicleSnapshot 的 path 只用于迁移期间推导 SignalFace -> Section ID；占用事实一律
 	 * 读取 SectionStateManager 的服务端权威 snapshot，不再用头/尾里程自行重算。
 	 */
-	private static boolean isSectionOccupied(SignalBlockSavedData signalBlocks, SignalFace face, Map<String, SectionStateManager.SectionSnapshot> sectionStates) {
-		for (final String sectionId : signalBlocks.getRailIds(face.id())) {
+	private static boolean isSectionOccupied(Simulator simulator, SignalBlockSavedData signalBlocks, SignalFace face, Map<String, SectionStateManager.SectionSnapshot> sectionStates, long owningVehicleId, String ownerId) {
+		final String blockId = signalBlocks.getBlockId(face.id());
+		if (blockId.isEmpty()) return true;
+		if (SectionStateManager.isBlockConflicted(simulator, blockId, ownerId)) return true;
+		final java.util.Set<String> protectedSectionIds = new java.util.HashSet<>(signalBlocks.getRailIdsForBlock(blockId));
+		if (protectedSectionIds.isEmpty()) {
+			// Default/fail-closed state remains unchanged when neither explicit nor
+			// dynamically derived protection is available.
+			return true;
+		}
+		for (final String sectionId : protectedSectionIds) {
 			final SectionStateManager.SectionSnapshot state = sectionStates.get(sectionId);
-			if (state != null && !state.occupiedBy.isEmpty()) {
+			if (state != null && state.occupiedBy.stream().anyMatch(vehicleId -> vehicleId != owningVehicleId)) {
+				// Occupancy is authoritative. The owning authorized vehicle is allowed
+				// to occupy its own protected section; every other vehicle remains a
+				// blocking conflict.
 				return true;
 			}
 		}
 		return false;
+	}
+
+	private static String signalDiagnostic(SignalBlockSavedData blocks, SignalFace face, boolean coveredByActivity, boolean occupancyConflict, ServerAspect aspect) {
+		final String blockId = blocks.getBlockId(face.id());
+		return "faceId=" + face.id() + " node=" + face.nodePos() + " blockId=" + (blockId.isEmpty() ? "<missing>" : blockId)
+				+ " rails=" + blocks.getRailIdsForBlock(blockId) + " coveredByActivity=" + coveredByActivity
+				+ " occupancyConflict=" + occupancyConflict + " computed=" + aspect;
 	}
 
 	/**
@@ -212,28 +289,27 @@ public final class ServerAspectManager {
 	 * 预告（下一红→单黄，下一黄→双黄，其余→绿）。授权向前延伸时灯序链随之
 	 * 移动，列车通过已授权区段后信号仍保持正确预告。
 	 */
-	private static ServerAspect resolveAspect(Map<String, SignalFace> faces, List<RouteRequestManager.AuthorizedPath> authorizations, PathSnapshot path, SignalFace face, Set<String> visited) {
-		if (!visited.add(face.id())) {
+	private static ServerAspect resolveAspect(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, PathSnapshot.FaceTraversal faceTraversal, Set<String> visited) {
+		final String visitKey = faceTraversal.key().toString();
+		if (!visited.add(visitKey)) {
 			return ServerAspect.RED;
 		}
-		final double faceDistance = path.getDistanceAtNode(face.nodePos());
-		final SignalFace nextFace = faces.values().stream()
-				.filter(candidate -> !candidate.id().equals(face.id()) && travelsInFaceDirection(path, candidate))
-				.filter(candidate -> path.getDistanceAtNode(candidate.nodePos()) > faceDistance)
-				.min(java.util.Comparator.comparingDouble(candidate -> path.getDistanceAtNode(candidate.nodePos())))
-				.orElse(null);
+		final List<PathSnapshot.FaceTraversal> faces = authorization.path().getFaceTraversals(dimension, topology).stream()
+				.filter(PathSnapshot::isDirectionMatched).toList();
+		final int index = faces.indexOf(faceTraversal);
+		final PathSnapshot.FaceTraversal nextFace = index < 0 || index + 1 >= faces.size() ? null : faces.get(index + 1);
 		if (nextFace == null) {
-			visited.remove(face.id());
+			visited.remove(visitKey);
 			// 已授权进路到达明确 Terminal/Depot/折返点：最后一架信号为绿。
 			return ServerAspect.GREEN;
 		}
-		final boolean nextCovered = authorizations.stream().anyMatch(authorization -> covers(authorization, nextFace));
+		final boolean nextCovered = authorization.activeFaceTraversalKeys().contains(nextFace.key());
 		if (!nextCovered) {
-			visited.remove(face.id());
+			visited.remove(visitKey);
 			return ServerAspect.YELLOW; // 下一信号红 → 单黄
 		}
-		final ServerAspect nextAspect = resolveAspect(faces, authorizations, path, nextFace, visited);
-		visited.remove(face.id());
+		final ServerAspect nextAspect = resolveAspect(dimension, topology, authorization, nextFace, visited);
+		visited.remove(visitKey);
 		if (nextAspect == ServerAspect.YELLOW) {
 			return ServerAspect.DOUBLE_YELLOW;
 		}
@@ -248,32 +324,28 @@ public final class ServerAspectManager {
 			if (binding.node() == null) {
 				continue;
 			}
-			final double nodeDistance = authorization.path().getDistanceAtNode(binding.node());
-			if (nodeDistance > faceDistance && nodeDistance <= authorization.endDistance() && nodeDistance < bestDistance) {
-				best = binding.content();
-				bestDistance = nodeDistance;
+			for (final PathSnapshot.NodeDistance nodeDistance : authorization.path().getNodeDistances(binding.node())) {
+				if (nodeDistance.distance() > faceDistance && nodeDistance.distance() <= authorization.endDistance() && nodeDistance.distance() < bestDistance) {
+					best = binding.content();
+					bestDistance = nodeDistance.distance();
+				}
 			}
 		}
 		return best;
 	}
 
-	private static boolean travelsInFaceDirection(PathSnapshot path, SignalFace face) {
-		final double pathAngle = path.getTravelAngleAtNode(face.nodePos());
-		return !Double.isNaN(pathAngle) && circularDifference(pathAngle, face.travelAngle()) < 90;
-	}
-
-	private static double circularDifference(double first, double second) {
-		double difference = (first - second) % 360;
-		if (difference < -180) {
-			difference += 360;
-		}
-		if (difference > 180) {
-			difference -= 360;
-		}
-		return Math.abs(difference);
+	private static double travelAngleAt(PathSnapshot path, double distance, BlockPos node) {
+		return path.getNodeDistances(node).stream()
+				.filter(point -> Double.compare(point.distance(), distance) == 0)
+				.mapToDouble(PathSnapshot.NodeDistance::travelAngle).findFirst().orElse(Double.NaN);
 	}
 
 	private static String simulatorDimension(ServerLevel level) {
 		return level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
+	}
+
+	private static double normalizeAngle(double angle) {
+		double normalized = angle % 360;
+		return normalized < 0 ? normalized + 360 : normalized;
 	}
 }

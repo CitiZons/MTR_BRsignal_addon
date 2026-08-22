@@ -1,137 +1,182 @@
 package org.mtrbr.data;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
-import org.mtr.core.data.Position;
-import org.mtr.core.data.Rail;
-import org.mtr.core.simulation.Simulator;
-import org.mtr.libraries.it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import org.mtrbr.server.SignalFace;
+import org.mtrbr.server.RouteRequestManager;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Collections;
 
-/** 持久化 SignalFace -> 保护 Rail 集合。服务端拓扑从存档加载，不再从车辆 Path 动态推导。 */
+/** Persistent SignalFace -> SignalBlock -> protected Rail mapping. */
 public final class SignalBlockSavedData extends SavedData {
 	public static final String NAME = "mtr_brsignal_addon_signal_blocks";
-	private static final String KEY_BLOCKS = "blocks";
-	private static final String KEY_RAILS = "rails";
-
-	private final Map<String, List<String>> blocks = new HashMap<>();
+	private static final String KEY_VERSION = "version";
+	private static final String KEY_FACES = "faces";
+	private static final String KEY_BLOCKS = "blockRails";
+	private static final int CURRENT_VERSION = 5;
+	private final Map<String, String> faceToBlock = new HashMap<>();
+	private final Map<String, List<String>> blockRails = new HashMap<>();
+	/** Legacy values are retained only in memory until the explicit migrate command runs. */
+	private final Map<String, List<String>> legacyFaceRails = new HashMap<>();
+	private static volatile Map<String, Snapshot> SNAPSHOTS = Map.of();
 
 	public static SignalBlockSavedData get(ServerLevel level) {
-		return level.getDataStorage().computeIfAbsent(SignalBlockSavedData::load, SignalBlockSavedData::new, NAME);
+		final SignalBlockSavedData data = level.getDataStorage().computeIfAbsent(SignalBlockSavedData::load, SignalBlockSavedData::new, NAME);
+		data.publishSnapshot(dimension(level));
+		return data;
+	}
+
+	private static String dimension(ServerLevel level) { return level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath(); }
+
+	public static Snapshot getSnapshot(String dimension) { return SNAPSHOTS.getOrDefault(dimension, new Snapshot(Map.of(), Map.of())); }
+
+	private void publishSnapshot(String dimension) {
+		final Map<String, Snapshot> next = new HashMap<>(SNAPSHOTS);
+		next.put(dimension, new Snapshot(faceToBlock, blockRails));
+		SNAPSHOTS = Collections.unmodifiableMap(next);
 	}
 
 	private static SignalBlockSavedData load(CompoundTag tag) {
 		final SignalBlockSavedData data = new SignalBlockSavedData();
-		final CompoundTag blocksTag = tag.getCompound(KEY_BLOCKS);
-		for (final String faceId : blocksTag.getAllKeys()) {
-			final ListTag railsTag = blocksTag.getList(faceId, Tag.TAG_STRING);
-			final List<String> rails = new ArrayList<>();
-			for (int i = 0; i < railsTag.size(); i++) {
-				rails.add(railsTag.getString(i));
+		final CompoundTag faces = tag.getCompound(KEY_FACES);
+		for (final String faceId : faces.getAllKeys()) data.faceToBlock.put(faceId, faces.getString(faceId));
+		final CompoundTag blocks = tag.getCompound(KEY_BLOCKS);
+		for (final String blockId : blocks.getAllKeys()) data.blockRails.put(blockId, readStrings(blocks.getList(blockId, Tag.TAG_STRING)));
+		// Legacy values are captured for the one-shot explicit migration only. They
+		// are never returned by getBlockId/getRailIds and are not written by save().
+		for (final Map.Entry<String, String> entry : data.faceToBlock.entrySet()) {
+			if (entry.getValue().startsWith("legacy:")) {
+				data.legacyFaceRails.put(entry.getKey(), data.blockRails.getOrDefault(entry.getValue(), List.of()));
 			}
-			data.blocks.put(faceId, rails);
+		}
+		data.faceToBlock.entrySet().removeIf(entry -> !isCanonicalBlockId(entry.getValue()));
+		data.blockRails.entrySet().removeIf(entry -> !isCanonicalBlockId(entry.getKey()));
+		final CompoundTag legacy = tag.getCompound("blocks");
+		if (!legacy.isEmpty()) {
+			// Old face->rails data cannot identify B without topology. Do not guess.
+			data.setDirty();
 		}
 		return data;
 	}
 
+	private static boolean isCanonicalBlockId(String blockId) {
+		if (blockId == null || blockId.isBlank() || blockId.startsWith("legacy:") || blockId.startsWith("generated:")) return false;
+		final int separator = blockId.indexOf("->");
+		return separator > 0 && separator + 2 < blockId.length() && blockId.indexOf("->", separator + 2) < 0;
+	}
+
+	private static List<String> readStrings(ListTag tag) {
+		final List<String> values = new ArrayList<>();
+		for (int i = 0; i < tag.size(); i++) {
+			final String value = tag.getString(i);
+			if (!value.isBlank() && !values.contains(value)) values.add(value);
+		}
+		return List.copyOf(values);
+	}
+
 	@Override
 	public CompoundTag save(CompoundTag tag) {
-		final CompoundTag blocksTag = new CompoundTag();
-		for (final Map.Entry<String, List<String>> entry : blocks.entrySet()) {
-			final ListTag railsTag = new ListTag();
-			for (final String railId : entry.getValue()) {
-				railsTag.add(StringTag.valueOf(railId));
-			}
-			blocksTag.put(entry.getKey(), railsTag);
+		tag.putInt(KEY_VERSION, CURRENT_VERSION);
+		final CompoundTag faces = new CompoundTag();
+		faceToBlock.forEach(faces::putString);
+		tag.put(KEY_FACES, faces);
+		final CompoundTag blocks = new CompoundTag();
+		for (final Map.Entry<String, List<String>> entry : blockRails.entrySet()) {
+			final ListTag rails = new ListTag();
+			entry.getValue().forEach(value -> rails.add(StringTag.valueOf(value)));
+			blocks.put(entry.getKey(), rails);
 		}
-		tag.put(KEY_BLOCKS, blocksTag);
+		tag.put(KEY_BLOCKS, blocks);
 		return tag;
 	}
 
+	public String getBlockId(String faceId) { return faceToBlock.getOrDefault(faceId, ""); }
+	public List<String> getRailIdsForBlock(String blockId) { return blockRails.getOrDefault(blockId, List.of()); }
 	public List<String> getRailIds(String faceId) {
-		return blocks.getOrDefault(faceId, List.of());
+		final String blockId = getBlockId(faceId);
+		return blockId.isEmpty() ? List.of() : getRailIdsForBlock(blockId);
 	}
 
-	/** 根据当前 SignalFace 拓扑和 Simulator 轨道图重建并持久化闭塞块。 */
-	public void rebuild(Simulator simulator, Map<String, SignalFace> faces) {
-		final Map<BlockPos, SignalFace> faceByNode = new LinkedHashMap<>();
-		for (final SignalFace face : faces.values()) {
-			faceByNode.putIfAbsent(face.nodePos(), face);
+	public void setBlock(String faceId, String blockId, List<String> railIds) {
+		final List<String> validated = railIds.stream().filter(value -> value != null && !value.isBlank()).distinct().toList();
+		if (faceId == null || faceId.isBlank() || blockId == null || blockId.isBlank() || validated.isEmpty()) {
+			faceToBlock.remove(faceId);
+			if (blockId != null) blockRails.remove(blockId);
+		} else {
+			faceToBlock.put(faceId, blockId);
+			blockRails.put(blockId, validated);
 		}
-		final Object2ObjectOpenHashMap<Position, Object2ObjectOpenHashMap<Position, Rail>> graph = simulator.positionsToRail;
-		final Map<String, List<String>> next = new LinkedHashMap<>();
-		for (final SignalFace face : faces.values()) {
-			final Position start = position(face.nodePos());
-			final Set<Position> visited = new HashSet<>();
-			final List<String> railIds = new ArrayList<>();
-			Position current = start;
-			double direction = face.travelAngle();
-			while (true) {
-				if (!visited.add(current)) {
-					break;
-				}
-				if (!current.equals(start) && faceByNode.containsKey(toBlockPos(current))) {
-					break;
-				}
-				final Map<Position, Rail> outgoing = graph.getOrDefault(current, new Object2ObjectOpenHashMap<>());
-				Position nextPosition = null;
-				Rail nextRail = null;
-				double bestDifference = Double.MAX_VALUE;
-				for (final Map.Entry<Position, Rail> candidate : outgoing.entrySet()) {
-					final double difference = circularDifference(angle(current, candidate.getKey()), direction);
-					if (difference < bestDifference) {
-						bestDifference = difference;
-						nextPosition = candidate.getKey();
-						nextRail = candidate.getValue();
-					}
-				}
-				if (nextRail == null || nextPosition == null) {
-					break;
-				}
-				railIds.add(nextRail.getHexId());
-				direction = angle(current, nextPosition);
-				current = nextPosition;
-			}
-			next.put(face.id(), List.copyOf(railIds));
-		}
-		blocks.clear();
-		blocks.putAll(next);
 		setDirty();
 	}
 
-	private static Position position(BlockPos pos) {
-		return new Position(pos.getX(), pos.getY(), pos.getZ());
-	}
-
-	private static BlockPos toBlockPos(Position position) {
-		return new BlockPos((int) position.getX(), (int) position.getY(), (int) position.getZ());
-	}
-
-	private static double angle(Position from, Position to) {
-		return Math.toDegrees(Math.atan2(to.getZ() - from.getZ(), to.getX() - from.getX()));
-	}
-
-	private static double circularDifference(double first, double second) {
-		double difference = (first - second) % 360;
-		if (difference < -180) {
-			difference += 360;
+	public record Snapshot(Map<String, String> faceToBlock, Map<String, List<String>> blockRails) {
+		public Snapshot {
+			faceToBlock = Map.copyOf(faceToBlock);
+			blockRails = Map.copyOf(blockRails);
 		}
-		if (difference > 180) {
-			difference -= 360;
-		}
-		return Math.abs(difference);
+		public String getBlockId(String faceId) { return faceToBlock.getOrDefault(faceId, ""); }
+		public List<String> getRailIds(String blockId) { return blockRails.getOrDefault(blockId, List.of()); }
 	}
+
+	/** Replace persisted canonical mappings with the current canonical topology. */
+	public int replaceGeneratedBlocks(Map<String, RouteRequestManager.GeneratedProtection> generated) {
+		faceToBlock.clear();
+		blockRails.clear();
+		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
+			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
+			if (!isCanonicalBlockId(protection.blockId()) || protection.railIds().isEmpty()) continue;
+			faceToBlock.put(entry.getKey(), protection.blockId());
+			blockRails.put(protection.blockId(), protection.railIds());
+		}
+		setDirty();
+		return faceToBlock.size();
+	}
+
+	/**
+	 * One-shot migration of legacy face/rail records using the canonical topology
+	 * calculated by an explicit protection regenerate command. No runtime lookup
+	 * ever consults legacyFaceRails.
+	 */
+	public int migrateLegacyBlocks(Map<String, RouteRequestManager.GeneratedProtection> generated) {
+		final int legacyCount = legacyFaceRails.size();
+		faceToBlock.clear();
+		blockRails.clear();
+		int migrated = 0;
+		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
+			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
+			if (!isCanonicalBlockId(protection.blockId()) || protection.railIds().isEmpty()) continue;
+			faceToBlock.put(entry.getKey(), protection.blockId());
+			blockRails.put(protection.blockId(), protection.railIds());
+			if (legacyFaceRails.containsKey(entry.getKey())) migrated++;
+		}
+		legacyFaceRails.clear();
+		setDirty();
+		return migrated;
+	}
+
+	public int legacyFaceCount() { return legacyFaceRails.size(); }
+
+	/** Adds only absent mappings during first-world initialization. */
+	public int addGeneratedBlocks(Map<String, RouteRequestManager.GeneratedProtection> generated) {
+		int added = 0;
+		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
+			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
+			if (faceToBlock.containsKey(entry.getKey()) || !isCanonicalBlockId(protection.blockId()) || protection.railIds().isEmpty()) continue;
+			faceToBlock.put(entry.getKey(), protection.blockId());
+			blockRails.put(protection.blockId(), protection.railIds());
+			added++;
+		}
+		if (added > 0) setDirty();
+		return added;
+	}
+
+	/** Deprecated face-only write. A block cannot be persisted without its B face. */
+	public void setRailIds(String faceId, List<String> railIds) { setBlock(faceId, "", List.of()); }
 }

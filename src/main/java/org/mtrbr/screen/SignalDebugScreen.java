@@ -139,10 +139,11 @@ public final class SignalDebugScreen extends Screen {
 		final ServerAspectCache.DisplayState displayState = ServerAspectCache.getState(signalPos, false);
 		if (displayState != null) {
 			final String authorization = displayState.authorizationId().isEmpty() ? "无" : displayState.authorizationId();
-			guiGraphics.drawString(font, "授权  " + authorization + "  rev=" + displayState.revision(), sx(0), 75, 0xFFCCCCCC);
+			guiGraphics.drawString(font, "授权  " + authorization + "  auth=" + displayState.revision(), sx(0), 75, 0xFFCCCCCC);
 		}
 
-		final BlockPos nodePos = SignalLogic.findAppliedNode(level, signalPos);
+		final ServerAspectCache.DisplayState serverState = ServerAspectCache.getState(signalPos, false);
+		final BlockPos nodePos = serverState == null ? null : serverState.nodePos();
 		final NodeBinding nodeBinding = ClientBindings.getNodeBinding(signalPos);
 		final boolean reversed = nodeBinding != null && nodeBinding.reversed();
 		guiGraphics.drawString(font, "节点  " + (nodePos == null ? "未找到" : nodePos + (reversed ? "（反向）" : "")), sx(0), 92, 0xFFFFFFFF);

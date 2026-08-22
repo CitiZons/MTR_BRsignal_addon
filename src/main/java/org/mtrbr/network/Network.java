@@ -7,7 +7,7 @@ import org.mtrbr.MTRBR;
 
 public final class Network {
 
-	private static final String PROTOCOL_VERSION = "4";
+	private static final String PROTOCOL_VERSION = "5";
 
 	public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
 			ResourceLocation.fromNamespaceAndPath(MTRBR.MOD_ID, "main"),

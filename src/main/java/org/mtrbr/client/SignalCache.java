@@ -72,8 +72,9 @@ public final class SignalCache {
 					}
 					if (SignalLogic.isSignalBlock(level.getBlockState(pos))) {
 						final ServerAspectCache.DisplayState display = ServerAspectCache.getState(pos, false);
-						final BlockPos nodePos = display != null && display.nodePos() != null ? display.nodePos() : SignalLogic.findAppliedNode(level, pos);
-						ENTRIES.add(new Entry(pos.immutable(), nodePos));
+						if (display != null && display.nodePos() != null) {
+							ENTRIES.add(new Entry(pos.immutable(), display.nodePos()));
+						}
 					}
 				}
 			}

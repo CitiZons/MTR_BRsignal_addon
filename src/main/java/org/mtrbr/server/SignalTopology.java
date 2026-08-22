@@ -12,9 +12,11 @@ import org.mtrbr.data.RouteBindingsSavedData;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Compiles persisted bindings into a server-only SignalFace snapshot. */
 public final class SignalTopology {
+	private static final Map<String, DiagnosticInfo> DIAGNOSTICS = new ConcurrentHashMap<>();
 	private SignalTopology() {
 	}
 
@@ -31,18 +33,40 @@ public final class SignalTopology {
 				continue;
 			}
 			final NodeBinding binding = nodeBindings.get(signalPos);
-			final BlockPos nodePos = binding != null && binding.node() != null ? binding.node().immutable() : findAppliedNode(level, signalPos);
+			final BlockPos nodePos;
+			if (binding != null) {
+				// A persisted empty binding is an explicit invalid configuration, not an
+				// invitation to select a different nearby node at runtime.
+				nodePos = binding.node() == null ? null : binding.node().immutable();
+			} else {
+				nodePos = resolveBoundNode(level, signalPos);
+				if (nodePos != null) bindings.setNodeBinding(signalPos, nodePos);
+			}
 			if (nodePos == null) {
 				continue;
 			}
 			final float directionOffset = binding != null && binding.reversed() ? 180 : 0;
-			final float frontTravelAngle = getSignalAngle(state) + 90 + directionOffset;
+			final float signalAngle = getSignalAngle(state);
+			// MTR's signal block facing is opposite the rail travel heading used by
+			// immutablePath geometry. Subtract 90 so SignalFace.travelAngle is the
+			// actual A -> B direction (the same convention as PathSnapshot).
+			final float frontTravelAngle = signalAngle - 90 + directionOffset;
 			addFace(faces, signalPos, nodePos, false, frontTravelAngle);
+			DIAGNOSTICS.put(id(signalPos, false), new DiagnosticInfo(signalAngle, binding != null && binding.reversed()));
 			if (level.getBlockEntity(signalPos) instanceof BlockSignalBase.BlockEntityBase entity && entity.isDoubleSided) {
 				addFace(faces, signalPos, nodePos, true, frontTravelAngle + 180);
+				DIAGNOSTICS.put(id(signalPos, true), new DiagnosticInfo(signalAngle, binding != null && binding.reversed()));
 			}
 		}
 		return Map.copyOf(faces);
+	}
+
+	/** Read-only direction metadata for diagnostics; never used by routing. */
+	public static DiagnosticInfo diagnostic(String faceId) {
+		return DIAGNOSTICS.getOrDefault(faceId, new DiagnosticInfo(Float.NaN, false));
+	}
+
+	public record DiagnosticInfo(float signalAngle, boolean reversed) {
 	}
 
 	private static void addFace(Map<String, SignalFace> faces, BlockPos signalPos, BlockPos nodePos, boolean backSide, float travelAngle) {
@@ -51,7 +75,7 @@ public final class SignalTopology {
 	}
 
 	/** Mirrors MTR's RenderSignalBase node search without using client state. */
-	private static BlockPos findAppliedNode(ServerLevel level, BlockPos signalPos) {
+	private static BlockPos resolveBoundNode(ServerLevel level, BlockPos signalPos) {
 		final Direction facing = Direction.fromYRot(getSignalAngle(level.getBlockState(signalPos)));
 		int closestDistance = Integer.MAX_VALUE;
 		BlockPos closestPos = null;

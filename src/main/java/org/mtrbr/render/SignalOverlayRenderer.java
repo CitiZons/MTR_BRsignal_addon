@@ -84,13 +84,18 @@ public final class SignalOverlayRenderer {
 		double[] direction = SignalLogic.getTrackDirection(level, signalPos, nodePos);
 		if (direction == null) {
 			// positionsToRail 尚未同步时，用信号机自身朝向兜底，保证箭头立即可见。
-			final float travelAngle = SignalLogic.getSignalAngle(level.getBlockState(signalPos)) + 90 + (reversed ? 180 : 0);
+			final float travelAngle = SignalLogic.getSignalAngle(level.getBlockState(signalPos)) - 90 + (reversed ? 180 : 0);
 			final double radians = Math.toRadians(travelAngle);
 			direction = new double[]{Math.cos(radians), Math.sin(radians)};
 		} else if (reversed) {
 			direction[0] = -direction[0];
 			direction[1] = -direction[1];
 		}
+		// The overlay arrow is rendered opposite to the node-to-rail vector used
+		// by the binding preview. Keep this visual correction client-side only;
+		// server SignalFace direction and protection semantics are unchanged.
+		direction[0] = -direction[0];
+		direction[1] = -direction[1];
 		double dx = direction[0];
 		double dz = direction[1];
 		final double length = Math.sqrt(dx * dx + dz * dz);

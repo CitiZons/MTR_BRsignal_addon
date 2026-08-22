@@ -79,7 +79,8 @@ public final class VehicleHudRenderer {
 		}
 		final String route = entry != null && !entry.routeName().isEmpty() ? entry.routeName() : vehicle.vehicleExtraData.getThisRouteName();
 		final String destination = entry != null && !entry.destination().isEmpty() ? entry.destination() : vehicle.vehicleExtraData.getThisRouteDestination();
-		final List<String> lines = List.of("Vehicle ID: " + vehicleId, "Route: " + route, "Destination: " + destination);
+		final String vehicleCode = entry != null && !entry.vehicleCode().isEmpty() ? entry.vehicleCode() : (vehicle.vehicleExtraData.immutableVehicleCars.isEmpty() ? String.valueOf(vehicleId) : vehicle.vehicleExtraData.immutableVehicleCars.get(0).getVehicleId());
+		final List<String> lines = List.of("Vehicle Code: " + vehicleCode, "Route: " + route, "Destination: " + destination);
 		final GuiGraphics guiGraphics = event.getGuiGraphics();
 		final int width = event.getWindow().getGuiScaledWidth();
 		guiGraphics.fill(width / 2 - BOX_WIDTH / 2, 6, width / 2 + BOX_WIDTH / 2, 6 + LINE_HEIGHT * lines.size() + 2, BOX_COLOR);

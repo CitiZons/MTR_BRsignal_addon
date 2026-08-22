@@ -7,6 +7,7 @@ import net.minecraftforge.network.NetworkEvent;
 import org.mtr.core.simulation.Simulator;
 import org.mtrbr.server.RouteRequestManager;
 import org.mtrbr.server.SectionStateManager;
+import org.mtrbr.server.MtrbrDebugLog;
 
 import java.util.function.Supplier;
 
@@ -34,14 +35,27 @@ public final class DispatcherActionPacket {
 		final ServerPlayer player = context.getSender();
 		context.enqueueWork(() -> {
 			if (player != null && player.level() instanceof ServerLevel level) {
+				if (!player.hasPermissions(2)) {
+					MtrbrDebugLog.event("DISPATCH", "denied action=" + message.action + " vehicle=" + message.vehicleId + " actor=" + player.getGameProfile().getName());
+					System.out.println("[MTRBR-DISPATCH] denied action=" + message.action + " vehicle=" + message.vehicleId + " by=" + player.getGameProfile().getName());
+					return;
+				}
 				final Simulator simulator = SectionStateManager.getSimulator(level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath());
 				if (simulator != null) {
 					if ("approve".equals(message.action)) {
 						RouteRequestManager.approveWaiting(simulator, message.vehicleId);
+						MtrbrDebugLog.event("DISPATCH", "approve vehicle=" + message.vehicleId + " actor=" + player.getGameProfile().getName());
 						System.out.println("[MTRBR-DISPATCH] approve vehicle=" + message.vehicleId + " by=" + player.getGameProfile().getName());
 					} else if ("revoke".equals(message.action)) {
 						RouteRequestManager.revokePendingAuthorization(simulator, message.vehicleId);
+						MtrbrDebugLog.event("DISPATCH", "revoke vehicle=" + message.vehicleId + " actor=" + player.getGameProfile().getName());
 						System.out.println("[MTRBR-DISPATCH] revoke vehicle=" + message.vehicleId + " by=" + player.getGameProfile().getName());
+					} else if ("override".equals(message.action)) {
+						RouteRequestManager.grantOneShotOverride(simulator, message.vehicleId);
+						MtrbrDebugLog.event("DISPATCH", "override vehicle=" + message.vehicleId + " actor=" + player.getGameProfile().getName());
+						System.out.println("[MTRBR-DISPATCH] override vehicle=" + message.vehicleId + " by=" + player.getGameProfile().getName());
+					} else {
+						MtrbrDebugLog.event("DISPATCH", "rejected unknown action=" + message.action + " vehicle=" + message.vehicleId + " actor=" + player.getGameProfile().getName());
 					}
 				} else {
 					System.out.println("[MTRBR-DISPATCH] simulator null for action=" + message.action + " vehicle=" + message.vehicleId);

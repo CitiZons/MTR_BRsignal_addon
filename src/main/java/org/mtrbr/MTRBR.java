@@ -100,7 +100,7 @@ public final class MTRBR {
 
 	private static void onServerTick(TickEvent.ServerTickEvent event) {
 		if (event.phase == TickEvent.Phase.END && event.getServer() != null) {
-			if (event.getServer().getTickCount() % 20 == 0) {
+				if (event.getServer().getTickCount() % 20 == 0) {
 				event.getServer().getAllLevels().forEach(level -> {
 					org.mtrbr.server.ServerAspectManager.update(level);
 					Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncSignalAspectsPacket(org.mtrbr.server.ServerAspectManager.snapshot(level)));
