@@ -47,6 +47,11 @@ public final class SignalDebugScreen extends Screen {
 	private static final int ROUTE_EDIT = 105;
 	private static final int ROUTE_SAVE = 215;
 	private static final int ROUTE_DELETE = 260;
+	private static final int NAME_ROW_TOP = 40;
+	private static final int NODE_ROW_TOP = 86;
+	private static final int INDICATOR_HEADER_BASELINE = 110;
+	private static final int INDICATOR_ROW_BASELINE = 119;
+	private static final int BUTTON_TEXT_OFFSET = 5;
 
 	private final BlockPos signalPos;
 	private final List<Integer> rowYs = new ArrayList<>();
@@ -77,19 +82,19 @@ public final class SignalDebugScreen extends Screen {
 		addRenderableWidget(Button.builder(Component.literal("刷新"), button -> needsRebuild = true).bounds(sx(110), height - 28, 50, 18).build());
 		addRenderableWidget(Button.builder(Component.literal("关闭"), button -> onClose()).bounds(sx(280), height - 28, 50, 18).build());
 
-		nameBox = new EditBox(font, sx(NAME_EDIT), 40, 105, 16, Component.literal("命名"));
+		nameBox = new EditBox(font, sx(NAME_EDIT), NAME_ROW_TOP, 105, 16, Component.literal("命名"));
 		nameBox.setMaxLength(40);
 		final String currentName = ClientSignalNames.get(signalPos);
 		if (currentName != null) {
 			nameBox.setValue(currentName);
 		}
 		addRenderableWidget(nameBox);
-		addRenderableWidget(Button.builder(Component.literal("保存"), button -> saveName()).bounds(sx(NAME_SAVE), 40, 42, 16).build());
-		addRenderableWidget(Button.builder(Component.literal("切换方向"), button -> toggleNodeBindingDirection()).bounds(sx(210), 86, 66, 16).build());
+		addRenderableWidget(Button.builder(Component.literal("保存"), button -> saveName()).bounds(sx(NAME_SAVE), NAME_ROW_TOP, 42, 16).build());
+		addRenderableWidget(Button.builder(Component.literal("切换方向"), button -> toggleNodeBindingDirection()).bounds(sx(210), NODE_ROW_TOP, 66, 16).build());
 
 		int y = 118;
 		for (final BlockPos indicatorPos : boundIndicatorPositions) {
-			addRenderableWidget(Button.builder(Component.literal("解绑"), button -> unbindIndicator(indicatorPos)).bounds(sx(UNBIND), y, 42, 14).build());
+			addRenderableWidget(Button.builder(Component.literal("解绑"), button -> unbindIndicator(indicatorPos)).bounds(sx(UNBIND), y - BUTTON_TEXT_OFFSET, 42, 14).build());
 			y += 18;
 		}
 		routeHeaderY = Math.max(134, y + 8);
@@ -148,11 +153,11 @@ public final class SignalDebugScreen extends Screen {
 		final boolean reversed = nodeBinding != null && nodeBinding.reversed();
 		guiGraphics.drawString(font, "节点  " + (nodePos == null ? "未找到" : nodePos + (reversed ? "（反向）" : "")), sx(0), 92, 0xFFFFFFFF);
 
-		guiGraphics.drawString(font, "指示器  " + (boundIndicatorPositions.isEmpty() ? "未绑定" : "已绑定"), sx(0), 110, 0xFFFFFFFF);
+		guiGraphics.drawString(font, "指示器  " + (boundIndicatorPositions.isEmpty() ? "未绑定" : "已绑定"), sx(0), INDICATOR_HEADER_BASELINE, 0xFFFFFFFF);
 		for (int i = 0; i < boundIndicatorPositions.size(); i++) {
 			final BlockPos indicatorPos = boundIndicatorPositions.get(i);
 			final String type = level.getBlockEntity(indicatorPos) instanceof LedIndicatorBlockEntity ? "LED" : "色灯";
-			guiGraphics.drawString(font, "  " + type + " " + indicatorPos, sx(0), 118 + i * 18 + 1, 0xFFFFFFFF);
+			guiGraphics.drawString(font, "  " + type + " " + indicatorPos, sx(0), INDICATOR_ROW_BASELINE + i * 18, 0xFFFFFFFF);
 		}
 
 		guiGraphics.drawString(font, "进路 (" + bindings.size() + ")", sx(0), routeHeaderY, 0xFFFFFFFF);

@@ -98,7 +98,7 @@ public final class MTRBRCommands {
 				org.mtrbr.server.ServerAspectManager.getFaceSnapshot(simulator.dimension));
 		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
 			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
-			final String blockAudit = "face=" + entry.getKey() + " blockId=" + protection.blockId() + " nextFace=" + protection.nextFace() + " railCount=" + protection.railIds().size();
+			final String blockAudit = "face=" + entry.getKey() + " blockId=" + protection.blockId() + " nextBoundary=" + protection.boundaryId() + " railCount=" + protection.railIds().size();
 			MtrbrDebugLog.event("BLOCK", blockAudit);
 			System.out.println("[MTRBR-BLOCK] " + blockAudit);
 		}
@@ -117,13 +117,13 @@ public final class MTRBRCommands {
 				topology);
 		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
 			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
-			final String blockAudit = "face=" + entry.getKey() + " blockId=" + protection.blockId() + " nextFace=" + protection.nextFace() + " railCount=" + protection.railIds().size();
+			final String blockAudit = "face=" + entry.getKey() + " blockId=" + protection.blockId() + " nextBoundary=" + protection.boundaryId() + " railCount=" + protection.railIds().size();
 			MtrbrDebugLog.event("BLOCK", blockAudit);
 			System.out.println("[MTRBR-BLOCK] " + blockAudit);
 		}
 		for (final String faceId : topology.faces().keySet()) {
 			if (!generated.containsKey(faceId)) {
-				final String diagnostic = "face=" + faceId + " blockId=<missing> nextFace=<unknown> railCount=0 reason=NEXT_SAME_DIRECTION_UNCERTAIN";
+				final String diagnostic = "face=" + faceId + " blockId=<missing> nextBoundary=<unknown> railCount=0 reason=PROTECTION_BOUNDARY_UNCERTAIN";
 				MtrbrDebugLog.event("BLOCK", diagnostic);
 				System.out.println("[MTRBR-BLOCK] " + diagnostic);
 			}

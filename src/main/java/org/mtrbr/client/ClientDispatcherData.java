@@ -17,6 +17,6 @@ public final class ClientDispatcherData {
 		return ENTRIES;
 	}
 
-	public record Entry(long vehicleId, String vehicleCode, String state, double head, double control, double requestEnd, double authorizationEnd, boolean authorized, double speedKmh, String routeName, String destination, String nextStation, int occupiedSections, int reservedSections, int lockedSections) {
+	public record Entry(long vehicleId, String vehicleCode, String state, boolean oneShotOverride, double head, double control, double requestEnd, double authorizationEnd, boolean authorized, double speedKmh, String routeName, String destination, String nextStation, int occupiedBlocks, int authorizedBlocks, int lockedBlocks) {
 	}
 }

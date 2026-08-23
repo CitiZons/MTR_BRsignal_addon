@@ -3,6 +3,7 @@ package org.mtrbr.block;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import org.mtrbr.MTRBR;
 
@@ -12,7 +13,15 @@ public final class ColorLightIndicatorBlockEntity extends BlockEntity {
 	private BlockPos boundSignalPos;
 
 	public ColorLightIndicatorBlockEntity(BlockPos pos, BlockState state) {
-		super(MTRBR.COLOR_LIGHT_INDICATOR_BLOCK_ENTITY.get(), pos, state);
+		super(typeFor(state), pos, state);
+	}
+
+	private static BlockEntityType<ColorLightIndicatorBlockEntity> typeFor(BlockState state) {
+		if (state.is(MTRBR.COLOR_LIGHT_INDICATOR_1_2_BLOCK.get())) return MTRBR.COLOR_LIGHT_INDICATOR_1_2_BLOCK_ENTITY.get();
+		if (state.is(MTRBR.COLOR_LIGHT_INDICATOR_1_4_BLOCK.get())) return MTRBR.COLOR_LIGHT_INDICATOR_1_4_BLOCK_ENTITY.get();
+		if (state.is(MTRBR.COLOR_LIGHT_INDICATOR_4_BLOCK.get())) return MTRBR.COLOR_LIGHT_INDICATOR_4_BLOCK_ENTITY.get();
+		if (state.is(MTRBR.COLOR_LIGHT_INDICATOR_4_5_BLOCK.get())) return MTRBR.COLOR_LIGHT_INDICATOR_4_5_BLOCK_ENTITY.get();
+		return MTRBR.COLOR_LIGHT_INDICATOR_BLOCK_ENTITY.get();
 	}
 
 	public BlockPos getBoundSignalPos() {

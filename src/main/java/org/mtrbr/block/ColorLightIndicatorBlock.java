@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
@@ -27,16 +28,17 @@ public final class ColorLightIndicatorBlock extends Block implements EntityBlock
 	public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
 	public static final BooleanProperty IS_22_5 = BooleanProperty.create("is_22_5");
 	public static final BooleanProperty IS_45 = BooleanProperty.create("is_45");
+	public static final EnumProperty<ColorLightRoute> ROUTE = EnumProperty.create("route", ColorLightRoute.class);
 	private static final VoxelShape SHAPE = Block.box(4.5, 0, 5, 16, 11.5, 10);
 
 	public ColorLightIndicatorBlock(Properties properties) {
 		super(properties);
-		registerDefaultState(getStateDefinition().any().setValue(FACING, Direction.NORTH).setValue(IS_22_5, false).setValue(IS_45, false));
+		registerDefaultState(getStateDefinition().any().setValue(FACING, Direction.NORTH).setValue(IS_22_5, false).setValue(IS_45, false).setValue(ROUTE, ColorLightRoute.OFF));
 	}
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-		builder.add(FACING, IS_22_5, IS_45);
+		builder.add(FACING, IS_22_5, IS_45, ROUTE);
 	}
 
 	@Override

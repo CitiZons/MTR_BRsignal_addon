@@ -66,7 +66,17 @@ public final class ServerAspectManager {
 		final RouteBindingsSavedData savedBindings = RouteBindingsSavedData.get(level);
 		final List<RouteRequestManager.AuthorizedPath> authorizations = RouteRequestManager.getAuthorizedPaths(simulator);
 		final Map<String, SectionStateManager.SectionSnapshot> sectionStates = SectionStateManager.getPublishedSections(simulator);
-		final SignalBlockSavedData signalBlocks = SignalBlockSavedData.get(level);
+		SignalBlockSavedData signalBlocks = SignalBlockSavedData.get(level);
+		// Canonical mappings are normally initialized by the operator command. A
+		// missing entry is nevertheless a hard authorization dead-end, so repair
+		// only entries that are absent, using the already observed immutable paths.
+		// Existing operator-approved mappings are never replaced here.
+		final int repairedBlocks = signalBlocks.addGeneratedBlocks(RouteRequestManager.getGeneratedProtectionBlocks(simulator, topology));
+		if (repairedBlocks > 0) {
+			signalBlocks = SignalBlockSavedData.get(level);
+			MtrbrDebugLog.event("MTRBR-BLOCK-RECOVERY", "dimension=" + dimension + " addedMissingMappings=" + repairedBlocks);
+			System.out.println("[MTRBR-BLOCK-RECOVERY] dimension=" + dimension + " addedMissingMappings=" + repairedBlocks);
+		}
 		final long nowSnapshot = System.currentTimeMillis();
 		if (nowSnapshot - lastSnapshotDebugMillis >= 5000) {
 			lastSnapshotDebugMillis = nowSnapshot;
@@ -284,11 +294,7 @@ public final class ServerAspectManager {
 				+ " occupancyConflict=" + occupancyConflict + " computed=" + aspect;
 	}
 
-	/**
-	 * 沿授权 Path 递归解析灯序：未授权信号视为红灯；本信号 = 下一信号状态的
-	 * 预告（下一红→单黄，下一黄→双黄，其余→绿）。授权向前延伸时灯序链随之
-	 * 移动，列车通过已授权区段后信号仍保持正确预告。
-	 */
+	/** Resolves indications through the directed protection boundary of each active SignalFace. */
 	private static ServerAspect resolveAspect(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, PathSnapshot.FaceTraversal faceTraversal, Set<String> visited) {
 		final String visitKey = faceTraversal.key().toString();
 		if (!visited.add(visitKey)) {
@@ -296,24 +302,31 @@ public final class ServerAspectManager {
 		}
 		final List<PathSnapshot.FaceTraversal> faces = authorization.path().getFaceTraversals(dimension, topology).stream()
 				.filter(PathSnapshot::isDirectionMatched).toList();
-		final int index = faces.indexOf(faceTraversal);
-		final PathSnapshot.FaceTraversal nextFace = index < 0 || index + 1 >= faces.size() ? null : faces.get(index + 1);
-		if (nextFace == null) {
+		final SignalBlockSavedData.Snapshot saved = SignalBlockSavedData.getSnapshot(dimension);
+		final String blockId = saved.getBlockId(faceTraversal.faceId());
+		final PathSnapshot.ProtectionBoundary boundary = authorization.path().getProtectionBoundary(faceTraversal, faces, saved.getBoundaryId(blockId));
+		if (boundary == null) {
 			visited.remove(visitKey);
-			// 已授权进路到达明确 Terminal/Depot/折返点：最后一架信号为绿。
-			return ServerAspect.GREEN;
+			return ServerAspect.RED;
 		}
-		final boolean nextCovered = authorization.activeFaceTraversalKeys().contains(nextFace.key());
-		if (!nextCovered) {
-			visited.remove(visitKey);
-			return ServerAspect.YELLOW; // 下一信号红 → 单黄
-		}
-		final ServerAspect nextAspect = resolveAspect(dimension, topology, authorization, nextFace, visited);
+		final ServerAspect nextAspect = protectionBoundaryAspect(dimension, topology, authorization, boundary, visited);
 		visited.remove(visitKey);
+		if (nextAspect == ServerAspect.RED) {
+			return ServerAspect.YELLOW;
+		}
 		if (nextAspect == ServerAspect.YELLOW) {
 			return ServerAspect.DOUBLE_YELLOW;
 		}
 		return ServerAspect.GREEN;
+	}
+
+	/** TerminalNode and an uncovered SignalFace are both ordinary red protection boundaries. */
+	private static ServerAspect protectionBoundaryAspect(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization,
+			PathSnapshot.ProtectionBoundary boundary, Set<String> visited) {
+		if (boundary.isTerminal()) return ServerAspect.RED;
+		final PathSnapshot.FaceTraversal face = boundary.face();
+		return authorization.activeFaceTraversalKeys().contains(face.key())
+				? resolveAspect(dimension, topology, authorization, face, visited) : ServerAspect.RED;
 	}
 
 	/** First route binding whose node lies on the authorized path after this face. */

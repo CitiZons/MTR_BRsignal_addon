@@ -8,6 +8,7 @@ import org.mtrbr.mixin.VehicleExtraDataAccess;
 
 /** Server-side stopping-point clamp for managed vehicles without authorization. */
 public final class MovementGate {
+	private static final double EPSILON = 1.0E-6;
 	private static final Map<Long, Long> LAST_DEBUG = new HashMap<>();
 	private static final Map<Long, Double> LAST_ENFORCED_BOUNDARY = new HashMap<>();
 
@@ -31,6 +32,10 @@ public final class MovementGate {
 			return mtrStoppingPoint;
 		}
 		final double head = ((VehicleAccess) vehicle).mtrbr$getRailProgress();
+		if (boundary < head - EPSILON) {
+			// A stale boundary must never become a backwards MTR stopping point.
+			return Math.min(mtrStoppingPoint, head);
+		}
 		// 文档：制动距离属于 Movement Gate 的安全约束。用 MTR 的减速度把停车点
 		// 前推到“控制边界 - 所需制动距离”，保证未授权列车在红灯前物理停住；
 		// 若已越过安全点则就地停车，绝不越过控制边界。
@@ -72,11 +77,20 @@ public final class MovementGate {
 		if (simulator == null) {
 			return;
 		}
-		final double boundary = RouteRequestManager.getStopBoundary(simulator, vehicle.getId());
+		double boundary = RouteRequestManager.getStopBoundary(simulator, vehicle.getId());
 		if (Double.isNaN(boundary)) {
 			return;
 		}
 		final double head = ((VehicleAccess) vehicle).mtrbr$getRailProgress();
+		if (boundary < head - EPSILON) {
+			final double lastSafeBoundary = RouteRequestManager.getLastSafeBoundary(simulator, vehicle.getId());
+			System.out.println("[MTRBR-GATE-INVALID-BOUNDARY] vehicle=" + vehicle.getId()
+					+ " headDistance=" + String.format("%.3f", head)
+					+ " boundary=" + String.format("%.3f", boundary)
+					+ " lastSafeBoundary=" + String.format("%.3f", lastSafeBoundary)
+					+ " source=MOVEMENT_GATE");
+			boundary = Math.max(head, Double.isFinite(lastSafeBoundary) ? lastSafeBoundary : head);
+		}
 		if (head >= boundary - 1e-6) {
 			if (head > boundary) {
 				((VehicleAccess) vehicle).mtrbr$setRailProgress(boundary);
@@ -110,6 +124,11 @@ public final class MovementGate {
 		if (simulator == null) {
 			return false;
 		}
-		return RouteRequestManager.hasAuthorization(simulator, vehicle.getId());
+		// Re-enable MTR's native block calculation just before a planned terminal
+		// platform. That calculation is what raises isTerminating and starts the
+		// door/reversal sequence; waiting for the flag first creates a deadlock.
+		return RouteRequestManager.hasAuthorization(simulator, vehicle.getId())
+				&& !RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId())
+				&& !RouteRequestManager.isApproachingPlannedTurnback(simulator, vehicle.getId());
 	}
 }

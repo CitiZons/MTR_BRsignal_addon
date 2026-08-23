@@ -22,7 +22,15 @@ public final class ClientSetup {
 	public static void onClientSetup(FMLClientSetupEvent event) {
 		ItemBlockRenderTypes.setRenderLayer(MTRBR.LED_INDICATOR_BLOCK.get(), RenderType.cutout());
 		ItemBlockRenderTypes.setRenderLayer(MTRBR.COLOR_LIGHT_INDICATOR_BLOCK.get(), RenderType.cutout());
+		ItemBlockRenderTypes.setRenderLayer(MTRBR.COLOR_LIGHT_INDICATOR_1_2_BLOCK.get(), RenderType.cutout());
+		ItemBlockRenderTypes.setRenderLayer(MTRBR.COLOR_LIGHT_INDICATOR_1_4_BLOCK.get(), RenderType.cutout());
+		ItemBlockRenderTypes.setRenderLayer(MTRBR.COLOR_LIGHT_INDICATOR_4_BLOCK.get(), RenderType.cutout());
+		ItemBlockRenderTypes.setRenderLayer(MTRBR.COLOR_LIGHT_INDICATOR_4_5_BLOCK.get(), RenderType.cutout());
 		BlockEntityRenderers.register(MTRBR.LED_INDICATOR_BLOCK_ENTITY.get(), LedIndicatorRenderer::new);
 		BlockEntityRenderers.register(MTRBR.COLOR_LIGHT_INDICATOR_BLOCK_ENTITY.get(), ColorLightIndicatorRenderer::new);
+		BlockEntityRenderers.register(MTRBR.COLOR_LIGHT_INDICATOR_1_2_BLOCK_ENTITY.get(), ColorLightIndicatorRenderer::new);
+		BlockEntityRenderers.register(MTRBR.COLOR_LIGHT_INDICATOR_1_4_BLOCK_ENTITY.get(), ColorLightIndicatorRenderer::new);
+		BlockEntityRenderers.register(MTRBR.COLOR_LIGHT_INDICATOR_4_BLOCK_ENTITY.get(), ColorLightIndicatorRenderer::new);
+		BlockEntityRenderers.register(MTRBR.COLOR_LIGHT_INDICATOR_4_5_BLOCK_ENTITY.get(), ColorLightIndicatorRenderer::new);
 	}
 }

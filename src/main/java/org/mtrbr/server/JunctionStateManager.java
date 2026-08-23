@@ -17,19 +17,59 @@ import java.util.Set;
  */
 public final class JunctionStateManager {
 	private static final Map<Simulator, Map<String, JunctionRecord>> STATES = Collections.synchronizedMap(new IdentityHashMap<>());
+	private static final Map<Simulator, Map<String, Long>> REQUEST_VEHICLES = Collections.synchronizedMap(new IdentityHashMap<>());
 
 	private JunctionStateManager() {
 	}
 
+	public static void registerOwner(Simulator simulator, String requestId, long vehicleId) {
+		REQUEST_VEHICLES.computeIfAbsent(simulator, ignored -> new HashMap<>()).put(requestId, vehicleId);
+	}
+
 	public static List<String> resourcesFor(Simulator simulator, List<PathSnapshot.PathTraversal> traversals) {
 		final Set<String> resources = new java.util.LinkedHashSet<>();
-		for (final PathSnapshot.PathTraversal traversal : traversals) {
-			// A junction resource represents an incoming approach, not the whole
-			// node. Two distinct rails entering the same node in the same travel
-			// direction therefore conflict, while unrelated approaches can coexist.
-			addIfJunction(simulator, resources, traversal.endNode(), traversal.travelAngle());
+		for (int index = 0; index < traversals.size(); index++) {
+			final PathSnapshot.PathTraversal traversal = traversals.get(index);
+			final String incoming = index == 0 ? "<entry>" : traversals.get(index - 1).sectionId();
+			final String outgoing = index + 1 >= traversals.size() ? "<exit>" : traversals.get(index + 1).sectionId();
+			addIfJunction(simulator, resources, traversal.endNode(), incoming, traversal.sectionId(), outgoing);
 		}
 		return List.copyOf(resources);
+	}
+
+	public static boolean conflicts(Simulator simulator, List<String> resources, String owner) {
+		return !conflictOwners(simulator, resources, owner).isEmpty();
+	}
+
+	public static List<String> conflictOwners(Simulator simulator, List<String> resources, String owner) {
+		final Map<String, JunctionRecord> state = STATES.get(simulator);
+		if (state == null) return List.of();
+		synchronized (state) {
+			return resources.stream().map(state::get).filter(java.util.Objects::nonNull)
+					.flatMap(record -> java.util.stream.Stream.of(record.reservedBy, record.lockedBy))
+					.filter(java.util.Objects::nonNull).filter(item -> !item.equals(owner)).distinct().toList();
+		}
+	}
+
+	/** Removes locks whose request is no longer represented by an active Authorization. */
+	public static void releaseStale(Simulator simulator, Set<String> activeRequestIds) {
+		final Map<String, JunctionRecord> state = STATES.get(simulator);
+		if (state == null) return;
+		final long tick = SectionStateManager.getCurrentTick();
+		synchronized (state) {
+			for (final JunctionRecord record : state.values().toArray(JunctionRecord[]::new)) {
+				final String owner = record.lockedBy != null ? record.lockedBy : record.reservedBy;
+				if (owner != null && !activeRequestIds.contains(owner)) {
+					MtrbrDebugLog.event("MTRBR-JUNCTION-STALE", "resource=" + record.key + " oldOwner=" + owner
+							+ " reason=OWNER_AUTHORIZATION_MISSING createdTick=" + record.createdTick
+							+ " lastValidatedTick=" + record.lastValidatedTick);
+					record.reservedBy = null;
+					record.lockedBy = null;
+				}
+				if (owner != null) record.lastValidatedTick = tick;
+				if (record.reservedBy == null && record.lockedBy == null) state.remove(record.key);
+			}
+		}
 	}
 
 	public static boolean reserve(Simulator simulator, List<String> resources, String owner) {
@@ -45,7 +85,12 @@ public final class JunctionStateManager {
 				}
 			}
 			for (final String resource : resources) {
-				state.get(resource).reservedBy = owner;
+				final JunctionRecord record = state.get(resource);
+				record.reservedBy = owner;
+				record.ownerVehicle = ownerVehicle(simulator, owner);
+				record.lastValidatedTick = SectionStateManager.getCurrentTick();
+				MtrbrDebugLog.event("MTRBR-JUNCTION-OWNER", "resource=" + resource + " ownerVehicle=" + ownerVehicle(simulator, owner) + " ownerRequest=" + owner
+						+ " phase=RESERVE createdTick=" + record.createdTick + " lastValidatedTick=" + record.lastValidatedTick);
 			}
 		}
 		return true;
@@ -61,7 +106,12 @@ public final class JunctionStateManager {
 				}
 			}
 			for (final String resource : resources) {
-				state.get(resource).lockedBy = owner;
+				final JunctionRecord record = state.get(resource);
+				record.lockedBy = owner;
+				record.ownerVehicle = ownerVehicle(simulator, owner);
+				record.lastValidatedTick = SectionStateManager.getCurrentTick();
+				MtrbrDebugLog.event("MTRBR-JUNCTION-OWNER", "resource=" + resource + " ownerVehicle=" + ownerVehicle(simulator, owner) + " ownerRequest=" + owner
+						+ " phase=LOCK createdTick=" + record.createdTick + " lastValidatedTick=" + record.lastValidatedTick);
 			}
 		}
 		return true;
@@ -89,32 +139,40 @@ public final class JunctionStateManager {
 
 	public static void resetAll() {
 		STATES.clear();
+		REQUEST_VEHICLES.clear();
 	}
 
-	private static void addIfJunction(Simulator simulator, Set<String> result, net.minecraft.core.BlockPos node, double travelAngle) {
+	private static long ownerVehicle(Simulator simulator, String requestId) {
+		return REQUEST_VEHICLES.getOrDefault(simulator, Map.of()).getOrDefault(requestId, Long.MIN_VALUE);
+	}
+
+	private static void addIfJunction(Simulator simulator, Set<String> result, net.minecraft.core.BlockPos node, String incoming, String traversed, String outgoing) {
 		if (node == null) {
 			return;
 		}
 		final Position position = new Position(node.getX(), node.getY(), node.getZ());
-		final Map<?, ?> outgoing = simulator.positionsToRail.get(position);
-		if (outgoing != null && outgoing.size() >= 3) {
-			result.add(key(node, travelAngle));
+		final Map<?, ?> outgoingRails = simulator.positionsToRail.get(position);
+		if (outgoingRails != null && outgoingRails.size() >= 3) {
+			result.add(key(node, incoming, traversed, outgoing));
 		}
 	}
 
-	private static String key(net.minecraft.core.BlockPos node, double travelAngle) {
-		final double normalized = ((travelAngle % 360) + 360) % 360;
-		final int direction = (int) Math.round(normalized * 1000) % 360000;
-		return node.getX() + "," + node.getY() + "," + node.getZ() + "@" + direction;
+	private static String key(net.minecraft.core.BlockPos node, String incoming, String traversed, String outgoing) {
+		return node.getX() + "," + node.getY() + "," + node.getZ() + "|in=" + incoming + "|through=" + traversed + "|out=" + outgoing;
 	}
 
 	private static final class JunctionRecord {
 		private final String key;
 		private String reservedBy;
 		private String lockedBy;
+		private final long createdTick;
+		private long lastValidatedTick;
+		private long ownerVehicle = Long.MIN_VALUE;
 
 		private JunctionRecord(String key) {
 			this.key = key;
+			this.createdTick = SectionStateManager.getCurrentTick();
+			this.lastValidatedTick = this.createdTick;
 		}
 	}
 }

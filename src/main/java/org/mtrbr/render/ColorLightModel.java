@@ -10,9 +10,14 @@ import org.mtr.mapping.holder.Direction;
 import org.mtrbr.MTRBR;
 
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 运行时解析 indicator_1_NULL.bbmodel（Blockbench java_block 格式：逐面 UV + 多贴图）。
@@ -25,6 +30,9 @@ public final class ColorLightModel {
 
 	private static List<Face> faces;
 	private static boolean loaded;
+	private static final Map<String, List<Light>> ROUTE_LIGHTS = new HashMap<>();
+	private static boolean routeLightCacheLoaded;
+	private static final String ROUTE_LIGHT_CACHE_FILE = "route-light-cache.json";
 
 	private ColorLightModel() {
 	}
@@ -43,6 +51,105 @@ public final class ColorLightModel {
 			default -> "black";
 		};
 		return ResourceLocation.fromNamespaceAndPath(MTRBR.MOD_ID, "textures/block/" + name + ".png");
+	}
+
+	/** Reads the light rectangles from the exported route model; the null model remains the block shell. */
+	public static List<Light> getRouteLights(String indicatorModel, String routeContent) {
+		if (routeContent == null || !routeContent.startsWith("route=")) return List.of();
+		final String route = routeContent.substring("route=".length()).trim();
+		if (route.isEmpty()) return List.of();
+		final String key = indicatorModel + "|" + route;
+		loadRouteLightCache();
+		final List<Light> cached = ROUTE_LIGHTS.get(key);
+		if (cached != null) return cached;
+		final List<Light> parsed = loadRouteLights(indicatorModel, route);
+		ROUTE_LIGHTS.put(key, parsed);
+		writeRouteLightCache();
+		return parsed;
+	}
+
+	/**
+	 * Route geometry is an authoring result, not per-session state. Once a model
+	 * has been parsed, retain its rectangles in the local Minecraft config so a
+	 * later game launch does not need to reopen the model JSON. A deliberately
+	 * explicit cache clear is required after changing a route model.
+	 */
+	private static void loadRouteLightCache() {
+		if (routeLightCacheLoaded) return;
+		routeLightCacheLoaded = true;
+		final Path cacheFile = routeLightCacheFile();
+		if (!Files.isRegularFile(cacheFile)) return;
+		try {
+			final JsonObject entries = JsonParser.parseString(Files.readString(cacheFile, StandardCharsets.UTF_8)).getAsJsonObject();
+			for (final Map.Entry<String, JsonElement> entry : entries.entrySet()) {
+				if (!entry.getValue().isJsonArray()) continue;
+				final List<Light> lights = new ArrayList<>();
+				for (final JsonElement value : entry.getValue().getAsJsonArray()) {
+					if (!value.isJsonArray() || value.getAsJsonArray().size() != 6) continue;
+					final JsonArray bounds = value.getAsJsonArray();
+					lights.add(new Light(bounds.get(0).getAsFloat(), bounds.get(1).getAsFloat(), bounds.get(2).getAsFloat(),
+							bounds.get(3).getAsFloat(), bounds.get(4).getAsFloat(), bounds.get(5).getAsFloat()));
+				}
+				ROUTE_LIGHTS.put(entry.getKey(), List.copyOf(lights));
+			}
+		} catch (Exception exception) {
+			System.err.println("[MTRBR-RENDER] route-light-cache load-failed=" + exception.getClass().getSimpleName());
+		}
+	}
+
+	private static void writeRouteLightCache() {
+		final Path cacheFile = routeLightCacheFile();
+		try {
+			Files.createDirectories(cacheFile.getParent());
+			final JsonObject entries = new JsonObject();
+			for (final Map.Entry<String, List<Light>> entry : ROUTE_LIGHTS.entrySet()) {
+				final JsonArray lights = new JsonArray();
+				for (final Light light : entry.getValue()) {
+					final JsonArray bounds = new JsonArray();
+					bounds.add(light.x1()); bounds.add(light.y1()); bounds.add(light.z1());
+					bounds.add(light.x2()); bounds.add(light.y2()); bounds.add(light.z2());
+					lights.add(bounds);
+				}
+				entries.add(entry.getKey(), lights);
+			}
+			final Path temporary = cacheFile.resolveSibling(ROUTE_LIGHT_CACHE_FILE + ".tmp");
+			Files.writeString(temporary, entries.toString(), StandardCharsets.UTF_8);
+			try {
+				Files.move(temporary, cacheFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+			} catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+				Files.move(temporary, cacheFile, StandardCopyOption.REPLACE_EXISTING);
+			}
+		} catch (Exception exception) {
+			System.err.println("[MTRBR-RENDER] route-light-cache write-failed=" + exception.getClass().getSimpleName());
+		}
+	}
+
+	private static Path routeLightCacheFile() {
+		return Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve(MTRBR.MOD_ID).resolve(ROUTE_LIGHT_CACHE_FILE);
+	}
+
+	private static List<Light> loadRouteLights(String indicatorModel, String route) {
+		final String modelName = indicatorModel + "_" + route;
+		final ResourceLocation resource = ResourceLocation.fromNamespaceAndPath(MTRBR.MOD_ID, "models/block/" + modelName + ".json");
+		final List<Light> lights = new ArrayList<>();
+		try (InputStream inputStream = Minecraft.getInstance().getResourceManager().open(resource)) {
+			final String json = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+			final JsonArray elements = JsonParser.parseString(json).getAsJsonObject().getAsJsonArray("elements");
+			for (final JsonElement elementJson : elements) {
+				final JsonObject element = elementJson.getAsJsonObject();
+				final String name = element.has("name") ? element.get("name").getAsString() : "";
+				if (!name.startsWith(indicatorModel + "_route_" + route + "_")) continue;
+				final JsonArray from = element.getAsJsonArray("from");
+				final JsonArray to = element.getAsJsonArray("to");
+				lights.add(new Light(
+						from.get(0).getAsFloat() / 16, from.get(1).getAsFloat() / 16, from.get(2).getAsFloat() / 16,
+						to.get(0).getAsFloat() / 16, to.get(1).getAsFloat() / 16, to.get(2).getAsFloat() / 16
+				));
+			}
+		} catch (Exception exception) {
+			System.err.println("[MTRBR-RENDER] route-model=" + resource + " load-failed=" + exception.getClass().getSimpleName());
+		}
+		return List.copyOf(lights);
 	}
 
 	private static void ensureLoaded() {
@@ -199,5 +306,9 @@ public final class ColorLightModel {
 	}
 
 	public record Face(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3, float x4, float y4, float z4, float u1, float v1, float u2, float v2, int texture, Direction direction) {
+	}
+
+	/** Exact bounds of one route element in the exported model. */
+	public record Light(float x1, float y1, float z1, float x2, float y2, float z2) {
 	}
 }

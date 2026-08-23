@@ -19,9 +19,9 @@ public final class DispatcherScreen extends Screen {
 	private static final int CONTENT_WIDTH = 700;
 	private static final int LIST_TOP = 50;
 	private static final int ROW_HEIGHT = 18;
-	private static final int[] COLUMN_OFFSETS = {0, 60, 125, 195, 265, 345, 405, 465, 525, 595};
-	private static final String[] HEADERS = {"Code", "State", "Route", "Next", "Dest", "Ctrl", "Req", "Auth", "Head", "Occ/Res/Lock"};
-	private static final String[] CHINESE_HEADERS = {"编号", "状态", "路线", "下一站", "终点", "控制", "请求", "授权", "车头", "占/预/锁"};
+	private static final int[] COLUMN_OFFSETS = {5, 65, 130, 210, 285, 360, 420, 480, 540, 610};
+	private static final String[] HEADERS = {"Code", "State", "Route", "Next", "Dest", "Ctrl", "Req", "Auth", "Head", "Occ/Auth/Lock"};
+	private static final String[] CHINESE_HEADERS = {"编号", "状态", "路线", "下一站", "终点", "控制", "请求", "授权", "车头", "区间占用/授权/锁闭"};
 
 	private final List<ClientDispatcherData.Entry> entries = new ArrayList<>();
 	private int selectedIndex = -1;
@@ -41,11 +41,11 @@ public final class DispatcherScreen extends Screen {
 		final int buttonWidth = 55;
 		final int gap = 10;
 		final double startX = leftX + (CONTENT_WIDTH - buttonWidth * 5 - gap * 4) / 2.0;
-		addRenderableWidget(Button.builder(Component.literal("Refresh"), button -> requestRefresh()).bounds((int) (startX * 0.45 + (buttonWidth + gap) * 0), height - 28, buttonWidth, 18).build());
-		addRenderableWidget(Button.builder(Component.literal("Approve"), button -> approveSelected()).bounds((int) (startX * 0.45 + (buttonWidth + gap) * 1), height - 28, buttonWidth, 18).build());
-		addRenderableWidget(Button.builder(Component.literal("Revoke"), button -> revokeSelected()).bounds((int) (startX * 0.45 + (buttonWidth + gap) * 2), height - 28, buttonWidth, 18).build());
-		addRenderableWidget(Button.builder(Component.literal("Override"), button -> overrideSelected()).bounds((int) (startX * 0.45 + (buttonWidth + gap) * 3), height - 28, buttonWidth, 18).build());
-		addRenderableWidget(Button.builder(Component.literal("Close"), button -> onClose()).bounds((int) (startX * 0.45 + (buttonWidth + gap) * 4), height - 28, buttonWidth, 18).build());
+		addRenderableWidget(Button.builder(Component.literal("Refresh"), button -> requestRefresh()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 0), height - 28, buttonWidth, 18).build());
+		addRenderableWidget(Button.builder(Component.literal("Approve"), button -> approveSelected()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 1), height - 28, buttonWidth, 18).build());
+		addRenderableWidget(Button.builder(Component.literal("Revoke"), button -> revokeSelected()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 2), height - 28, buttonWidth, 18).build());
+		addRenderableWidget(Button.builder(Component.literal("Override"), button -> overrideSelected()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 3), height - 28, buttonWidth, 18).build());
+		addRenderableWidget(Button.builder(Component.literal("Close"), button -> onClose()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 4), height - 28, buttonWidth, 18).build());
 		requestRefresh();
 		refreshTicks = 20;
 	}
@@ -181,10 +181,11 @@ public final class DispatcherScreen extends Screen {
 				String.format("%.1f", entry.requestEnd()),
 				String.format("%.1f", entry.authorizationEnd()),
 				String.format("%.1f", entry.head()),
-				entry.occupiedSections() + "/" + entry.reservedSections() + "/" + entry.lockedSections()
+				entry.occupiedBlocks() + "/" + entry.authorizedBlocks() + "/" + entry.lockedBlocks()
 		};
 		guiGraphics.drawString(font, values[0], sx(COLUMN_OFFSETS[0]), y, 0xFFFFFFFF);
-		guiGraphics.drawString(font, entry.state(), sx(COLUMN_OFFSETS[1]), y, stateColor(entry.state()));
+		final String stateText = entry.oneShotOverride() ? "OVERRIDE" : entry.state();
+		guiGraphics.drawString(font, stateText, sx(COLUMN_OFFSETS[1]), y, stateColor(stateText));
 		for (int i = 1; i < values.length; i++) {
 			guiGraphics.drawString(font, values[i], sx(COLUMN_OFFSETS[i + 1]), y, 0xFFFFFFFF);
 		}

@@ -27,6 +27,8 @@ import java.util.Set;
  */
 public final class SectionStateManager {
 
+	/** Ignore zero-width contact at a shared immutable-path node. */
+	private static final double OCCUPANCY_BOUNDARY_EPSILON = 1.0E-3;
 	private static final ThreadLocal<SimulationState> CURRENT = new ThreadLocal<>();
 	private static final Map<Simulator, SimulationState> STATES = Collections.synchronizedMap(new IdentityHashMap<>());
 	/** Published only after a complete simulation tick; safe for the Forge server thread to read. */
@@ -163,6 +165,12 @@ public final class SectionStateManager {
 		return state != null && state.lockBlocks(blockIds, ownerId);
 	}
 
+	/** True only when this owner still holds both the reservation and lock for every Block resource. */
+	public static boolean areBlocksReservedAndLockedBy(Simulator simulator, Collection<String> blockIds, String ownerId) {
+		final SimulationState state = STATES.get(simulator);
+		return state != null && state.areBlocksReservedAndLockedBy(blockIds, ownerId);
+	}
+
 	public static void releaseBlocks(Simulator simulator, Collection<String> blockIds, String ownerId) {
 		final SimulationState state = STATES.get(simulator);
 		if (state != null) {
@@ -179,6 +187,18 @@ public final class SectionStateManager {
 		final SimulationState state = STATES.get(simulator);
 		if (state != null) {
 			state.releaseSections(sectionIds, ownerId);
+		}
+	}
+
+	/**
+	 * Drops reservations/locks whose request no longer has a live authorization.
+	 * Physical occupancy is deliberately left untouched; it is maintained from
+	 * vehicle head/tail observations in applyVehicleOccupancy().
+	 */
+	public static void releaseStaleReservations(Simulator simulator, Collection<String> activeRequestIds) {
+		final SimulationState state = STATES.get(simulator);
+		if (state != null) {
+			state.releaseStaleReservations(activeRequestIds == null ? Set.of() : Set.copyOf(activeRequestIds));
 		}
 	}
 
@@ -315,7 +335,11 @@ public final class SectionStateManager {
 			final Set<String> occupied = new HashSet<>();
 			final boolean manualOverride = RouteRequestManager.isManualDrivingOverride(simulator, vehicleId);
 			for (final PathData pathData : extraData.immutablePath) {
-				if (pathData.getEndDistance() < tail || pathData.getStartDistance() > head) {
+				// Shrink both vehicle endpoints before testing overlap. This makes a
+				// shared node belong to neither adjacent Rail until the vehicle has
+				// physically entered it, independently of traversal direction.
+				if (pathData.getEndDistance() <= tail + OCCUPANCY_BOUNDARY_EPSILON
+						|| pathData.getStartDistance() >= head - OCCUPANCY_BOUNDARY_EPSILON) {
 					continue;
 				}
 				final String sectionId = sectionId(pathData);
@@ -429,6 +453,19 @@ public final class SectionStateManager {
 			return true;
 		}
 
+		private boolean areBlocksReservedAndLockedBy(Collection<String> blockIds, String ownerId) {
+			if (blockIds.isEmpty() || ownerId == null || ownerId.isBlank()) {
+				return false;
+			}
+			for (final String blockId : blockIds) {
+				if (!blockReservedBy.getOrDefault(blockId, Set.of()).contains(ownerId)
+						|| !blockLockedBy.getOrDefault(blockId, Set.of()).contains(ownerId)) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		private void releaseBlocks(Collection<String> blockIds, String ownerId) {
 			boolean changed = false;
 			for (final String blockId : blockIds) {
@@ -480,6 +517,50 @@ public final class SectionStateManager {
 			if (changed) {
 				stateRevision++;
 			}
+		}
+
+		private void releaseStaleReservations(Set<String> activeRequestIds) {
+			boolean changed = false;
+			for (final SectionRecord section : sections.values()) {
+				for (final String owner : Set.copyOf(section.reservedBy)) {
+					if (!activeRequestIds.contains(owner)) {
+						section.reservedBy.remove(owner);
+						section.lockedBy.remove(owner);
+						changed = true;
+						System.out.println("[MTRBR-SECTION-STALE] section=" + section.sectionId + " ownerRequest=" + owner + " reason=OWNER_AUTHORIZATION_MISSING");
+					}
+				}
+				for (final String owner : Set.copyOf(section.lockedBy)) {
+					if (!activeRequestIds.contains(owner)) {
+						section.lockedBy.remove(owner);
+						changed = true;
+						System.out.println("[MTRBR-SECTION-STALE] section=" + section.sectionId + " ownerRequest=" + owner + " reason=OWNER_AUTHORIZATION_MISSING");
+					}
+				}
+			}
+			changed |= releaseStaleBlockOwners(blockReservedBy, activeRequestIds, "reserved");
+			changed |= releaseStaleBlockOwners(blockLockedBy, activeRequestIds, "locked");
+			if (changed) {
+				stateRevision++;
+			}
+		}
+
+		private boolean releaseStaleBlockOwners(Map<String, Set<String>> ownersByBlock, Set<String> activeRequestIds, String stateName) {
+			boolean changed = false;
+			for (final Map.Entry<String, Set<String>> entry : Set.copyOf(ownersByBlock.entrySet())) {
+				final Set<String> owners = entry.getValue();
+				for (final String owner : Set.copyOf(owners)) {
+					if (!activeRequestIds.contains(owner)) {
+						owners.remove(owner);
+						changed = true;
+						System.out.println("[MTRBR-BLOCK-STALE] block=" + entry.getKey() + " ownerRequest=" + owner + " state=" + stateName + " reason=OWNER_AUTHORIZATION_MISSING");
+					}
+				}
+				if (owners.isEmpty()) {
+					ownersByBlock.remove(entry.getKey());
+				}
+			}
+			return changed;
 		}
 
 		private Map<String, SectionSnapshot> snapshot() {

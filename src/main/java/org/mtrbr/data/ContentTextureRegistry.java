@@ -34,6 +34,11 @@ public final class ContentTextureRegistry {
 	/** 色灯式进路指示器的图层贴图：route=X -> indicator_1_route_X.png。 */
 	@Nullable
 	public static ResourceLocation getColorLightTexture(String content) {
+		return getColorLightTexture(content, "indicator_1");
+	}
+
+	@Nullable
+	public static ResourceLocation getColorLightTexture(String content, String indicatorModel) {
 		if (content == null) {
 			return null;
 		}
@@ -45,6 +50,6 @@ public final class ContentTextureRegistry {
 		if (value.isEmpty() || !value.chars().allMatch(Character::isLetterOrDigit)) {
 			return null;
 		}
-		return ResourceLocation.fromNamespaceAndPath(MTRBR.MOD_ID, "textures/block/indicator_1_route_" + value + ".png");
+		return ResourceLocation.fromNamespaceAndPath(MTRBR.MOD_ID, "textures/block/indicator/" + indicatorModel + "_route_" + value + ".png");
 	}
 }

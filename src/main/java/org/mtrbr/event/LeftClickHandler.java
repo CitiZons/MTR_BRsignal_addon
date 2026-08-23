@@ -26,7 +26,8 @@ public final class LeftClickHandler {
 		final ItemStack stack = player.getMainHandItem();
 		final boolean debugHeld = stack.is(MTRBR.DEBUG_TOOL.get());
 		final boolean routeHeld = stack.is(MTRBR.ROUTE_TOOL.get());
-		if (!debugHeld && !routeHeld) {
+		final boolean dispatcherHeld = stack.is(MTRBR.DISPATCHER_TOOL.get());
+		if (!debugHeld && !routeHeld && !dispatcherHeld) {
 			return;
 		}
 		final Level level = event.getLevel();

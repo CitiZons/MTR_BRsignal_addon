@@ -1,64 +1,190 @@
 {
   "variants": {
-    "facing=north,is_22_5=false,is_45=false": {
+    "facing=north,is_22_5=false,is_45=false,route=off": {
       "model": "mtr_brsignal_addon:block/indicator_1_null"
     },
-    "facing=north,is_22_5=true,is_45=false": {
-      "model": "mtr_brsignal_addon:block/indicator_1_22_5"
+    "facing=north,is_22_5=false,is_45=false,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null"
     },
-    "facing=north,is_22_5=false,is_45=true": {
-      "model": "mtr_brsignal_addon:block/indicator_1_45"
+    "facing=north,is_22_5=false,is_45=false,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null"
     },
-    "facing=north,is_22_5=true,is_45=true": {
-      "model": "mtr_brsignal_addon:block/indicator_1_67_5",
+    "facing=north,is_22_5=true,is_45=false,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5"
+    },
+    "facing=north,is_22_5=true,is_45=false,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5"
+    },
+    "facing=north,is_22_5=true,is_45=false,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5"
+    },
+    "facing=north,is_22_5=false,is_45=true,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45"
+    },
+    "facing=north,is_22_5=false,is_45=true,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45"
+    },
+    "facing=north,is_22_5=false,is_45=true,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45"
+    },
+    "facing=north,is_22_5=true,is_45=true,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
       "y": 90
     },
-    "facing=east,is_22_5=false,is_45=false": {
+    "facing=north,is_22_5=true,is_45=true,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 90
+    },
+    "facing=north,is_22_5=true,is_45=true,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=false,route=off": {
       "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 90
     },
-    "facing=east,is_22_5=true,is_45=false": {
-      "model": "mtr_brsignal_addon:block/indicator_1_22_5",
+    "facing=east,is_22_5=false,is_45=false,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 90
     },
-    "facing=east,is_22_5=false,is_45=true": {
-      "model": "mtr_brsignal_addon:block/indicator_1_45",
+    "facing=east,is_22_5=false,is_45=false,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 90
     },
-    "facing=east,is_22_5=true,is_45=true": {
-      "model": "mtr_brsignal_addon:block/indicator_1_67_5",
+    "facing=east,is_22_5=true,is_45=false,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=false,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=false,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=true,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=true,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=true,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=true,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
       "y": 180
     },
-    "facing=south,is_22_5=false,is_45=false": {
+    "facing=east,is_22_5=true,is_45=true,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 180
+    },
+    "facing=east,is_22_5=true,is_45=true,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=false,route=off": {
       "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 180
     },
-    "facing=south,is_22_5=true,is_45=false": {
-      "model": "mtr_brsignal_addon:block/indicator_1_22_5",
+    "facing=south,is_22_5=false,is_45=false,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 180
     },
-    "facing=south,is_22_5=false,is_45=true": {
-      "model": "mtr_brsignal_addon:block/indicator_1_45",
+    "facing=south,is_22_5=false,is_45=false,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 180
     },
-    "facing=south,is_22_5=true,is_45=true": {
-      "model": "mtr_brsignal_addon:block/indicator_1_67_5",
+    "facing=south,is_22_5=true,is_45=false,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=false,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=false,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=true,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=true,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=true,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=true,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
       "y": 270
     },
-    "facing=west,is_22_5=false,is_45=false": {
+    "facing=south,is_22_5=true,is_45=true,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 270
+    },
+    "facing=south,is_22_5=true,is_45=true,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=false,route=off": {
       "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 270
     },
-    "facing=west,is_22_5=true,is_45=false": {
-      "model": "mtr_brsignal_addon:block/indicator_1_22_5",
+    "facing=west,is_22_5=false,is_45=false,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 270
     },
-    "facing=west,is_22_5=false,is_45=true": {
-      "model": "mtr_brsignal_addon:block/indicator_1_45",
+    "facing=west,is_22_5=false,is_45=false,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null",
       "y": 270
     },
-    "facing=west,is_22_5=true,is_45=true": {
-      "model": "mtr_brsignal_addon:block/indicator_1_67_5"
+    "facing=west,is_22_5=true,is_45=false,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=false,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=false,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_22_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=true,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=true,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=true,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_45",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=true,route=off": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 0
+    },
+    "facing=west,is_22_5=true,is_45=true,route=1": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 0
+    },
+    "facing=west,is_22_5=true,is_45=true,route=4": {
+      "model": "mtr_brsignal_addon:block/indicator_1_null_67_5",
+      "y": 0
     }
   }
 }
+
+
+

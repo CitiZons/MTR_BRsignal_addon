@@ -6,7 +6,6 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -19,34 +18,16 @@ import org.mtrbr.MTRBR;
 import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.client.ServerAspectCache;
-import org.mtrbr.data.ClientBindings;
 import org.mtrbr.data.ClientIndicatorBindings;
-import org.mtrbr.data.RouteBinding;
 import org.mtrbr.logic.SignalLogic;
-
-import java.util.List;
-import java.util.Locale;
 
 /**
  * 色灯式进路指示器渲染（与 LED 相同思路）：
- * 方块本体用 JSON 模型（indicator_1.json），本渲染器只画“点亮”的 5 个白色色灯，
- * 位置来自 indicator_1_1.bbmodel 的白色灯块（平移 +3.5/+3 后 /16），
- * 用全亮光照（getDefaultLight）实现发光效果。
+ * 方块本体只提供固定外壳；路线图片通过全亮渲染层叠加，避免环境光照影响发光。
  */
 public final class ColorLightIndicatorRenderer implements BlockEntityRenderer<ColorLightIndicatorBlockEntity> {
 
-	private static final float Z = 0.42F; // 灯块北面 z=6.8，/16 再向内一点（与 LED 同侧显示）
 	private static final org.mtr.mapping.holder.Identifier WHITE_TEXTURE = new org.mtr.mapping.holder.Identifier(MTRBR.MOD_ID, "textures/block/white.png");
-
-	private static final float[][] LIGHTS = {
-			{0.375F, 0.125F, 0.4375F, 0.1875F},
-			{0.484375F, 0.234375F, 0.546875F, 0.296875F},
-			{0.59375F, 0.34375F, 0.65625F, 0.40625F},
-			{0.703125F, 0.453125F, 0.765625F, 0.515625F},
-			{0.8125F, 0.5625F, 0.875F, 0.625F},
-	};
-
-
 	/** 节流调试日志：内容变化或每 100 tick 输出一次，用于定位指示器不显示的原因。 */
 	private static String lastDebugLine = "";
 	private static long lastDebugTick = -1;
@@ -94,39 +75,54 @@ public final class ColorLightIndicatorRenderer implements BlockEntityRenderer<Co
 			return;
 		}
 		final ServerAspectCache.DisplayState serverState = ServerAspectCache.getState(boundSignalPos, false);
-		final List<RouteBinding> bindings;
-		if (serverState != null && !serverState.authorizationId().isEmpty()) {
-			final String authorizedContent = serverState.routeContent();
-			bindings = ClientBindings.get(boundSignalPos).stream()
-					.filter(binding -> binding.content().equalsIgnoreCase(authorizedContent))
-					.toList();
-		} else {
-			bindings = List.of();
-		}
-		if (bindings.isEmpty()) {
+		if (serverState == null || serverState.authorizationId().isEmpty() || serverState.routeContent().isBlank()) {
 			debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " NO-AUTHORIZED-ROUTE");
 			return;
 		}
-		debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " open=" + bindings);
-
-		for (final float[] light : LIGHTS) {
-			drawLight(pos, angle, light[0], light[1], light[2], light[3]);
+		final String indicatorModel = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
+		final java.util.List<ColorLightModel.Light> lights = ColorLightModel.getRouteLights(indicatorModel, serverState.routeContent());
+		if (lights.isEmpty()) {
+			debugLog(level, pos + " -> " + boundSignalPos + " route=" + serverState.routeContent() + " NO-ROUTE-LIGHTS");
+			return;
+		}
+		debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " route=" + serverState.routeContent() + " lights=" + lights.size());
+		for (final ColorLightModel.Light light : lights) {
+			drawLight(pos, angle, light);
 		}
 	}
 
-	private static void drawLight(BlockPos pos, float angle, float x1, float y1, float x2, float y2) {
-		MainRenderer.scheduleRender(WHITE_TEXTURE, false, QueuedRenderLayer.EXTERIOR, (graphicsHolder, cameraOffset) -> {
+	private static void drawLight(BlockPos pos, float angle, ColorLightModel.Light light) {
+		MainRenderer.scheduleRender(WHITE_TEXTURE, false, QueuedRenderLayer.LIGHT, (graphicsHolder, cameraOffset) -> {
 			graphicsHolder.push();
 			graphicsHolder.translate(pos.getX() + 0.5 - cameraOffset.getXMapped(), pos.getY() + 0.5 - cameraOffset.getYMapped(), pos.getZ() + 0.5 - cameraOffset.getZMapped());
 			graphicsHolder.rotateYDegrees(-(angle + 180));
 			graphicsHolder.translate(-0.5, -0.5, -0.5);
-			IDrawing.drawTexture(graphicsHolder,
-					x1, y2, Z,
-					x2, y2, Z,
-					x2, y1, Z,
-					x1, y1, Z,
-					0, 1, 1, 0, org.mtr.mapping.holder.Direction.UP, 0xFFFFFFFF, GraphicsHolder.getDefaultLight());
+			// The route model supplies full element bounds. Keep the authored 3-D
+			// geometry and render every face through the self-lit LIGHT layer.
+			drawCuboid(graphicsHolder, light);
 			graphicsHolder.pop();
 		});
+	}
+
+	private static void drawCuboid(GraphicsHolder graphicsHolder, ColorLightModel.Light light) {
+		final float x1 = light.x1();
+		final float y1 = light.y1();
+		final float z1 = light.z1() - 0.0005F;
+		final float x2 = light.x2();
+		final float y2 = light.y2();
+		final float z2 = light.z2() + 0.0005F;
+		final int lightLevel = GraphicsHolder.getDefaultLight();
+		drawFace(graphicsHolder, x1, y2, z1, x2, y2, z1, x2, y1, z1, x1, y1, z1, org.mtr.mapping.holder.Direction.NORTH, lightLevel);
+		drawFace(graphicsHolder, x2, y2, z2, x1, y2, z2, x1, y1, z2, x2, y1, z2, org.mtr.mapping.holder.Direction.SOUTH, lightLevel);
+		drawFace(graphicsHolder, x1, y2, z2, x1, y2, z1, x1, y1, z1, x1, y1, z2, org.mtr.mapping.holder.Direction.WEST, lightLevel);
+		drawFace(graphicsHolder, x2, y2, z1, x2, y2, z2, x2, y1, z2, x2, y1, z1, org.mtr.mapping.holder.Direction.EAST, lightLevel);
+		drawFace(graphicsHolder, x1, y2, z2, x2, y2, z2, x2, y2, z1, x1, y2, z1, org.mtr.mapping.holder.Direction.UP, lightLevel);
+		drawFace(graphicsHolder, x1, y1, z1, x2, y1, z1, x2, y1, z2, x1, y1, z2, org.mtr.mapping.holder.Direction.DOWN, lightLevel);
+	}
+
+	private static void drawFace(GraphicsHolder graphicsHolder, float x1, float y1, float z1, float x2, float y2, float z2,
+			float x3, float y3, float z3, float x4, float y4, float z4, org.mtr.mapping.holder.Direction direction, int light) {
+		IDrawing.drawTexture(graphicsHolder, x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4,
+				0, 1, 1, 0, direction, 0xFFFFFFFF, light);
 	}
 }

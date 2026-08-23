@@ -96,7 +96,17 @@ public final class RouteRequest {
 
 	public void transitionTo(RequestState next, String reason) {
 		if (!isTransitionAllowed(state, next)) {
-			throw new IllegalStateException("Invalid RouteRequest transition " + state + " -> " + next);
+			final String detail = "[MTRBR-INVALID-TRANSITION] vehicleId=" + vehicleId
+					+ " requestId=" + requestId + " oldState=" + state + " newState=" + next
+					+ " reason=" + (reason == null ? "" : reason);
+			MtrbrDebugLog.event("MTRBR-INVALID-TRANSITION", detail);
+			System.err.println(detail);
+			throw new IllegalStateException(detail);
+		}
+		if (state != next) {
+			MtrbrDebugLog.event("REQUEST", "vehicleId=" + vehicleId + " requestId=" + requestId
+					+ " authorizationId=<managed-separately> " + state + "->" + next
+					+ " reason=" + (reason == null ? "" : reason));
 		}
 		state = next;
 		this.reason = reason == null ? "" : reason;
@@ -108,16 +118,15 @@ public final class RouteRequest {
 		}
 		return switch (from) {
 			case NONE -> to == RequestState.APPROACHING || to == RequestState.CANCELED;
-			case OVERRIDE -> to == RequestState.CHECKING || to == RequestState.ACTIVE || to == RequestState.REVOKED || to == RequestState.INVALID;
-			case APPROACHING -> to == RequestState.REQUESTED || to == RequestState.CANCELED;
+			case APPROACHING -> to == RequestState.REQUESTED || to == RequestState.CANCELED || to == RequestState.INVALID;
 			case REQUESTED -> to == RequestState.CHECKING || to == RequestState.REVOKED || to == RequestState.CANCELED || to == RequestState.INVALID;
-			case CHECKING -> to == RequestState.WAITING || to == RequestState.DENIED || to == RequestState.REVOKED || to == RequestState.INVALID;
+			case CHECKING -> to == RequestState.WAITING || to == RequestState.DENIED || to == RequestState.CANCELED || to == RequestState.REVOKED || to == RequestState.INVALID;
 			case WAITING -> to == RequestState.CHECKING || to == RequestState.AUTHORIZED || to == RequestState.DENIED || to == RequestState.REVOKED || to == RequestState.INVALID || to == RequestState.CANCELED;
-			case AUTHORIZED -> to == RequestState.ACTIVE || to == RequestState.REVOKED || to == RequestState.INVALID;
-			case ACTIVE -> to == RequestState.PASSED || to == RequestState.REVOKED || to == RequestState.INVALID;
-			case PASSED -> to == RequestState.RELEASED || to == RequestState.REVOKED || to == RequestState.INVALID;
+			case AUTHORIZED -> to == RequestState.ACTIVE || to == RequestState.CANCELED || to == RequestState.REVOKED || to == RequestState.INVALID;
+			case ACTIVE -> to == RequestState.CHECKING || to == RequestState.PASSED || to == RequestState.CANCELED || to == RequestState.REVOKED || to == RequestState.INVALID;
+			case PASSED -> to == RequestState.RELEASED || to == RequestState.INVALID;
 			case DENIED -> to == RequestState.CHECKING || to == RequestState.REVOKED || to == RequestState.CANCELED || to == RequestState.INVALID;
-			case REVOKED -> to == RequestState.RELEASED || to == RequestState.CHECKING || to == RequestState.WAITING;
+			case REVOKED -> to == RequestState.RELEASED || to == RequestState.CANCELED;
 			case INVALID, CANCELED -> to == RequestState.RELEASED;
 			case RELEASED -> false;
 		};

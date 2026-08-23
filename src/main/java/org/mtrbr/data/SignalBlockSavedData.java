@@ -14,13 +14,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Collections;
 
-/** Persistent SignalFace -> SignalBlock -> protected Rail mapping. */
+/** Persistent SignalFace -> directed protection boundary -> protected Rail mapping. */
 public final class SignalBlockSavedData extends SavedData {
 	public static final String NAME = "mtr_brsignal_addon_signal_blocks";
 	private static final String KEY_VERSION = "version";
 	private static final String KEY_FACES = "faces";
 	private static final String KEY_BLOCKS = "blockRails";
-	private static final int CURRENT_VERSION = 5;
+	private static final int CURRENT_VERSION = 6;
 	private final Map<String, String> faceToBlock = new HashMap<>();
 	private final Map<String, List<String>> blockRails = new HashMap<>();
 	/** Legacy values are retained only in memory until the explicit migrate command runs. */
@@ -69,7 +69,9 @@ public final class SignalBlockSavedData extends SavedData {
 	private static boolean isCanonicalBlockId(String blockId) {
 		if (blockId == null || blockId.isBlank() || blockId.startsWith("legacy:") || blockId.startsWith("generated:")) return false;
 		final int separator = blockId.indexOf("->");
-		return separator > 0 && separator + 2 < blockId.length() && blockId.indexOf("->", separator + 2) < 0;
+		if (separator <= 0 || separator + 2 >= blockId.length() || blockId.indexOf("->", separator + 2) >= 0) return false;
+		final String boundaryId = blockId.substring(separator + 2);
+		return boundaryId.startsWith("terminal:") || !boundaryId.isBlank();
 	}
 
 	private static List<String> readStrings(ListTag tag) {
@@ -123,6 +125,10 @@ public final class SignalBlockSavedData extends SavedData {
 		}
 		public String getBlockId(String faceId) { return faceToBlock.getOrDefault(faceId, ""); }
 		public List<String> getRailIds(String blockId) { return blockRails.getOrDefault(blockId, List.of()); }
+		public String getBoundaryId(String blockId) {
+			final int separator = blockId == null ? -1 : blockId.indexOf("->");
+			return separator < 0 ? "" : blockId.substring(separator + 2);
+		}
 	}
 
 	/** Replace persisted canonical mappings with the current canonical topology. */
