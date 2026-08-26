@@ -6,6 +6,7 @@ import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
+import org.mtrbr.server.PathSnapshot;
 import org.mtrbr.server.RouteRequestManager;
 
 import java.util.ArrayList;
@@ -19,9 +20,11 @@ public final class SignalBlockSavedData extends SavedData {
 	public static final String NAME = "mtr_brsignal_addon_signal_blocks";
 	private static final String KEY_VERSION = "version";
 	private static final String KEY_FACES = "faces";
+	private static final String KEY_OCCURRENCES = "occurrences";
 	private static final String KEY_BLOCKS = "blockRails";
-	private static final int CURRENT_VERSION = 6;
+	private static final int CURRENT_VERSION = 8;
 	private final Map<String, String> faceToBlock = new HashMap<>();
+	private final Map<String, String> occurrenceToBlock = new HashMap<>();
 	private final Map<String, List<String>> blockRails = new HashMap<>();
 	/** Legacy values are retained only in memory until the explicit migrate command runs. */
 	private final Map<String, List<String>> legacyFaceRails = new HashMap<>();
@@ -35,11 +38,11 @@ public final class SignalBlockSavedData extends SavedData {
 
 	private static String dimension(ServerLevel level) { return level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath(); }
 
-	public static Snapshot getSnapshot(String dimension) { return SNAPSHOTS.getOrDefault(dimension, new Snapshot(Map.of(), Map.of())); }
+	public static Snapshot getSnapshot(String dimension) { return SNAPSHOTS.getOrDefault(dimension, new Snapshot(Map.of(), Map.of(), Map.of())); }
 
 	private void publishSnapshot(String dimension) {
 		final Map<String, Snapshot> next = new HashMap<>(SNAPSHOTS);
-		next.put(dimension, new Snapshot(faceToBlock, blockRails));
+		next.put(dimension, new Snapshot(faceToBlock, occurrenceToBlock, blockRails));
 		SNAPSHOTS = Collections.unmodifiableMap(next);
 	}
 
@@ -47,6 +50,8 @@ public final class SignalBlockSavedData extends SavedData {
 		final SignalBlockSavedData data = new SignalBlockSavedData();
 		final CompoundTag faces = tag.getCompound(KEY_FACES);
 		for (final String faceId : faces.getAllKeys()) data.faceToBlock.put(faceId, faces.getString(faceId));
+		final CompoundTag occurrences = tag.getCompound(KEY_OCCURRENCES);
+		for (final String occurrenceKey : occurrences.getAllKeys()) data.occurrenceToBlock.put(occurrenceKey, occurrences.getString(occurrenceKey));
 		final CompoundTag blocks = tag.getCompound(KEY_BLOCKS);
 		for (final String blockId : blocks.getAllKeys()) data.blockRails.put(blockId, readStrings(blocks.getList(blockId, Tag.TAG_STRING)));
 		// Legacy values are captured for the one-shot explicit migration only. They
@@ -57,6 +62,7 @@ public final class SignalBlockSavedData extends SavedData {
 			}
 		}
 		data.faceToBlock.entrySet().removeIf(entry -> !isCanonicalBlockId(entry.getValue()));
+		data.occurrenceToBlock.entrySet().removeIf(entry -> !isCanonicalBlockId(entry.getValue()));
 		data.blockRails.entrySet().removeIf(entry -> !isCanonicalBlockId(entry.getKey()));
 		final CompoundTag legacy = tag.getCompound("blocks");
 		if (!legacy.isEmpty()) {
@@ -89,6 +95,9 @@ public final class SignalBlockSavedData extends SavedData {
 		final CompoundTag faces = new CompoundTag();
 		faceToBlock.forEach(faces::putString);
 		tag.put(KEY_FACES, faces);
+		final CompoundTag occurrences = new CompoundTag();
+		occurrenceToBlock.forEach(occurrences::putString);
+		tag.put(KEY_OCCURRENCES, occurrences);
 		final CompoundTag blocks = new CompoundTag();
 		for (final Map.Entry<String, List<String>> entry : blockRails.entrySet()) {
 			final ListTag rails = new ListTag();
@@ -100,6 +109,9 @@ public final class SignalBlockSavedData extends SavedData {
 	}
 
 	public String getBlockId(String faceId) { return faceToBlock.getOrDefault(faceId, ""); }
+	public String getOccurrenceBlockId(String pathFingerprint, PathSnapshot.FaceTraversalKey key) {
+		return occurrenceToBlock.getOrDefault(occurrenceKey(pathFingerprint, key), "");
+	}
 	public List<String> getRailIdsForBlock(String blockId) { return blockRails.getOrDefault(blockId, List.of()); }
 	public List<String> getRailIds(String faceId) {
 		final String blockId = getBlockId(faceId);
@@ -118,12 +130,31 @@ public final class SignalBlockSavedData extends SavedData {
 		setDirty();
 	}
 
-	public record Snapshot(Map<String, String> faceToBlock, Map<String, List<String>> blockRails) {
+	/** Persists an occurrence-specific projection without changing the canonical Block ID. */
+	public void setOccurrenceBlock(String pathFingerprint, PathSnapshot.FaceTraversalKey key, String blockId) {
+		final String occurrenceKey = occurrenceKey(pathFingerprint, key);
+		if (pathFingerprint == null || pathFingerprint.isBlank() || key == null || !isCanonicalBlockId(blockId)) {
+			occurrenceToBlock.remove(occurrenceKey);
+		} else {
+			occurrenceToBlock.put(occurrenceKey, blockId);
+		}
+		setDirty();
+	}
+
+	public static String occurrenceKey(String pathFingerprint, PathSnapshot.FaceTraversalKey key) {
+		return pathFingerprint + "|" + key;
+	}
+
+	public record Snapshot(Map<String, String> faceToBlock, Map<String, String> occurrenceToBlock, Map<String, List<String>> blockRails) {
 		public Snapshot {
 			faceToBlock = Map.copyOf(faceToBlock);
+			occurrenceToBlock = Map.copyOf(occurrenceToBlock);
 			blockRails = Map.copyOf(blockRails);
 		}
 		public String getBlockId(String faceId) { return faceToBlock.getOrDefault(faceId, ""); }
+		public String getOccurrenceBlockId(String pathFingerprint, PathSnapshot.FaceTraversalKey key) {
+			return occurrenceToBlock.getOrDefault(occurrenceKey(pathFingerprint, key), "");
+		}
 		public List<String> getRailIds(String blockId) { return blockRails.getOrDefault(blockId, List.of()); }
 		public String getBoundaryId(String blockId) {
 			final int separator = blockId == null ? -1 : blockId.indexOf("->");
@@ -177,6 +208,20 @@ public final class SignalBlockSavedData extends SavedData {
 			if (faceToBlock.containsKey(entry.getKey()) || !isCanonicalBlockId(protection.blockId()) || protection.railIds().isEmpty()) continue;
 			faceToBlock.put(entry.getKey(), protection.blockId());
 			blockRails.put(protection.blockId(), protection.railIds());
+			added++;
+		}
+		if (added > 0) setDirty();
+		return added;
+	}
+
+	/** Adds only absent occurrence projections derived from observed immutable paths. */
+	public int addGeneratedOccurrenceBlocks(Map<String, RouteRequestManager.GeneratedProtection> generated) {
+		int added = 0;
+		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
+			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
+			if (occurrenceToBlock.containsKey(entry.getKey()) || !isCanonicalBlockId(protection.blockId()) || protection.railIds().isEmpty()) continue;
+			occurrenceToBlock.put(entry.getKey(), protection.blockId());
+			blockRails.putIfAbsent(protection.blockId(), protection.railIds());
 			added++;
 		}
 		if (added > 0) setDirty();

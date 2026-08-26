@@ -72,10 +72,13 @@ public final class ServerAspectManager {
 		// only entries that are absent, using the already observed immutable paths.
 		// Existing operator-approved mappings are never replaced here.
 		final int repairedBlocks = signalBlocks.addGeneratedBlocks(RouteRequestManager.getGeneratedProtectionBlocks(simulator, topology));
-		if (repairedBlocks > 0) {
+		final int repairedOccurrences = signalBlocks.addGeneratedOccurrenceBlocks(RouteRequestManager.getGeneratedOccurrenceProtectionBlocks(simulator, topology));
+		if (repairedBlocks > 0 || repairedOccurrences > 0) {
 			signalBlocks = SignalBlockSavedData.get(level);
-			MtrbrDebugLog.event("MTRBR-BLOCK-RECOVERY", "dimension=" + dimension + " addedMissingMappings=" + repairedBlocks);
-			System.out.println("[MTRBR-BLOCK-RECOVERY] dimension=" + dimension + " addedMissingMappings=" + repairedBlocks);
+			MtrbrDebugLog.event("MTRBR-BLOCK-RECOVERY", "dimension=" + dimension + " addedMissingMappings=" + repairedBlocks
+					+ " addedOccurrenceMappings=" + repairedOccurrences);
+			System.out.println("[MTRBR-BLOCK-RECOVERY] dimension=" + dimension + " addedMissingMappings=" + repairedBlocks
+					+ " addedOccurrenceMappings=" + repairedOccurrences);
 		}
 		final long nowSnapshot = System.currentTimeMillis();
 		if (nowSnapshot - lastSnapshotDebugMillis >= 5000) {
@@ -303,7 +306,12 @@ public final class ServerAspectManager {
 		final List<PathSnapshot.FaceTraversal> faces = authorization.path().getFaceTraversals(dimension, topology).stream()
 				.filter(PathSnapshot::isDirectionMatched).toList();
 		final SignalBlockSavedData.Snapshot saved = SignalBlockSavedData.getSnapshot(dimension);
-		final String blockId = saved.getBlockId(faceTraversal.faceId());
+		final String blockId = saved.getOccurrenceBlockId(authorization.path().getFingerprint(), faceTraversal.key());
+		final PathSnapshot.ProtectionBoundary immediateBoundary = authorization.path().getNextProtectionBoundary(faceTraversal, faces);
+		if (blockId.isBlank() || !saved.getBoundaryId(blockId).equals(immediateBoundary.id())) {
+			visited.remove(visitKey);
+			return ServerAspect.RED;
+		}
 		final PathSnapshot.ProtectionBoundary boundary = authorization.path().getProtectionBoundary(faceTraversal, faces, saved.getBoundaryId(blockId));
 		if (boundary == null) {
 			visited.remove(visitKey);

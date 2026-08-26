@@ -9,7 +9,6 @@ import org.mtrbr.mixin.VehicleExtraDataAccess;
 /** Server-side stopping-point clamp for managed vehicles without authorization. */
 public final class MovementGate {
 	private static final double EPSILON = 1.0E-6;
-	private static final Map<Long, Long> LAST_DEBUG = new HashMap<>();
 	private static final Map<Long, Double> LAST_ENFORCED_BOUNDARY = new HashMap<>();
 
 	private MovementGate() {
@@ -19,12 +18,23 @@ public final class MovementGate {
 		// Enforce before MTR advances as well as at tick end. The stopping-point
 		// hook handles braking; this closes the one-tick gap for a vehicle which
 		// was already at or beyond an unauthorized boundary when simulation starts.
+		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
+		if (simulator != null && RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId())) {
+			RouteRequestManager.logNativeTurnbackActivityGateDeferral(simulator, vehicle.getId());
+			return;
+		}
 		enforce(vehicle);
 	}
 
 	public static double clampStoppingPoint(Vehicle vehicle, double mtrStoppingPoint) {
 		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
 		if (simulator == null) {
+			return mtrStoppingPoint;
+		}
+		// MTR owns stopping-point, speed and path reversal between native terminal
+		// entry and a newly authorized Activity. Do not write an old-direction stop.
+		if (RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId())) {
+			RouteRequestManager.logNativeTurnbackActivityGateDeferral(simulator, vehicle.getId());
 			return mtrStoppingPoint;
 		}
 		final double boundary = RouteRequestManager.getStopBoundary(simulator, vehicle.getId());
@@ -36,35 +46,11 @@ public final class MovementGate {
 			// A stale boundary must never become a backwards MTR stopping point.
 			return Math.min(mtrStoppingPoint, head);
 		}
-		// 文档：制动距离属于 Movement Gate 的安全约束。用 MTR 的减速度把停车点
-		// 前推到“控制边界 - 所需制动距离”，保证未授权列车在红灯前物理停住；
-		// 若已越过安全点则就地停车，绝不越过控制边界。
-		// VehicleExtension#getSpeed is a client extension value and is 0 on this
-		// simulation path. Read VehicleSchema.speed, the value MTR actually advances.
-		final double speed = Math.max(0, ((VehicleAccess) vehicle).mtrbr$getSpeed());
-		final double deceleration = vehicle.vehicleExtraData.getDeceleration();
-		final double brakingDistance = deceleration > 0 ? (speed * speed) / (2 * deceleration) : 0;
-		// The braking point may be behind the current head, but the requested
-		// stopping point must never be allowed beyond the physical red boundary.
-		// The previous max(head, ...) could return a value greater than boundary
-		// once the train had advanced into the signal, leaving enforce() to pull it
-		// back one tick later.
-		final double safetyBoundary = Math.min(boundary - 1.0E-6, Math.max(head, boundary - brakingDistance));
-		final double clamped = Math.min(mtrStoppingPoint, safetyBoundary);
-		final long now = System.currentTimeMillis();
-		final Long lastDebug = LAST_DEBUG.get(vehicle.getId());
-		if (lastDebug == null || now - lastDebug >= 5000) {
-			LAST_DEBUG.put(vehicle.getId(), now);
-			System.out.println("[MTRBR-GATE] vehicle=" + vehicle.getId()
-					+ " head=" + String.format("%.1f", head)
-					+ " speed=" + String.format("%.1f", speed)
-				+ " braking=" + String.format("%.1f", brakingDistance)
-				+ " activityEnd=" + String.format("%.1f", RouteRequestManager.getActivityEnd(simulator, vehicle.getId()))
-				+ " boundary=" + String.format("%.1f", boundary)
-					+ " mtrStop=" + String.format("%.1f", mtrStoppingPoint)
-					+ " clamped=" + String.format("%.1f", clamped));
-		}
-		return clamped;
+		// The moving redirect removes MTR's independent block veto while this addon
+		// owns a prefix, so this is MTR's planned station/terminal point. Keep it
+		// unless the current Authorization boundary is genuinely earlier.
+		final double authorizationLimit = Math.max(head, boundary);
+		return Math.min(mtrStoppingPoint, authorizationLimit);
 	}
 
 	/**
@@ -77,19 +63,28 @@ public final class MovementGate {
 		if (simulator == null) {
 			return;
 		}
+		// During a recognized native terminal handoff, MTR alone owns railProgress,
+		// speed and its stopping point. This is a bounded state, not a generic
+		// INVALID_ACTIVITY bypass; normal enforcement resumes on activity ready or timeout.
+		if (RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId())) {
+			RouteRequestManager.logNativeTurnbackActivityGateDeferral(simulator, vehicle.getId());
+			return;
+		}
 		double boundary = RouteRequestManager.getStopBoundary(simulator, vehicle.getId());
 		if (Double.isNaN(boundary)) {
 			return;
 		}
 		final double head = ((VehicleAccess) vehicle).mtrbr$getRailProgress();
 		if (boundary < head - EPSILON) {
-			final double lastSafeBoundary = RouteRequestManager.getLastSafeBoundary(simulator, vehicle.getId());
-			System.out.println("[MTRBR-GATE-INVALID-BOUNDARY] vehicle=" + vehicle.getId()
-					+ " headDistance=" + String.format("%.3f", head)
-					+ " boundary=" + String.format("%.3f", boundary)
-					+ " lastSafeBoundary=" + String.format("%.3f", lastSafeBoundary)
-					+ " source=MOVEMENT_GATE");
-			boundary = Math.max(head, Double.isFinite(lastSafeBoundary) ? lastSafeBoundary : head);
+			if (!RouteRequestManager.isFixedUnauthorisedGateBoundary(simulator, vehicle.getId())) {
+				final double lastSafeBoundary = RouteRequestManager.getLastSafeBoundary(simulator, vehicle.getId());
+				System.out.println("[MTRBR-GATE-INVALID-BOUNDARY] vehicle=" + vehicle.getId()
+						+ " headDistance=" + String.format("%.3f", head)
+						+ " boundary=" + String.format("%.3f", boundary)
+						+ " lastSafeBoundary=" + String.format("%.3f", lastSafeBoundary)
+						+ " source=MOVEMENT_GATE");
+				boundary = Math.max(head, Double.isFinite(lastSafeBoundary) ? lastSafeBoundary : head);
+			}
 		}
 		if (head >= boundary - 1e-6) {
 			if (head > boundary) {
@@ -111,24 +106,18 @@ public final class MovementGate {
 		}
 	}
 
-	public static boolean shouldBypassNativeBlock(Vehicle vehicle) {
-		return false;
-	}
-
-	/**
-	 * 只有当前受本 addon MovementGate 管理的车辆才禁用 MTR 原生阻塞；其余车辆保留 MTR
-	 * 原生兜底，避免“全局禁用 + 无 boundary”造成未受控车辆无约束冲过信号。
-	 */
+	/** Native signal/reservation occupancy is not a second authority for an authorized vehicle. */
 	public static boolean shouldDisableNativeBlock(Vehicle vehicle) {
 		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
-		if (simulator == null) {
-			return false;
-		}
-		// Re-enable MTR's native block calculation just before a planned terminal
-		// platform. That calculation is what raises isTerminating and starts the
-		// door/reversal sequence; waiting for the flag first creates a deadlock.
-		return RouteRequestManager.hasAuthorization(simulator, vehicle.getId())
-				&& !RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId())
-				&& !RouteRequestManager.isApproachingPlannedTurnback(simulator, vehicle.getId());
+		return simulator != null && (RouteRequestManager.hasAuthorization(simulator, vehicle.getId())
+				|| RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId()));
+	}
+
+	/** Same ownership rule at MTR's simulateStopped() startUp/reversal checks. */
+	public static boolean shouldBypassNativeStoppedBlock(Vehicle vehicle) {
+		// At a genuine MTR terminal, the opposite-rail hop happens inside
+		// simulateStopped() before the new direction can be authorized. This is not
+		// forward permission: it lets MTR complete its own terminal transition.
+		return shouldDisableNativeBlock(vehicle) || vehicle.vehicleExtraData.getIsTerminating();
 	}
 }

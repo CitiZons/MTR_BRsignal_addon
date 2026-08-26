@@ -51,15 +51,34 @@ public final class JunctionStateManager {
 		}
 	}
 
+	/** Read-only ownership query used by dispatcher statistics. */
+	public static boolean areResourcesReservedAndLockedBy(Simulator simulator, List<String> resources, String owner) {
+		if (resources.isEmpty() || owner == null || owner.isBlank()) return false;
+		final Map<String, JunctionRecord> state = STATES.get(simulator);
+		if (state == null) return false;
+		synchronized (state) {
+			return resources.stream().allMatch(resource -> {
+				final JunctionRecord record = state.get(resource);
+				return record != null && owner.equals(record.reservedBy) && owner.equals(record.lockedBy);
+			});
+		}
+	}
+
 	/** Removes locks whose request is no longer represented by an active Authorization. */
 	public static void releaseStale(Simulator simulator, Set<String> activeRequestIds) {
+		releaseStale(simulator, activeRequestIds, Map.of());
+	}
+
+	/** Removes only resources absent from both Authorization and pending physical leases. */
+	public static void releaseStale(Simulator simulator, Set<String> activeRequestIds, Map<String, Set<String>> retainedOwnersByResource) {
 		final Map<String, JunctionRecord> state = STATES.get(simulator);
 		if (state == null) return;
 		final long tick = SectionStateManager.getCurrentTick();
 		synchronized (state) {
 			for (final JunctionRecord record : state.values().toArray(JunctionRecord[]::new)) {
 				final String owner = record.lockedBy != null ? record.lockedBy : record.reservedBy;
-				if (owner != null && !activeRequestIds.contains(owner)) {
+				final Set<String> retainedOwners = retainedOwnersByResource.getOrDefault(record.key, Set.of());
+				if (owner != null && !retainedOwners.contains(owner) && !activeRequestIds.contains(owner)) {
 					MtrbrDebugLog.event("MTRBR-JUNCTION-STALE", "resource=" + record.key + " oldOwner=" + owner
 							+ " reason=OWNER_AUTHORIZATION_MISSING createdTick=" + record.createdTick
 							+ " lastValidatedTick=" + record.lastValidatedTick);

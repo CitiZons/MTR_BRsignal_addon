@@ -1,8 +1,8 @@
 package org.mtrbr.mixin;
 
+import org.mtr.core.data.Position;
 import org.mtr.core.data.Vehicle;
 import org.mtr.core.data.VehicleExtraData;
-import org.mtr.core.data.Position;
 import org.mtr.core.data.VehiclePosition;
 import org.mtr.libraries.it.unimi.dsi.fastutil.objects.Object2ObjectAVLTreeMap;
 import org.mtr.libraries.it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -52,28 +52,42 @@ public abstract class VehicleMixin {
 		return MovementGate.clampStoppingPoint((Vehicle) (Object) this, mtrStoppingPoint);
 	}
 
+	/**
+	 * Keep MTR's planned station/terminal point, but remove its independent signal,
+	 * reservation and vehicle-block veto while this addon owns a valid prefix.
+	 */
 	@Redirect(
 			method = "simulateMoving",
 			at = @At(value = "INVOKE", target = "Lorg/mtr/core/data/Vehicle;railBlockedDistance(IDDLorg/mtr/libraries/it/unimi/dsi/fastutil/objects/ObjectArrayList;ZZ)D"),
 			remap = false
 	)
-	private double mtrbr$manualOverrideNativeBlock(Vehicle vehicle, int pathIndex, double railProgress, double brakingDistance, ObjectArrayList<Object2ObjectAVLTreeMap<Position, Object2ObjectAVLTreeMap<Position, VehiclePosition>>> vehiclePositions, boolean includeBlocked, boolean includeReserved) {
-		// 只有受本 addon 管理的车辆才关闭 MTR 原生阻塞，改由 MovementGate 统一停车/减速；
-		// 未进入受控区或前方无信号的车辆仍走 MTR 原生兜底，避免出现安全真空。
+	private double mtrbr$overrideMovingNativeBlock(Vehicle vehicle, int pathIndex, double railProgress, double brakingDistance, ObjectArrayList<Object2ObjectAVLTreeMap<Position, Object2ObjectAVLTreeMap<Position, VehiclePosition>>> vehiclePositions, boolean includeBlocked, boolean includeReserved) {
 		final Vehicle self = (Vehicle) (Object) this;
-		if (MovementGate.shouldDisableNativeBlock(self)) {
-			return -1;
-		}
+		if (MovementGate.shouldDisableNativeBlock(self)) return -1;
+		return ((VehicleNativeAccess) self).mtrbr$invokeRailBlockedDistance(pathIndex, railProgress, brakingDistance, vehiclePositions, includeBlocked, includeReserved);
+	}
+
+	/**
+	 * MTR checks the same native blocker before startUp(), including after dwell and
+	 * immediately before its native opposite-rail reversal. Only bypass it when the
+	 * addon has an outgoing authorization or owns the active terminal handoff.
+	 */
+	@Redirect(
+			method = "simulateStopped",
+			at = @At(value = "INVOKE", target = "Lorg/mtr/core/data/Vehicle;railBlockedDistance(IDDLorg/mtr/libraries/it/unimi/dsi/fastutil/objects/ObjectArrayList;ZZ)D"),
+			remap = false
+	)
+	private double mtrbr$overrideStoppedNativeBlock(Vehicle vehicle, int pathIndex, double railProgress, double brakingDistance, ObjectArrayList<Object2ObjectAVLTreeMap<Position, Object2ObjectAVLTreeMap<Position, VehiclePosition>>> vehiclePositions, boolean includeBlocked, boolean includeReserved) {
+		final Vehicle self = (Vehicle) (Object) this;
+		if (MovementGate.shouldBypassNativeStoppedBlock(self)) return -1;
 		return ((VehicleNativeAccess) self).mtrbr$invokeRailBlockedDistance(pathIndex, railProgress, brakingDistance, vehiclePositions, includeBlocked, includeReserved);
 	}
 
 	@Inject(method = "simulate", at = @At("TAIL"), remap = false)
-	private void mtrbr$enforceMovementGate(CallbackInfo callbackInfo) {
-		MovementGate.enforce((Vehicle) (Object) this);
-	}
-
-	@Inject(method = "simulate", at = @At("TAIL"), remap = false)
-	private void mtrbr$observeVehicle(CallbackInfo callbackInfo) {
+	private void mtrbr$observeVehicleThenEnforceGate(CallbackInfo callbackInfo) {
+		// MTR may set isTerminating or reverse its path during simulate(). Observe
+		// that native state before the Gate can write railProgress or speed.
 		SectionStateManager.observeVehicle((Vehicle) (Object) this);
+		MovementGate.enforce((Vehicle) (Object) this);
 	}
 }

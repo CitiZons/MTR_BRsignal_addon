@@ -1,5 +1,15 @@
 # Railway Block Design
 
+## 当前实现状态（2026-08-26）
+
+信号和闭塞系统已基本完成。当前运行时链路已经采用 occurrence-aware `RouteProjection`：由 immutablePath 上的当前 `FaceTraversal` 直接确定保护 boundary、PathTraversal、Section 和 JunctionMovement，并查找对应的稳定 Block definition。
+
+`SavedBlock` 的 occurrence 映射不再决定本次授权的 boundary。找不到 `entryFace -> boundaryFace` 的稳定 Block definition 时，授权明确失败为 `BLOCK_DEFINITION_MISSING`，不会 fallback 到旧 terminal、其他 occurrence 或其他 path fingerprint。
+
+每个 `BlockAuthorization` 保存建立授权时的完整资源快照：Block key/occurrence、Section IDs、JunctionMovement IDs 以及 path/face context。Authorization、pending physical occurrence 和 vehicle head/tail 共同决定资源生命周期；释放阶段使用快照中的精确 key，不重新推导 JunctionMovement。
+
+资源清理规则为：Authorization 中的资源保留；Authorization 失效但车辆实体区间仍相交的 occurrence 转入 pending-release；不相交 occurrence 立即释放；两者都不存在的资源由资源级 stale 清理释放。Request 的 `DENIED`、`REVOKED` 或 `CANCELED` 状态本身不再作为持锁依据。
+
 ## 1. 调度原理运行逻辑
 
 ```text

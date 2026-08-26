@@ -196,9 +196,15 @@ public final class SectionStateManager {
 	 * vehicle head/tail observations in applyVehicleOccupancy().
 	 */
 	public static void releaseStaleReservations(Simulator simulator, Collection<String> activeRequestIds) {
+		releaseStaleReservations(simulator, activeRequestIds, Map.of(), Map.of());
+	}
+
+	/** Resource-level stale cleanup for Section and Block leases. */
+	public static void releaseStaleReservations(Simulator simulator, Collection<String> activeRequestIds,
+			Map<String, Set<String>> retainedSectionOwners, Map<String, Set<String>> retainedBlockOwners) {
 		final SimulationState state = STATES.get(simulator);
 		if (state != null) {
-			state.releaseStaleReservations(activeRequestIds == null ? Set.of() : Set.copyOf(activeRequestIds));
+			state.releaseStaleReservations(activeRequestIds == null ? Set.of() : Set.copyOf(activeRequestIds), retainedSectionOwners, retainedBlockOwners);
 		}
 	}
 
@@ -519,11 +525,12 @@ public final class SectionStateManager {
 			}
 		}
 
-		private void releaseStaleReservations(Set<String> activeRequestIds) {
+		private void releaseStaleReservations(Set<String> activeRequestIds, Map<String, Set<String>> retainedSectionOwners,
+				Map<String, Set<String>> retainedBlockOwners) {
 			boolean changed = false;
 			for (final SectionRecord section : sections.values()) {
 				for (final String owner : Set.copyOf(section.reservedBy)) {
-					if (!activeRequestIds.contains(owner)) {
+					if (!retainedSectionOwners.getOrDefault(section.sectionId, Set.of()).contains(owner) && !activeRequestIds.contains(owner)) {
 						section.reservedBy.remove(owner);
 						section.lockedBy.remove(owner);
 						changed = true;
@@ -531,26 +538,27 @@ public final class SectionStateManager {
 					}
 				}
 				for (final String owner : Set.copyOf(section.lockedBy)) {
-					if (!activeRequestIds.contains(owner)) {
+					if (!retainedSectionOwners.getOrDefault(section.sectionId, Set.of()).contains(owner) && !activeRequestIds.contains(owner)) {
 						section.lockedBy.remove(owner);
 						changed = true;
 						System.out.println("[MTRBR-SECTION-STALE] section=" + section.sectionId + " ownerRequest=" + owner + " reason=OWNER_AUTHORIZATION_MISSING");
 					}
 				}
 			}
-			changed |= releaseStaleBlockOwners(blockReservedBy, activeRequestIds, "reserved");
-			changed |= releaseStaleBlockOwners(blockLockedBy, activeRequestIds, "locked");
+			changed |= releaseStaleBlockOwners(blockReservedBy, activeRequestIds, retainedBlockOwners, "reserved");
+			changed |= releaseStaleBlockOwners(blockLockedBy, activeRequestIds, retainedBlockOwners, "locked");
 			if (changed) {
 				stateRevision++;
 			}
 		}
 
-		private boolean releaseStaleBlockOwners(Map<String, Set<String>> ownersByBlock, Set<String> activeRequestIds, String stateName) {
+		private boolean releaseStaleBlockOwners(Map<String, Set<String>> ownersByBlock, Set<String> activeRequestIds,
+				Map<String, Set<String>> retainedBlockOwners, String stateName) {
 			boolean changed = false;
 			for (final Map.Entry<String, Set<String>> entry : Set.copyOf(ownersByBlock.entrySet())) {
 				final Set<String> owners = entry.getValue();
 				for (final String owner : Set.copyOf(owners)) {
-					if (!activeRequestIds.contains(owner)) {
+					if (!retainedBlockOwners.getOrDefault(entry.getKey(), Set.of()).contains(owner) && !activeRequestIds.contains(owner)) {
 						owners.remove(owner);
 						changed = true;
 						System.out.println("[MTRBR-BLOCK-STALE] block=" + entry.getKey() + " ownerRequest=" + owner + " state=" + stateName + " reason=OWNER_AUTHORIZATION_MISSING");

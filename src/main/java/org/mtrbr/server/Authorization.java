@@ -95,11 +95,17 @@ public final class Authorization {
 	/** One saved Signal Block projected onto its actual immutable-path extent. */
 	public record BlockAuthorization(String blockId, int traversalIndex, double startDistance, double endDistance,
 			List<String> sectionIds, List<PathSnapshot.PathTraversal> traversals,
-			List<PathSnapshot.FaceTraversalKey> faceTraversalKeys, boolean completeSavedBlock) {
+			List<PathSnapshot.FaceTraversalKey> faceTraversalKeys, boolean completeSavedBlock,
+			String savedBlockBoundaryId, double savedBlockEndDistance,
+			PathSnapshot.FaceTraversalKey entryFaceTraversalKey, PathSnapshot.FaceTraversalKey boundaryFaceTraversalKey,
+			String pathFingerprint, List<String> savedBlockRailIds, List<String> junctionMovementIds) {
 		public BlockAuthorization {
 			sectionIds = List.copyOf(sectionIds);
 			traversals = List.copyOf(traversals);
 			faceTraversalKeys = List.copyOf(faceTraversalKeys);
+			savedBlockRailIds = List.copyOf(savedBlockRailIds);
+			pathFingerprint = pathFingerprint == null ? "" : pathFingerprint;
+			junctionMovementIds = List.copyOf(junctionMovementIds);
 		}
 
 		/** Stable identity for this physical Block visit within the immutable path. */

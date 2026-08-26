@@ -124,26 +124,27 @@ public final class PathSnapshot {
 		if (cached != null && cached.revision == topology.revision()) {
 			return cached.points;
 		}
+		final List<FaceCandidate> candidates = new ArrayList<>();
+		// Only a node occurrence whose direction matches the face is a traversal.
+		// A physical signal may occur more than once in an immutable path (notably
+		// on the return leg after turnback), so retain every matching occurrence.
+		for (final SignalFace face : topology.faces().values()) {
+			getNodeDistances(face.nodePos()).stream()
+					.filter(point -> circularDifference(point.travelAngle(), face.travelAngle()) < 90)
+					.filter(point -> point.distance() >= 0)
+					.forEach(point -> candidates.add(new FaceCandidate(face, point)));
+		}
+		candidates.sort(java.util.Comparator.comparingDouble(candidate -> candidate.nodeDistance().distance()));
 		final Map<String, Integer> occurrences = new HashMap<>();
 		final List<FaceTraversal> points = new ArrayList<>();
-		// Only a node occurrence whose direction matches the face is a traversal.
-		// Opposite-direction occurrences are diagnostic-only and never enter routing.
-		for (final SignalFace face : topology.faces().values()) {
-			final NodeDistance nodeDistance = getNodeDistances(face.nodePos()).stream()
-					.filter(point -> circularDifference(point.travelAngle(), face.travelAngle()) < 90)
-					.min(java.util.Comparator.comparingDouble(NodeDistance::distance))
-					.orElse(null);
-			if (nodeDistance == null || nodeDistance.distance() < 0) {
-				continue;
-			}
+		for (final FaceCandidate candidate : candidates) {
+			final SignalFace face = candidate.face();
+			final NodeDistance nodeDistance = candidate.nodeDistance();
 			final double distance = nodeDistance.distance();
-			final double pathAngle = nodeDistance.travelAngle();
-			final int pathIndex = pathIndexAtDistance(distance);
 			final int occurrenceIndex = occurrences.merge(face.id(), 1, Integer::sum) - 1;
-			final FaceTraversal faceTraversal = new FaceTraversal(face.id(), pathIndex, occurrenceIndex, face, distance, pathAngle, directionKey(pathAngle));
-			points.add(faceTraversal);
+			points.add(new FaceTraversal(face.id(), pathIndexAtDistance(distance), occurrenceIndex, face,
+					distance, nodeDistance.travelAngle(), directionKey(nodeDistance.travelAngle())));
 		}
-		points.sort(java.util.Comparator.comparingDouble(FaceTraversal::distance));
 		final List<FaceTraversal> immutablePoints = List.copyOf(points);
 		faceTraversalPoints.put(dimension, new FaceTraversalPoints(topology.revision(), immutablePoints));
 		return immutablePoints;
@@ -503,6 +504,9 @@ public final class PathSnapshot {
 	}
 
 	private record FaceTraversalPoints(long revision, List<FaceTraversal> points) {
+	}
+
+	private record FaceCandidate(SignalFace face, NodeDistance nodeDistance) {
 	}
 
 	private record PathNodeTraversal(BlockPos node, double distance, int pathTraversalIndex, double travelAngle, boolean pathStart) {
