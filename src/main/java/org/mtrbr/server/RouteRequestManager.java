@@ -31,9 +31,10 @@ public final class RouteRequestManager {
 	private static final Map<String, Long> CODE_TO_VEHICLE = new HashMap<>();
 	private static long nextVehicleCode;
 	private static final String VEHICLE_CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".replace("O", "");
+	private static final long VEHICLE_CODE_CAPACITY = (long) Math.pow(VEHICLE_CODE_ALPHABET.length(), 4);
 	/** Published only after a complete simulation tick; safe for the Forge server thread to read. */
 	private static volatile Map<Simulator, List<AuthorizedPath>> AUTHORIZATION_SNAPSHOTS = Map.of();
-	/** Vehicle position snapshots used only to map SignalFace -> Section IDs for authoritative occupancy reads. */
+	/** Vehicle position snapshots used for topology projections; never as the occupancy authority. */
 	private static volatile Map<Simulator, List<VehicleSnapshot>> VEHICLE_SNAPSHOTS = Map.of();
 	private static volatile Map<Simulator, List<RequestSnapshot>> REQUEST_SNAPSHOTS = Map.of();
 	private static volatile Map<Simulator, List<String>> AUDIT_SNAPSHOTS = Map.of();
@@ -74,8 +75,8 @@ public final class RouteRequestManager {
 			}
 		}
 		current.lastHead = head;
-		if (current.oneShotOverride && head >= current.overrideEndDistance + 0.5) {
-			clearOneShotOverride(simulator, current, "head passed override boundary");
+		if (current.overridePermit != null && head >= current.overridePermit.endDistance() - 1.0E-6) {
+			expireOneShotOverride(simulator, current, "head passed override boundary");
 		}
 
 		if (!path.matchesTopology(simulator)) {
@@ -245,6 +246,8 @@ public final class RouteRequestManager {
 			}
 			releaseAll(simulator, removed);
 			clearOneShotOverride(simulator, removed, "vehicle disappeared");
+			PathSnapshot.clear(removed.vehicle);
+			MovementGate.clear(removed.vehicle.getId());
 			releaseVehicleCode(entry.getKey());
 			return true;
 		});
@@ -428,11 +431,10 @@ public final class RouteRequestManager {
 				if (continuingAuthorization) logAuthorizationExtendState(vehicle, "WAIT");
 				continue;
 			}
-			final Authorization authorization = createAuthorization(simulator, state, vehicle, clearance.blockAuthorizations(), false);
+			final Authorization authorization = createAuthorization(simulator, state, vehicle, clearance.blockAuthorizations());
 			for (final String blockId : authorization.getBlockIds()) {
 				final String audit = "vehicle=" + request.getVehicleId() + " blockId=" + blockId + " source=SAVED_DATA";
 				MtrbrDebugLog.event("AUTH-BLOCK", audit);
-				System.out.println("[MTRBR-AUTH-BLOCK] " + audit);
 			}
 			vehicle.authorization = authorization;
 			clearFixedUnauthorisedGateBoundary(vehicle);
@@ -447,7 +449,6 @@ public final class RouteRequestManager {
 			}
 			logAuthorizationEnd(vehicle, "FCFS", clearance.endDistance());
 		}
-		debugVehicles(simulator, state);
 		publishAuthorizations(simulator, state);
 	}
 
@@ -720,7 +721,6 @@ public final class RouteRequestManager {
 				final String audit = "face=" + face.faceId() + " faceKey=" + face.key()
 						+ " routeProjection=" + projection.result() + " action=WAIT_MAPPING";
 				MtrbrDebugLog.event("BLOCK-ID", audit + " source=SAVED_DATA");
-				System.out.println("[MTRBR-BLOCK] " + audit);
 				break;
 			}
 			// Saved Blocks may straddle an operational boundary. Project the part up
@@ -730,7 +730,7 @@ public final class RouteRequestManager {
 			final boolean completeSavedBlock = projection.boundaryDistance() <= endDistance + 1.0E-6;
 			final List<PathSnapshot.PathTraversal> candidateTraversals = projection.traversals().stream()
 					.filter(traversal -> traversal.endDistance() > face.distance() && traversal.startDistance() < candidateEnd).toList();
-			final List<PathSnapshot.FaceTraversalKey> projectedFaceKeys = candidateFaceKeys(vehicle.path, faces, candidateTraversals, face.distance(), candidateEnd);
+			final List<PathSnapshot.FaceTraversalKey> projectedFaceKeys = candidateFaceKeys(vehicle.path, faces, candidateTraversals, face, candidateEnd);
 			final List<PathSnapshot.FaceTraversalKey> boundaryFaceKeys = faces.stream()
 					.filter(item -> candidateTraversals.stream().anyMatch(traversal -> traversal.index() == item.pathTraversalIndex()))
 					.filter(item -> item.distance() >= face.distance() - 1.0E-6 && item.distance() <= candidateEnd + 1.0E-6)
@@ -740,6 +740,11 @@ public final class RouteRequestManager {
 				// A traversal-index projection gap is diagnostic, but must not deny
 				// the first safe Block and strand a vehicle before departure.
 				logAuthorizationExtendFail(vehicle, startDistance, endDistance, projection.blockDefinitionId(), "key mismatch (entry-face projection)");
+				MtrbrDebugLog.event("MTRBR-MAPPING-DIAGNOSTIC", "vehicle=" + vehicle.vehicle.getId()
+						+ " request=" + vehicle.request.getRequestId()
+						+ " classification=FACE_KEY_PROJECTION_MISMATCH"
+						+ " faceKey=" + face.key() + " blockDefinition=" + projection.blockDefinitionId()
+						+ " pathFingerprint=" + projection.pathFingerprint());
 			}
 			final List<PathSnapshot.FaceTraversalKey> effectiveFaceKeys = combineFaceTraversalKeys(
 					projectedFaceKeys.isEmpty() ? List.of(face.key()) : projectedFaceKeys, boundaryFaceKeys);
@@ -768,7 +773,6 @@ public final class RouteRequestManager {
 			}
 			final String blockAudit = "face=" + face.faceId() + " blockId=" + projection.blockDefinitionId() + " traversalIndex=" + face.pathTraversalIndex() + " nextBoundary=" + projection.boundaryIdentity() + " railCount=" + railIds.size();
 			MtrbrDebugLog.event("BLOCK-ID", blockAudit + " rails=" + railIds + " source=ROUTE_PROJECTION");
-			System.out.println("[MTRBR-BLOCK] " + blockAudit);
 			final SectionCheck.BlockResult check = SectionCheck.checkBlock(simulator, candidate.blockId(), candidate.sectionIds(), vehicle.request.getVehicleId(), vehicle.request.getRequestId(), false);
 			if (!check.safe()) {
 				logAuthorizationExtendFail(vehicle, startDistance, endDistance, candidate.blockId(), "section conflict");
@@ -812,6 +816,23 @@ public final class RouteRequestManager {
 		final RouteProjection projection = RouteProjection.build(simulator, vehicle.path, faces, entry, savedBlocks,
 				SectionStateManager.getTopologyRevision(simulator));
 		final String oldSavedProjection = savedBlocks.getOccurrenceBlockId(vehicle.path.getFingerprint(), entry.key());
+		final String occurrenceKey = SignalBlockSavedData.occurrenceKey(vehicle.path.getFingerprint(), entry.key());
+		final String occurrenceBoundary = oldSavedProjection.isBlank() ? "<none>" : savedBlocks.getBoundaryId(oldSavedProjection);
+		final int occurrenceRailCount = oldSavedProjection.isBlank() ? 0 : savedBlocks.getRailIds(oldSavedProjection).size();
+		final int computedRailCount = savedBlocks.getRailIds(projection.blockDefinitionId()).size();
+		final String immediateBoundary = vehicle.path.getNextProtectionBoundary(entry, faces).id();
+		final String classification;
+		if (computedRailCount == 0) {
+			classification = "COMPUTED_BLOCK_MISSING";
+		} else if (oldSavedProjection.isBlank()) {
+			classification = "OCCURRENCE_MISSING";
+		} else if (occurrenceRailCount == 0) {
+			classification = "OCCURRENCE_BLOCK_EXISTS";
+		} else if (!immediateBoundary.equals(occurrenceBoundary)) {
+			classification = "OCCURRENCE_BOUNDARY_MISMATCH";
+		} else {
+			classification = "OCCURRENCE_BLOCK_EXISTS";
+		}
 		final String signature = vehicle.request.getRequestId() + "|" + projection.entryFaceKey() + "|"
 				+ projection.boundaryIdentity() + "|" + projection.blockDefinitionId() + "|" + projection.result() + "|" + oldSavedProjection;
 		if (!vehicle.routeProjectionAuditSignatures.add(signature)) return;
@@ -824,6 +845,13 @@ public final class RouteRequestManager {
 				+ " sections=" + projection.sectionIds()
 				+ " junctionMovements=" + projection.junctionMovementIds()
 				+ " blockDefinition=" + (projection.blockDefinitionId().isBlank() ? "<missing>" : projection.blockDefinitionId())
+				+ " computedBoundary=" + projection.boundaryIdentity()
+				+ " computedRailCount=" + computedRailCount
+				+ " occurrenceKey=" + occurrenceKey
+				+ " occurrenceBlock=" + (oldSavedProjection.isBlank() ? "<none>" : oldSavedProjection)
+				+ " occurrenceBoundary=" + occurrenceBoundary
+				+ " occurrenceRailCount=" + occurrenceRailCount
+				+ " classification=" + classification
 				+ " oldSavedProjection=" + (oldSavedProjection.isBlank() ? "<none>" : oldSavedProjection)
 				+ " result=" + projection.result());
 	}
@@ -907,7 +935,7 @@ public final class RouteRequestManager {
 	}
 
 	private static Authorization createAuthorization(Simulator simulator, State state, VehicleState vehicle,
-			List<Authorization.BlockAuthorization> blocks, boolean manualDrivingOverride) {
+			List<Authorization.BlockAuthorization> blocks) {
 		final SignalBlockSavedData.Snapshot savedBlocks = SignalBlockSavedData.getSnapshot(simulator.dimension);
 		for (final Authorization.BlockAuthorization block : blocks) {
 			auditBlockProjection(simulator, vehicle, block, savedBlocks);
@@ -916,7 +944,7 @@ public final class RouteRequestManager {
 		final double end = blocks.stream().mapToDouble(Authorization.BlockAuthorization::endDistance).max().orElse(start);
 		return new Authorization(vehicle.request.getRequestId() + ":auth", vehicle.request.getRequestId(), blocks,
 				vehicle.path.getPathNodesBetween(start, end), SectionStateManager.getTopologyRevision(simulator),
-				state == null ? vehicle.authorization.getRevision() + 1 : ++state.authorizationRevision, manualDrivingOverride);
+				state == null ? (vehicle.authorization == null ? 0 : vehicle.authorization.getRevision() + 1) : ++state.authorizationRevision);
 	}
 
 	/** Locks keep the canonical Block ID for physical mutual exclusion and the
@@ -975,7 +1003,7 @@ public final class RouteRequestManager {
 		}
 		final boolean completeSavedBlock = boundary.distance() <= requestedEnd + 1.0E-6;
 		final List<PathSnapshot.FaceTraversalKey> faceKeys = combineFaceTraversalKeys(List.of(entry.key()),
-				candidateFaceKeys(vehicle.path, faces, traversals, vehicle.head, continuationEnd));
+				candidateFaceKeys(vehicle.path, faces, traversals, entry, continuationEnd));
 		final Authorization.BlockAuthorization candidate = new Authorization.BlockAuthorization(incomplete.blockId(),
 				traversals.get(0).index(), vehicle.head, continuationEnd, vehicle.path.getSectionIds(traversals), traversals,
 				faceKeys, completeSavedBlock, incomplete.savedBlockBoundaryId(), boundary.distance(), entry.key(), incomplete.boundaryFaceTraversalKey(),
@@ -1071,11 +1099,10 @@ public final class RouteRequestManager {
 		}
 		final List<Authorization.BlockAuthorization> combinedBlockAuthorizations = new ArrayList<>(vehicle.authorization.getBlockAuthorizations());
 		combinedBlockAuthorizations.addAll(extension.blockAuthorizations());
-		final Authorization extended = createAuthorization(simulator, state, vehicle, combinedBlockAuthorizations, false);
+		final Authorization extended = createAuthorization(simulator, state, vehicle, combinedBlockAuthorizations);
 			for (final String blockId : extension.blockIds()) {
 				final String audit = "vehicle=" + vehicle.request.getVehicleId() + " blockId=" + blockId + " source=SAVED_DATA";
 				MtrbrDebugLog.event("AUTH-BLOCK", audit);
-				System.out.println("[MTRBR-AUTH-BLOCK] " + audit);
 			}
 		vehicle.authorization = extended;
 		clearFixedUnauthorisedGateBoundary(vehicle);
@@ -1190,7 +1217,7 @@ public final class RouteRequestManager {
 		final List<String> removedJunctionResources = cleared.stream()
 				.flatMap(block -> block.junctionMovementIds().stream()).toList();
 		JunctionStateManager.release(simulator, removedJunctionResources, requestId);
-		vehicle.authorization = retained.isEmpty() ? null : createAuthorization(simulator, STATES.get(simulator), vehicle, retained, false);
+		vehicle.authorization = retained.isEmpty() ? null : createAuthorization(simulator, STATES.get(simulator), vehicle, retained);
 		if (vehicle.authorization == null) {
 			vehicle.authorizationRetryPending = true;
 			enterAuthorizationRecovery(vehicle);
@@ -1234,7 +1261,6 @@ public final class RouteRequestManager {
 				+ " currentAuthorizationEnd=" + String.format(java.util.Locale.ROOT, "%.3f", vehicle.authorizationEndDistance)
 				+ " newLookaheadEnd=" + String.format(java.util.Locale.ROOT, "%.3f", lookaheadEnd);
 		MtrbrDebugLog.event("MTRBR-AUTH-LOOKAHEAD", audit);
-		System.out.println("[MTRBR-AUTH-LOOKAHEAD] " + audit);
 	}
 
 	private static double nextBlockEnd(Simulator simulator, VehicleState vehicle, double afterDistance) {
@@ -1353,7 +1379,6 @@ public final class RouteRequestManager {
 		for (final String blockId : activeBlocks) {
 			final String audit = "vehicle=" + vehicle.vehicle.getId() + " blockId=" + blockId + " source=SAVED_DATA activity=true";
 			MtrbrDebugLog.event("AUTH-BLOCK", audit);
-			System.out.println("[MTRBR-AUTH-BLOCK] " + audit);
 		}
 		debugActivity(simulator, vehicle, phaseFaces);
 	}
@@ -1494,7 +1519,6 @@ public final class RouteRequestManager {
 						+ " SavedBlock:blockId=" + (blockId.isBlank() ? "<missing>" : blockId)
 						+ " exists=" + !blockId.isBlank() + " railCount=" + saved.getRailIds(blockId).size();
 				MtrbrDebugLog.event("DIRECTION-AUDIT", audit);
-				System.out.println("[MTRBR-DIRECTION-AUDIT] " + audit);
 			}
 		}
 		for (final PathSnapshot.FaceTraversal face : vehicle.path.getFaceTraversals(simulator.dimension, topology)) {
@@ -1505,7 +1529,6 @@ public final class RouteRequestManager {
 					+ " key=" + face.key()
 					+ " blockId=" + (blockId.isBlank() ? "<missing>" : blockId);
 			MtrbrDebugLog.event("FACE-KEY", audit);
-			System.out.println("[MTRBR-FACE-KEY] " + audit);
 		}
 	}
 
@@ -1591,7 +1614,7 @@ public final class RouteRequestManager {
 			vehicle.authorizationRetryPending = true;
 			enterAuthorizationRecovery(vehicle);
 		}
-		vehicle.authorization = retained.isEmpty() ? null : createAuthorization(simulator, STATES.get(simulator), vehicle, retained, false);
+		vehicle.authorization = retained.isEmpty() ? null : createAuthorization(simulator, STATES.get(simulator), vehicle, retained);
 		if (!retained.isEmpty()) vehicle.authorizationRetryPending = false;
 		if (!retained.isEmpty()) refreshActivityAuthorization(simulator, vehicle);
 		vehicle.authorizationEndDistance = retained.stream().mapToDouble(Authorization.BlockAuthorization::endDistance).max().orElse(vehicle.head);
@@ -1773,13 +1796,7 @@ public final class RouteRequestManager {
 
 	private static void transition(RouteRequest request, RequestState next, String reason) {
 		if (request.getState() != next) {
-			try {
-				final RequestState previous = request.getState();
-				request.transitionTo(next, reason);
-				MtrbrDebugLog.event("REQUEST", "vehicle=" + request.getVehicleId() + " request=" + request.getRequestId() + " " + previous + "->" + next + " reason=" + reason);
-			} catch (IllegalStateException ignored) {
-				MtrbrDebugLog.event("REQUEST", "invalid-transition vehicle=" + request.getVehicleId() + " request=" + request.getRequestId() + " from=" + request.getState() + " to=" + next + " reason=" + reason);
-			}
+			request.transitionTo(next, reason);
 		}
 	}
 
@@ -2010,9 +2027,8 @@ public final class RouteRequestManager {
 			final State state = STATES.get(simulator);
 			final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
 			if (vehicle != null) {
-				vehicle.manualDrivingOverride = enabled && vehicle.vehicle.vehicleExtraData.getIsCurrentlyManual();
-				vehicle.overrideState = vehicle.manualDrivingOverride ? OverrideState.MANUAL_DRIVING : (vehicle.oneShotOverride ? OverrideState.ONE_SHOT : OverrideState.NONE);
-				MtrbrDebugLog.event("DISPATCH", "manual-driving-override vehicle=" + vehicleId + " enabled=" + vehicle.manualDrivingOverride);
+				if (!enabled) clearOneShotOverride(simulator, vehicle, "manual override disabled");
+				MtrbrDebugLog.event("DISPATCH", "manual-driving-override vehicle=" + vehicleId + " enabled=false reason=ONE_SHOT_ONLY");
 			}
 		});
 	}
@@ -2069,27 +2085,76 @@ public final class RouteRequestManager {
 		simulator.run(() -> {
 			final State state = STATES.get(simulator);
 			final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
-			if (vehicle != null && vehicle.path != null && !vehicle.path.isEmpty()) {
-				final double nodeBoundary = nextBoundNodeDistance(simulator, vehicle);
-				vehicle.overrideEndDistance = Double.isNaN(nodeBoundary) ? vehicle.path.getFirstSectionEndAfter(vehicle.head) : nodeBoundary;
+			final OverrideFace target = vehicle == null ? null : nextRedOverrideFace(simulator, vehicle);
+			if (vehicle != null && state != null && vehicle.request != null && vehicle.path != null && !vehicle.path.isEmpty()
+					&& vehicle.authorization == null && target != null && Double.isFinite(target.distance())) {
+				vehicle.overridePermit = new OverridePermit(OverrideState.ONE_SHOT, vehicleId, vehicle.request.getRequestId(), target.key(),
+						vehicle.head, target.distance(), vehicle.path.getFingerprint(), SectionStateManager.getTopologyRevision(simulator), SectionStateManager.getCurrentTick());
+				vehicle.overrideEndDistance = target.distance();
 				vehicle.oneShotOverride = true;
 				vehicle.overrideState = OverrideState.ONE_SHOT;
-				MtrbrDebugLog.event("OVERRIDE", "vehicle=" + vehicleId + " boundary=" + vehicle.overrideEndDistance);
+				MtrbrDebugLog.event("OVERRIDE", "vehicle=" + vehicleId + " request=" + vehicle.request.getRequestId() + " face=" + target.key() + " boundary=" + target.distance());
 				state.audit.add("tick=" + SectionStateManager.getCurrentTick() + " dispatcher-override vehicle=" + vehicleId + " until=" + vehicle.overrideEndDistance);
 			}
 		});
 	}
 
+	private static OverrideFace nextRedOverrideFace(Simulator simulator, VehicleState vehicle) {
+		for (final PathSnapshot.FaceTraversal face : vehicle.path.getFaceTraversals(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension))) {
+			if (!PathSnapshot.isDirectionMatched(face) || face.distance() <= vehicle.head + 1.0E-6) continue;
+			if (ServerAspectManager.get(simulator, face.face().signalPos(), face.face().backSide()) == ServerAspect.RED) {
+				return new OverrideFace(face.key(), face.distance());
+			}
+		}
+		return null;
+	}
+
 	private static void clearOneShotOverride(Simulator simulator, VehicleState vehicle, String reason) {
-		if (!vehicle.oneShotOverride && vehicle.overrideState != OverrideState.ONE_SHOT) return;
+		if (!vehicle.oneShotOverride && vehicle.overridePermit == null && vehicle.overrideState != OverrideState.ONE_SHOT) return;
 		vehicle.oneShotOverride = false;
+		vehicle.overridePermit = null;
 		vehicle.overrideEndDistance = Double.NaN;
-		vehicle.overrideState = vehicle.manualDrivingOverride ? OverrideState.MANUAL_DRIVING : OverrideState.NONE;
+		vehicle.overrideState = OverrideState.NONE;
 		final String detail = "vehicleId=" + (vehicle.vehicle == null ? "<none>" : vehicle.vehicle.getId())
 				+ " requestId=" + (vehicle.request == null ? "<none>" : vehicle.request.getRequestId()) + " reason=" + reason;
 		MtrbrDebugLog.event("MTRBR-OVERRIDE-CLEAR", detail);
 		final State state = STATES.get(simulator);
 		if (state != null) state.audit.add("tick=" + SectionStateManager.getCurrentTick() + " override-clear " + detail);
+	}
+
+	private record OverrideFace(PathSnapshot.FaceTraversalKey key, double distance) {
+	}
+
+	private record OverridePermit(OverrideState type, long vehicleId, String requestId, PathSnapshot.FaceTraversalKey signalFaceKey,
+			double startDistance, double endDistance, String pathFingerprint, long topologyRevision, long createdTick) {
+	}
+
+	private static void expireOneShotOverride(Simulator simulator, VehicleState vehicle, String reason) {
+		clearOneShotOverride(simulator, vehicle, reason);
+		if (vehicle.request != null && vehicle.authorization == null
+				&& (vehicle.request.getState() == RequestState.ACTIVE || vehicle.request.getState() == RequestState.AUTHORIZED)) {
+			transition(vehicle.request, RequestState.CHECKING, "One-shot override boundary reached");
+		}
+	}
+
+	public static boolean hasValidOneShotOverride(Simulator simulator, long vehicleId) {
+		final State state = STATES.get(simulator);
+		final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
+		final OverridePermit permit = vehicle == null ? null : vehicle.overridePermit;
+		if (permit == null || vehicle.path == null || vehicle.request == null || vehicle.vehicle == null) return false;
+		if (permit.type() != OverrideState.ONE_SHOT || permit.vehicleId() != vehicleId || !permit.requestId().equals(vehicle.request.getRequestId())
+				|| !permit.pathFingerprint().equals(vehicle.path.getFingerprint()) || permit.topologyRevision() != SectionStateManager.getTopologyRevision(simulator)
+				|| !Double.isFinite(permit.endDistance()) || vehicle.head >= permit.endDistance() - 1.0E-6) return false;
+		final OverrideFace next = nextRedOverrideFace(simulator, vehicle);
+		return next != null && next.key().canonical().equals(permit.signalFaceKey().canonical());
+	}
+
+	public static double getOneShotOverrideBoundary(Simulator simulator, long vehicleId) {
+		final State state = STATES.get(simulator);
+		final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
+		if (hasValidOneShotOverride(simulator, vehicleId)) return vehicle.overridePermit.endDistance();
+		if (vehicle != null && vehicle.overridePermit != null) clearOneShotOverride(simulator, vehicle, "permit validation failed");
+		return Double.NaN;
 	}
 
 	/** The red-light boundary is the bound rail node, never the signal block position. */
@@ -2108,7 +2173,7 @@ public final class RouteRequestManager {
 	public static boolean hasOneShotOverride(Simulator simulator, long vehicleId) {
 		final State state = STATES.get(simulator);
 		final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
-		return vehicle != null && vehicle.oneShotOverride;
+		return vehicle != null && hasValidOneShotOverride(simulator, vehicleId);
 	}
 
 	/** True only while a valid route prefix is physically reserved and locked. */
@@ -2153,7 +2218,7 @@ public final class RouteRequestManager {
 		if (!reserveAndLock(simulator, vehicle, clearance)) {
 			return;
 		}
-		final Authorization authorization = createAuthorization(simulator, state, vehicle, clearance.blockAuthorizations(), false);
+			final Authorization authorization = createAuthorization(simulator, state, vehicle, clearance.blockAuthorizations());
 		vehicle.authorization = authorization;
 		clearFixedUnauthorisedGateBoundary(vehicle);
 		vehicle.authorizationEndDistance = clearance.endDistance();
@@ -2162,9 +2227,7 @@ public final class RouteRequestManager {
 	}
 
 	public static boolean isManualDrivingOverride(Simulator simulator, long vehicleId) {
-		final State state = STATES.get(simulator);
-		final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
-		return vehicle != null && vehicle.manualDrivingOverride && vehicle.vehicle != null && vehicle.vehicle.vehicleExtraData.getIsCurrentlyManual();
+		return false;
 	}
 
 	/** Whether this vehicle's movement is currently owned by the addon MovementGate. */
@@ -2232,11 +2295,6 @@ public final class RouteRequestManager {
 		return isApproachingPlannedTurnback(vehicle);
 	}
 
-	/** Native MTR block bypass, valid only for an explicitly approved manual vehicle. */
-	public static boolean shouldBypassNativeBlock(Simulator simulator, long vehicleId) {
-		return false;
-	}
-
 	public static List<AuthorizedPath> getAuthorizedPaths(Simulator simulator) {
 		return AUTHORIZATION_SNAPSHOTS.getOrDefault(simulator, List.of());
 	}
@@ -2256,8 +2314,10 @@ public final class RouteRequestManager {
 			for (final PathSnapshot.FaceTraversal first : faces) {
 				final PathSnapshot.ProtectionBoundary boundary = snapshot.path().getNextProtectionBoundary(first, faces);
 				if (boundary.distance() <= first.distance() + 1.0E-6) continue;
-				final String blockId = first.faceId() + "->" + boundary.id();
-				final List<String> rails = snapshot.path().getTraversalsBetween(first.distance(), boundary.distance()).stream()
+				final List<PathSnapshot.PathTraversal> traversals = snapshot.path().getTraversalsBetween(first.distance(), boundary.distance());
+				final List<String> junctions = JunctionStateManager.resourcesFor(simulator, traversals);
+				final String blockId = RouteProjection.blockDefinitionId(first, boundary, traversals, junctions);
+				final List<String> rails = traversals.stream()
 						.map(PathSnapshot.PathTraversal::sectionId).filter(id -> !id.isBlank()).distinct().toList();
 				if (rails.isEmpty()) continue;
 				final GeneratedProtection candidate = new GeneratedProtection(blockId, rails, boundary.id());
@@ -2287,11 +2347,14 @@ public final class RouteRequestManager {
 			for (final PathSnapshot.FaceTraversal first : faces) {
 				final PathSnapshot.ProtectionBoundary boundary = snapshot.path().getNextProtectionBoundary(first, faces);
 				if (boundary.distance() <= first.distance() + 1.0E-6) continue;
-				final List<String> rails = snapshot.path().getTraversalsBetween(first.distance(), boundary.distance()).stream()
+				final List<PathSnapshot.PathTraversal> traversals = snapshot.path().getTraversalsBetween(first.distance(), boundary.distance());
+				final List<String> junctions = JunctionStateManager.resourcesFor(simulator, traversals);
+				final String blockId = RouteProjection.blockDefinitionId(first, boundary, traversals, junctions);
+				final List<String> rails = traversals.stream()
 						.map(PathSnapshot.PathTraversal::sectionId).filter(id -> !id.isBlank()).distinct().toList();
 				if (rails.isEmpty()) continue;
 				final String occurrenceKey = SignalBlockSavedData.occurrenceKey(snapshot.path().getFingerprint(), first.key());
-				result.putIfAbsent(occurrenceKey, new GeneratedProtection(first.faceId() + "->" + boundary.id(), rails, boundary.id()));
+				result.putIfAbsent(occurrenceKey, new GeneratedProtection(blockId, rails, boundary.id()));
 			}
 		}
 		return Map.copyOf(result);
@@ -2319,7 +2382,7 @@ public final class RouteRequestManager {
 
 	private static String allocateVehicleCode(long ignoredVehicleId) {
 		final int base = VEHICLE_CODE_ALPHABET.length();
-		while (true) {
+		for (long attempts = 0; attempts < VEHICLE_CODE_CAPACITY; attempts++) {
 			long value = nextVehicleCode++;
 			final StringBuilder code = new StringBuilder();
 			for (int i = 0; i < 4; i++) {
@@ -2331,6 +2394,10 @@ public final class RouteRequestManager {
 				return code.toString();
 			}
 		}
+		final String detail = "[MTRBR-VEHICLE-CODE-EXHAUSTED] capacity=" + VEHICLE_CODE_CAPACITY;
+		MtrbrDebugLog.event("MTRBR-VEHICLE-CODE-EXHAUSTED", detail);
+		System.err.println(detail);
+		throw new IllegalStateException(detail);
 	}
 
 	private static void releaseVehicleCode(long vehicleId) {
@@ -2355,6 +2422,8 @@ public final class RouteRequestManager {
 		REQUEST_SNAPSHOTS = Map.of();
 		AUDIT_SNAPSHOTS = Map.of();
 		JunctionStateManager.resetAll();
+		PathSnapshot.clearAll();
+		MovementGate.clearAll();
 		VEHICLE_CODES.clear();
 		CODE_TO_VEHICLE.clear();
 		nextVehicleCode = 0;
@@ -2383,7 +2452,7 @@ public final class RouteRequestManager {
 
 		final Map<Simulator, List<VehicleSnapshot>> nextVehicles = new IdentityHashMap<>(VEHICLE_SNAPSHOTS);
 		nextVehicles.put(simulator, state.vehicles.values().stream()
-				.map(vehicle -> new VehicleSnapshot(vehicle.path, vehicle.head, vehicle.tail))
+				.map(vehicle -> new VehicleSnapshot(vehicle.vehicle.getId(), vehicleCode(vehicle), vehicle.path, vehicle.head, vehicle.tail))
 				.toList());
 		VEHICLE_SNAPSHOTS = Collections.unmodifiableMap(nextVehicles);
 
@@ -2492,26 +2561,6 @@ public final class RouteRequestManager {
 				&& vehicle.authorizationEndDistance > vehicle.head + 1.0E-6;
 	}
 
-	private static long lastDebugMillis;
-
-	/** 5 秒限流的服务端诊断：每辆车的请求/授权状态。 */
-	private static void debugVehicles(Simulator simulator, State state) {
-		final long now = System.currentTimeMillis();
-		if (now - lastDebugMillis < 5000) {
-			return;
-		}
-		lastDebugMillis = now;
-		for (final VehicleState vehicle : state.vehicles.values()) {
-			System.out.println("[MTRBR-REQ] sim=" + simulator.dimension
-					+ " vehicle=" + vehicle.vehicle.getId()
-					+ " head=" + String.format("%.1f", vehicle.head)
-					+ " control=" + String.format("%.1f", vehicle.controlDistance)
-					+ " end=" + String.format("%.1f", vehicle.endDistance)
-					+ " req=" + (vehicle.request == null ? "-" : vehicle.request.getState())
-					+ " auth=" + (vehicle.authorization != null));
-		}
-	}
-
 	public record AuthorizedPath(long vehicleId, String vehicleCode, PathSnapshot path, List<PathSnapshot.PathTraversal> traversals, List<PathSnapshot.FaceTraversalKey> historicalFaceTraversalKeys, double startDistance, double endDistance, List<String> activeBlockIds, List<PathSnapshot.FaceTraversalKey> activeFaceTraversalKeys, String authorizationId, long revision) {
 	}
 
@@ -2519,7 +2568,7 @@ public final class RouteRequestManager {
 		public ActivityAuthorization { blockIds = List.copyOf(blockIds); faceTraversalKeys = List.copyOf(faceTraversalKeys); }
 	}
 
-	public record VehicleSnapshot(PathSnapshot path, double head, double tail) {
+	public record VehicleSnapshot(long vehicleId, String vehicleCode, PathSnapshot path, double head, double tail) {
 	}
 
 	public record RequestSnapshot(long vehicleId, String vehicleCode, RequestState state, double head, double controlDistance, double endDistance, double authorizationEndDistance, boolean authorized, boolean oneShotOverride, double speedKmh, String routeName, String destination, String nextStation, int occupiedBlocks, int authorizedBlocks, int lockedBlocks) {
@@ -2546,14 +2595,23 @@ public final class RouteRequestManager {
 	}
 
 	private static String routeName(VehicleState vehicle) {
-		final String name = vehicle.vehicle.vehicleExtraData.getThisRouteName();
-		final String number = vehicle.vehicle.vehicleExtraData.getThisRouteNumber();
-		final String route = (number == null || number.isEmpty() ? "" : number + " ") + (name == null ? "" : name);
+		final org.mtr.core.data.VehicleExtraData extraData = vehicle.vehicle.vehicleExtraData;
+		String route = vehicle.inSiding
+				? formatRoute(extraData.getNextRouteNumber(), extraData.getNextRouteName())
+				: formatRoute(extraData.getThisRouteNumber(), extraData.getThisRouteName());
+		if (route.isEmpty()) route = vehicle.inSiding
+				? formatRoute(extraData.getThisRouteNumber(), extraData.getThisRouteName())
+				: formatRoute(extraData.getNextRouteNumber(), extraData.getNextRouteName());
+		if (route.isEmpty()) route = formatRoute(extraData.getPreviousRouteNumber(), extraData.getPreviousRouteName());
 		if (!route.isEmpty()) {
 			vehicle.lastRouteName = route;
 			return route;
 		}
 		return isApproachingPlannedTurnback(vehicle) ? vehicle.lastRouteName : "";
+	}
+
+	private static String formatRoute(String number, String name) {
+		return (number == null || number.isEmpty() ? "" : number + " ") + (name == null ? "" : name);
 	}
 
 	private static String routeDestination(VehicleState vehicle) {
@@ -2705,13 +2763,16 @@ public final class RouteRequestManager {
 	}
 
 	private static List<PathSnapshot.FaceTraversalKey> candidateFaceKeys(PathSnapshot path, List<PathSnapshot.FaceTraversal> faces,
-			List<PathSnapshot.PathTraversal> traversals, double startDistance, double endDistance) {
+			List<PathSnapshot.PathTraversal> traversals, PathSnapshot.FaceTraversal entryFace, double endDistance) {
+		final double startDistance = entryFace.distance();
 		final Set<Integer> indexes = traversals.stream().map(PathSnapshot.PathTraversal::index).collect(java.util.stream.Collectors.toSet());
-		return faces.stream().filter(PathSnapshot::isDirectionMatched)
+		final java.util.LinkedHashSet<PathSnapshot.FaceTraversalKey> keys = faces.stream().filter(PathSnapshot::isDirectionMatched)
 				.filter(face -> indexes.contains(face.pathTraversalIndex()))
 				.filter(face -> face.distance() >= startDistance - 1.0E-6 && face.distance() < endDistance + 1.0E-6)
 				.filter(face -> Math.abs(face.distance() - startDistance) <= 1.0E-6 || face.distance() < endDistance - 1.0E-6)
-				.map(PathSnapshot.FaceTraversal::key).distinct().toList();
+				.map(PathSnapshot.FaceTraversal::key).collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+		keys.add(entryFace.key());
+		return List.copyOf(keys);
 	}
 
 	private static void auditCandidateBlock(Simulator simulator, VehicleState vehicle, Authorization.BlockAuthorization candidate,
@@ -2879,8 +2940,8 @@ public final class RouteRequestManager {
 		private PathSnapshot lastObservedPath;
 		private long lastObservedTick = -1;
 		private boolean managed;
-		private boolean manualDrivingOverride;
 		private boolean oneShotOverride;
+		private OverridePermit overridePermit;
 		private OverrideState overrideState = OverrideState.NONE;
 		private double overrideEndDistance = Double.NaN;
 		private final Map<String, ReleaseReason> pendingReleaseSections = new HashMap<>();

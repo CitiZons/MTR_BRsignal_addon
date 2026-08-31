@@ -3,6 +3,7 @@
   "item.mtr_brsignal_addon.route_tool": "进路工具",
   "item.mtr_brsignal_addon.dispatcher_tool": "调度工具",
   "block.mtr_brsignal_addon.dispatcher_console": "调度台",
+  "block.mtr_brsignal_addon.signal_bracket": "信号机支架",
   "block.mtr_brsignal_addon.led_indicator": "LED进路显示器",
   "block.mtr_brsignal_addon.indicator_1": "色灯进路指示器(1)",
   "block.mtr_brsignal_addon.indicator_1-2": "色灯进路指示器(1-2)",

@@ -3,6 +3,7 @@
   "item.mtr_brsignal_addon.route_tool": "Route Tool",
   "item.mtr_brsignal_addon.dispatcher_tool": "Dispatcher Tool",
   "block.mtr_brsignal_addon.dispatcher_console": "Dispatcher Console",
+  "block.mtr_brsignal_addon.signal_bracket": "Signal Bracket",
   "block.mtr_brsignal_addon.led_indicator": "LED Route Indicator",
   "block.mtr_brsignal_addon.indicator_1": "Colour-light Route Indicator (1)",
   "block.mtr_brsignal_addon.indicator_1-2": "Colour-light Route Indicator (1-2)",

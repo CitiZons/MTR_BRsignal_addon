@@ -166,12 +166,16 @@ public final class SignalOverlayRenderer {
 		final double z2 = to.getZ() + 0.5;
 		double dx = z2 - z1;
 		double dz = x1 - x2;
-		final double length = Math.sqrt(dx * dx + dz * dz);
-		if (length < 1.0E-4) {
-			return;
+		final double fullLength = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1) + (z2 - z1) * (z2 - z1));
+		if (fullLength < 1.0E-4) return;
+		final double horizontalLength = Math.sqrt(dx * dx + dz * dz);
+		if (horizontalLength < 1.0E-4) {
+			dx = 1;
+			dz = 0;
+		} else {
+			dx /= horizontalLength;
+			dz /= horizontalLength;
 		}
-		dx /= length;
-		dz /= length;
 		final double offset = 0.05;
 		final double dxFinal = dx;
 		final double dzFinal = dz;

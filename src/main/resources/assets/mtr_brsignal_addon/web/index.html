@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MTRBR Signal Desk</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand"><span class="brand-mark"></span><span>MTRBR</span><small>INTERLOCKING DESK</small></div>
+    <div class="readout"><span id="dimension">AWAITING TOPOLOGY</span><span id="revision">REV --</span></div>
+    <div class="mode">READ ONLY / LIVE</div>
+  </header>
+  <main class="workspace">
+    <aside class="sidebar">
+      <h1>SIGNAL DESK</h1>
+      <div class="metric"><span>SECTIONS</span><b id="rail-count">0</b></div>
+      <div class="metric"><span>SIGNAL FACES</span><b id="signal-count">0</b></div>
+      <div class="rule"></div>
+      <h2>DISPLAY</h2>
+      <button id="fit">FIT NETWORK</button>
+      <button id="reset">RESET VIEW</button>
+      <h2>PLAYERS</h2>
+      <div id="player-list" class="player-list"></div>
+      <p>STATUS: LIVE</p>
+    </aside>
+    <button id="vehicle-toggle" class="vehicle-toggle" title="Vehicle requests">REQUESTS</button>
+    <aside id="vehicle-drawer" class="vehicle-drawer" aria-hidden="true">
+      <h2>REQUEST QUEUE</h2>
+      <div id="request-list" class="request-list"></div>
+    </aside>
+    <section class="diagram-wrap">
+      <canvas id="diagram" aria-label="Rail topology map"></canvas>
+      <div class="map-title">TOPOLOGY // <span id="map-dimension">--</span></div>
+      <div class="scale"><i></i><span id="scale-label">-- m</span></div>
+    </section>
+    <aside class="legend">
+      <h2>INDICATIONS</h2>
+      <div><i class="rail"></i>TRACK</div>
+      <div><i class="signal"></i>SIGNAL</div>
+      <div><i class="platform"></i>PLATFORM</div>
+      <div><i class="occupied"></i>OCCUPIED</div>
+      <div><i class="locked"></i>LOCKED</div>
+      <div class="rule"></div>
+      <p id="status">CONNECTING</p>
+      <div id="action-drawer" class="action-drawer" hidden>
+        <h2 id="action-code">--</h2>
+        <button data-action="approve">APPROVE</button>
+        <button data-action="revoke">REVOKE</button>
+        <button data-action="override">OVERRIDE</button>
+      </div>
+    </aside>
+  </main>
+  <footer><span>TOPOLOGY SNAPSHOT</span><span id="updated">--:--:--</span></footer>
+  <script src="app.js"></script>
+</body>
+</html>

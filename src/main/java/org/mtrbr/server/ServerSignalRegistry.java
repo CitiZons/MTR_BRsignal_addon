@@ -6,6 +6,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import org.mtr.mod.block.BlockSignalBase;
+import org.mtrbr.data.SignalBlockSavedData;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +31,12 @@ public final class ServerSignalRegistry {
 				signals.add(position.immutable());
 			}
 		}
+		final SignalBlockSavedData saved = SignalBlockSavedData.get(level);
+		saved.getSignalFaceDefinitions().values().stream()
+				.map(SignalBlockSavedData.SignalFaceDefinition::signalPos)
+				.filter(position -> position != null && position.getX() >> 4 == chunk.getPos().x && position.getZ() >> 4 == chunk.getPos().z)
+				.filter(position -> !(level.getBlockState(position).getBlock() instanceof BlockSignalBase))
+				.forEach(saved::removeSignalFaceDefinitions);
 		synchronized (SIGNALS_BY_CHUNK) {
 			SIGNALS_BY_CHUNK.computeIfAbsent(dimension(level), ignored -> new HashMap<>()).put(chunk.getPos().toLong(), Set.copyOf(signals));
 			REVISIONS.merge(dimension(level), 1L, Long::sum);
@@ -96,9 +103,15 @@ public final class ServerSignalRegistry {
 				signals.add(candidate.immutable());
 			}
 		}
+		final String dimension = dimension(level);
 		synchronized (SIGNALS_BY_CHUNK) {
-			SIGNALS_BY_CHUNK.computeIfAbsent(dimension(level), ignored -> new HashMap<>()).put(chunk.getPos().toLong(), Set.copyOf(signals));
-			REVISIONS.merge(dimension(level), 1L, Long::sum);
+			final Map<Long, Set<BlockPos>> chunks = SIGNALS_BY_CHUNK.computeIfAbsent(dimension, ignored -> new HashMap<>());
+			final Set<BlockPos> previous = chunks.put(chunk.getPos().toLong(), Set.copyOf(signals));
+			REVISIONS.merge(dimension, 1L, Long::sum);
+			if (previous != null) {
+				final SignalBlockSavedData saved = SignalBlockSavedData.get(level);
+				previous.stream().filter(signal -> !signals.contains(signal)).forEach(saved::removeSignalFaceDefinitions);
+			}
 		}
 		ServerAspectManager.invalidateTopology(level);
 	}

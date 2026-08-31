@@ -32,7 +32,9 @@ public final class UnbindIndicatorPacket {
 	public static void handle(UnbindIndicatorPacket message, Supplier<NetworkEvent.Context> contextSupplier) {
 		final NetworkEvent.Context context = contextSupplier.get();
 		context.enqueueWork(() -> {
-			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
+			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.indicatorPos)
+					&& PacketValidation.isIndicator(serverLevel, message.indicatorPos)) {
 				final BlockEntity blockEntity = serverLevel.getBlockEntity(message.indicatorPos);
 				if (blockEntity instanceof LedIndicatorBlockEntity led) {
 					led.setBoundSignalPos(null);

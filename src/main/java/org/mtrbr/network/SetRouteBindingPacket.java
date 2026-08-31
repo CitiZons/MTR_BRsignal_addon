@@ -36,7 +36,11 @@ public final class SetRouteBindingPacket {
 		final NetworkEvent.Context context = contextSupplier.get();
 		context.enqueueWork(() -> {
 			final String validated = RouteContent.validate(message.content);
-			if (validated != null && context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
+			if (validated != null && context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.signalPos)
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.nodePos)
+					&& PacketValidation.isSignal(serverLevel, message.signalPos)
+					&& PacketValidation.isNode(serverLevel, message.nodePos)) {
 				RouteBindingsSavedData.get(serverLevel).set(message.signalPos, message.nodePos, validated);
 				org.mtrbr.server.ServerAspectManager.invalidateTopology(serverLevel);
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);

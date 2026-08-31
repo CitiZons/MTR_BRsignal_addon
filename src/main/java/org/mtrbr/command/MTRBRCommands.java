@@ -39,6 +39,8 @@ public final class MTRBRCommands {
 								.executes(context -> revokePending(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), context.getSource()))))
 				.then(Commands.literal("requests")
 						.executes(context -> listRequests(context.getSource().getLevel(), context.getSource())))
+				.then(Commands.literal("web_token")
+						.executes(context -> issueWebToken(context.getSource())))
 				.then(Commands.literal("approve")
 						.then(Commands.argument("vehicle_code", StringArgumentType.word())
 								.executes(context -> approve(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), context.getSource()))))
@@ -62,6 +64,27 @@ public final class MTRBRCommands {
 								.then(Commands.argument("signal_pos", BlockPosArgument.blockPos())
 										.then(Commands.argument("reverse", BoolArgumentType.bool())
 												.executes(context -> showProtection(context.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(context, "signal_pos"), BoolArgumentType.getBool(context, "reverse"), context.getSource())))))));
+	}
+
+	private static int issueWebToken(net.minecraft.commands.CommandSourceStack source) {
+		final var player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.literal("This command must be run by an in-game operator."));
+			return 0;
+		}
+		final int webserverPort = org.mtr.mod.Init.getServerPort();
+		if (webserverPort <= 0) {
+			player.sendSystemMessage(Component.literal("MTR web server is disabled."));
+			return 0;
+		}
+		final String token = org.mtrbr.web.WebSessionManager.issue(player);
+		final String url = "http://localhost:" + webserverPort + "/mtrbr/?token=" + token;
+		player.sendSystemMessage(Component.literal("Web dispatch URL: ")
+				.append(Component.literal(url).withStyle(style -> style
+						.withColor(net.minecraft.ChatFormatting.AQUA)
+						.withUnderlined(true)
+						.withClickEvent(new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_URL, url)))));
+		return 1;
 	}
 
 	private static int setProtection(ServerLevel level, BlockPos signalPos, boolean reverse, String rawRailIds, net.minecraft.commands.CommandSourceStack source) {
@@ -115,6 +138,8 @@ public final class MTRBRCommands {
 		final org.mtrbr.server.ServerAspectManager.FaceSnapshot topology = org.mtrbr.server.ServerAspectManager.getFaceSnapshot(simulator.dimension);
 		final Map<String, RouteRequestManager.GeneratedProtection> generated = RouteRequestManager.getGeneratedProtectionBlocks(simulator,
 				topology);
+		final Map<String, RouteRequestManager.GeneratedProtection> generatedOccurrences = RouteRequestManager.getGeneratedOccurrenceProtectionBlocks(simulator,
+				topology);
 		for (final Map.Entry<String, RouteRequestManager.GeneratedProtection> entry : generated.entrySet()) {
 			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
 			final String blockAudit = "face=" + entry.getKey() + " blockId=" + protection.blockId() + " nextBoundary=" + protection.boundaryId() + " railCount=" + protection.railIds().size();
@@ -130,11 +155,15 @@ public final class MTRBRCommands {
 		}
 		final SignalBlockSavedData saved = SignalBlockSavedData.get(level);
 		final int legacyBefore = saved.legacyFaceCount();
-		saved.migrateLegacyBlocks(generated);
-		final int written = generated.size();
-		MtrbrDebugLog.event("TOPOLOGY", "protection-regenerate generated=" + written + " legacyMigrated=" + legacyBefore + " actor=" + source.getTextName());
-		source.sendSuccess(() -> Component.literal("Regenerated " + written + " canonical SignalBlock mappings; migrated legacy faces: " + legacyBefore), false);
-		return written > 0 ? 1 : 0;
+		final String dimension = level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
+		final SignalBlockSavedData.RegenerationResult result = saved.replaceGeneratedMappings(dimension, generated, generatedOccurrences);
+		final long revision = SectionStateManager.getTopologyRevision(simulator);
+		final String summary = "faceBlocks=" + result.faceBlocks() + " blockRails=" + result.blockRails()
+				+ " occurrenceBlocks=" + result.occurrenceBlocks() + " revision=" + revision;
+		MtrbrDebugLog.event("MTRBR-PROTECTION-REGENERATE", summary + " legacyDiscarded=" + legacyBefore + " actor=" + source.getTextName());
+		System.out.println("[MTRBR-PROTECTION-REGENERATE] " + summary);
+		source.sendSuccess(() -> Component.literal("Regenerated protection mappings: " + summary), false);
+		return result.faceBlocks() > 0 ? 1 : 0;
 	}
 
 	private static int clearProtection(ServerLevel level, BlockPos signalPos, boolean reverse, net.minecraft.commands.CommandSourceStack source) {

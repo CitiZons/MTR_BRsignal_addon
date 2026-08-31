@@ -34,7 +34,11 @@ public final class BindIndicatorPacket {
 	public static void handle(BindIndicatorPacket message, Supplier<NetworkEvent.Context> contextSupplier) {
 		final NetworkEvent.Context context = contextSupplier.get();
 		context.enqueueWork(() -> {
-			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
+			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.indicatorPos)
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.signalPos)
+					&& PacketValidation.isIndicator(serverLevel, message.indicatorPos)
+					&& PacketValidation.isSignal(serverLevel, message.signalPos)) {
 				final net.minecraft.world.level.block.entity.BlockEntity blockEntity = serverLevel.getBlockEntity(message.indicatorPos);
 				if (blockEntity instanceof LedIndicatorBlockEntity led) {
 					led.setBoundSignalPos(message.signalPos);

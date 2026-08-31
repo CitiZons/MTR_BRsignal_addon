@@ -122,7 +122,7 @@ public final class RouteRequest {
 			case REQUESTED -> to == RequestState.CHECKING || to == RequestState.REVOKED || to == RequestState.CANCELED || to == RequestState.INVALID;
 			case CHECKING -> to == RequestState.WAITING || to == RequestState.DENIED || to == RequestState.CANCELED || to == RequestState.REVOKED || to == RequestState.INVALID;
 			case WAITING -> to == RequestState.CHECKING || to == RequestState.AUTHORIZED || to == RequestState.DENIED || to == RequestState.REVOKED || to == RequestState.INVALID || to == RequestState.CANCELED;
-			case AUTHORIZED -> to == RequestState.ACTIVE || to == RequestState.CANCELED || to == RequestState.REVOKED || to == RequestState.INVALID;
+			case AUTHORIZED -> to == RequestState.ACTIVE || to == RequestState.CHECKING || to == RequestState.CANCELED || to == RequestState.REVOKED || to == RequestState.INVALID;
 			case ACTIVE -> to == RequestState.CHECKING || to == RequestState.PASSED || to == RequestState.CANCELED || to == RequestState.REVOKED || to == RequestState.INVALID;
 			case PASSED -> to == RequestState.RELEASED || to == RequestState.INVALID;
 			case DENIED -> to == RequestState.CHECKING || to == RequestState.REVOKED || to == RequestState.CANCELED || to == RequestState.INVALID;

@@ -66,6 +66,14 @@ public final class PathSnapshot {
 		return snapshot;
 	}
 
+	public static void clear(Vehicle vehicle) {
+		if (vehicle != null) VEHICLE_CACHE.remove(vehicle);
+	}
+
+	public static void clearAll() {
+		VEHICLE_CACHE.clear();
+	}
+
 	public List<PathSection> getSections() {
 		return sections;
 	}

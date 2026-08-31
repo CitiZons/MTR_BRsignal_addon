@@ -1,5 +1,7 @@
 # MTR_BRsignal_addon
 
+Version: `0.1.1`
+
 ## 文档
 
 - [迁移计划.md](迁移计划.md)
@@ -44,6 +46,9 @@ Minecraft Transit Railway（MTR）的英式闭塞信号扩展，Forge 1.20.1。
 - 进路工具：绑定 `route=X` 或 `path=Y`，手持显示连线和乘车 HUD。
 - 调度工具：右键空气或调度台打开调度面板；乘车时顶部显示 Vehicle ID、Route、Destination。
 - 调度台方块：右键打开调度面板。
+- 内嵌 Web 调度图：显示轨道 Section、站台、信号机、车辆短码、占用/锁闭状态及在线玩家权限状态；使用随 mod 打包的 Terminus 字体，不依赖本机字体。
+- Web 请求抽屉：按短码自然顺序显示 `Code`、`State`、`Route`、`Next` 和 `Dest`；点击条目或地图短码会将地图居中到车辆并高亮其请求区段。重复点击可取消选中。
+- Web 调度授权：OP 通过短期 token 获得 Approve、Revoke 和 Override 操作；无 token 访问始终只读。请求状态颜色与游戏内调度面板一致。
 
 ## 调度命令
 
@@ -55,7 +60,18 @@ Minecraft Transit Railway（MTR）的英式闭塞信号扩展，Forge 1.20.1。
 /mtrbr priority <vehicle_code> <value>             # 设置指定车辆的调度优先级数值
 /mtrbr audit                                       # 输出当前进路、闭塞与资源状态的诊断审计
 /mtrbr protection regenerate                       # 按当前信号拓扑重建 SignalFace 到 Block 的保护定义
+/mtrbr web_token                                   # 仅向执行 OP 发送带调度 token 的完整 Web URL
 ```
+
+## Web 调度
+
+启用 MTR Web server 后，在游戏内以 OP 身份执行 `/mtrbr web_token`。命令只会向执行者本人发送一个可点击的完整地址，例如：
+
+```text
+http://localhost:<port>/mtrbr/?token=<token>
+```
+
+该 token 与对应 OP 绑定，临时有效；浏览器定期验证 OP 仍在线且仍拥有权限。没有 token，或 OP 已离线/失去权限时，Web UI 只显示实时快照，不能执行调度操作。`localhost` 适用于在服务器所在机器上打开浏览器；远程访问时请将主机名替换为服务器地址，并确保 MTR Web server 端口可达。
 
 首次部署或调整信号拓扑后执行 `/mtrbr protection regenerate`，重新生成规范的 `SignalFace -> A->B -> railIds` Block definition；无法确定当前 occurrence 的稳定 definition 时授权明确失败为 `BLOCK_DEFINITION_MISSING`，不会借用旧 terminal、其他 occurrence 或其他 path fingerprint。运行诊断可在 `logs/mtrbr-debug.log` 中查看 `MTRBR-ROUTE-PROJECTION`、`MTRBR-AUTH-*`、`MTRBR-RESOURCE-RELEASE`、`MTR_TURNBACK_*` 和 `MTRBR-DEPARTURE-GUARD`。
 

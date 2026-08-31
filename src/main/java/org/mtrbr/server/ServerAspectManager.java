@@ -68,23 +68,19 @@ public final class ServerAspectManager {
 		final Map<String, SectionStateManager.SectionSnapshot> sectionStates = SectionStateManager.getPublishedSections(simulator);
 		SignalBlockSavedData signalBlocks = SignalBlockSavedData.get(level);
 		// Canonical mappings are normally initialized by the operator command. A
-		// missing entry is nevertheless a hard authorization dead-end, so repair
-		// only entries that are absent, using the already observed immutable paths.
-		// Existing operator-approved mappings are never replaced here.
+		// missing or stale occurrence entries are a hard authorization dead-end, so
+		// repair only entries derived from already observed immutable paths. Face-level
+		// operator mappings remain untouched.
 		final int repairedBlocks = signalBlocks.addGeneratedBlocks(RouteRequestManager.getGeneratedProtectionBlocks(simulator, topology));
 		final int repairedOccurrences = signalBlocks.addGeneratedOccurrenceBlocks(RouteRequestManager.getGeneratedOccurrenceProtectionBlocks(simulator, topology));
 		if (repairedBlocks > 0 || repairedOccurrences > 0) {
 			signalBlocks = SignalBlockSavedData.get(level);
 			MtrbrDebugLog.event("MTRBR-BLOCK-RECOVERY", "dimension=" + dimension + " addedMissingMappings=" + repairedBlocks
 					+ " addedOccurrenceMappings=" + repairedOccurrences);
-			System.out.println("[MTRBR-BLOCK-RECOVERY] dimension=" + dimension + " addedMissingMappings=" + repairedBlocks
-					+ " addedOccurrenceMappings=" + repairedOccurrences);
 		}
 		final long nowSnapshot = System.currentTimeMillis();
 		if (nowSnapshot - lastSnapshotDebugMillis >= 5000) {
 			lastSnapshotDebugMillis = nowSnapshot;
-			System.out.println("[MTRBR-ASPECT-SNAPSHOT] dim=" + dimension + " faces=" + faces.size()
-					+ " authorizations=" + authorizations.size() + " sections=" + sectionStates.size());
 		}
 		if (faces.size() != lastFacesCount) {
 			lastFacesCount = faces.size();
@@ -98,7 +94,6 @@ public final class ServerAspectManager {
 							.append("->").append(face.nodePos().getX()).append(',').append(face.nodePos().getY()).append(',').append(face.nodePos().getZ())
 							.append(" ang=").append(String.format("%.0f", face.travelAngle()));
 				}
-				System.out.println(faceDebug);
 			}
 		}
 		final StringBuilder aspectDebug = new StringBuilder();
@@ -119,7 +114,7 @@ public final class ServerAspectManager {
 			}
 			final long owningVehicleId = coveringAuthorization == null ? Long.MIN_VALUE : coveringAuthorization.vehicleId();
 			final String faceKey = key(dimension, face.signalPos(), face.backSide());
-			final boolean occupancyConflict = isSectionOccupied(simulator, signalBlocks, face, sectionStates, owningVehicleId, coveringAuthorization == null ? "" : coveringAuthorization.authorizationId().replace(":auth", ""));
+			final boolean occupancyConflict = isSectionOccupied(simulator, signalBlocks, face, coveredTraversal, coveringAuthorization, sectionStates, owningVehicleId, coveringAuthorization == null ? "" : coveringAuthorization.authorizationId().replace(":auth", ""));
 			if (occupancyConflict) {
 				next.put(faceKey, new SignalDisplay(ServerAspect.RED, "", "", 0));
 				diagnostics.put(faceKey, signalDiagnostic(signalBlocks, face, false, true, ServerAspect.RED));
@@ -154,7 +149,6 @@ public final class ServerAspectManager {
 			final long now = System.currentTimeMillis();
 			if (now - lastAspectDebugMillis >= 5000) {
 				lastAspectDebugMillis = now;
-				System.out.println("[MTRBR-ASPECT] " + dimension + aspectDebug);
 			}
 		}
 		synchronized (ASPECTS) {
@@ -168,7 +162,6 @@ public final class ServerAspectManager {
 							+ " authorization=" + current.authorizationId()
 							+ " routeIndicator=" + current.routeContent()
 							+ " revision=" + current.revision());
-					System.out.println("[MTRBR-SIGNAL] " + diagnostics.getOrDefault(entry.getKey(), "key=" + entry.getKey()) + " aspect=" + current.aspect());
 				}
 			}
 			ASPECTS.keySet().removeIf(key -> key.startsWith(dimension + "|"));
@@ -209,6 +202,13 @@ public final class ServerAspectManager {
 	public static ServerAspect get(ServerLevel level, BlockPos signalPos, boolean reversed) {
 		synchronized (ASPECTS) {
 			final SignalDisplay display = ASPECTS.get(key(simulatorDimension(level), signalPos, reversed));
+			return display == null ? null : display.aspect();
+		}
+	}
+
+	public static ServerAspect get(Simulator simulator, BlockPos signalPos, boolean reversed) {
+		synchronized (ASPECTS) {
+			final SignalDisplay display = ASPECTS.get(key(simulator.dimension, signalPos, reversed));
 			return display == null ? null : display.aspect();
 		}
 	}
@@ -268,8 +268,14 @@ public final class ServerAspectManager {
 	 * VehicleSnapshot 的 path 只用于迁移期间推导 SignalFace -> Section ID；占用事实一律
 	 * 读取 SectionStateManager 的服务端权威 snapshot，不再用头/尾里程自行重算。
 	 */
-	private static boolean isSectionOccupied(Simulator simulator, SignalBlockSavedData signalBlocks, SignalFace face, Map<String, SectionStateManager.SectionSnapshot> sectionStates, long owningVehicleId, String ownerId) {
-		final String blockId = signalBlocks.getBlockId(face.id());
+	private static boolean isSectionOccupied(Simulator simulator, SignalBlockSavedData signalBlocks, SignalFace face,
+			PathSnapshot.FaceTraversal coveredTraversal, RouteRequestManager.AuthorizedPath coveringAuthorization,
+			Map<String, SectionStateManager.SectionSnapshot> sectionStates, long owningVehicleId, String ownerId) {
+		String blockId = "";
+		if (coveredTraversal != null && coveringAuthorization != null) {
+			blockId = signalBlocks.getOccurrenceBlockId(coveringAuthorization.path().getFingerprint(), coveredTraversal.key());
+		}
+		if (blockId.isBlank()) blockId = signalBlocks.getBlockId(face.id());
 		if (blockId.isEmpty()) return true;
 		if (SectionStateManager.isBlockConflicted(simulator, blockId, ownerId)) return true;
 		final java.util.Set<String> protectedSectionIds = new java.util.HashSet<>(signalBlocks.getRailIdsForBlock(blockId));

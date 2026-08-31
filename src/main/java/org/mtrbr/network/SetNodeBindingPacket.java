@@ -31,12 +31,13 @@ public final class SetNodeBindingPacket {
 	public static void handle(SetNodeBindingPacket message, Supplier<NetworkEvent.Context> contextSupplier) {
 		final NetworkEvent.Context context = contextSupplier.get();
 		context.enqueueWork(() -> {
-			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
+			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.signalPos)
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.nodePos)
+					&& PacketValidation.isSignal(serverLevel, message.signalPos)
+					&& PacketValidation.isNode(serverLevel, message.nodePos)) {
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 				data.setNodeBinding(message.signalPos, message.nodePos);
-				System.out.println("[MTRBR-BIND] signal=" + message.signalPos + " node=" + message.nodePos
-						+ " savedNodeBindings=" + data.getNodeBindings().size()
-						+ " by=" + context.getSender().getGameProfile().getName());
 				org.mtrbr.server.ServerAspectManager.invalidateTopology(serverLevel);
 				Network.CHANNEL.send(net.minecraftforge.network.PacketDistributor.ALL.noArg(), new SyncRouteBindingsPacket(data.toClientMap(), data.getNodeBindings(), data.getIndicatorBindings(), data.getSignalNames()));
 			}

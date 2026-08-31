@@ -28,18 +28,6 @@ import org.mtrbr.logic.SignalLogic;
 public final class ColorLightIndicatorRenderer implements BlockEntityRenderer<ColorLightIndicatorBlockEntity> {
 
 	private static final org.mtr.mapping.holder.Identifier WHITE_TEXTURE = new org.mtr.mapping.holder.Identifier(MTRBR.MOD_ID, "textures/block/white.png");
-	/** 节流调试日志：内容变化或每 100 tick 输出一次，用于定位指示器不显示的原因。 */
-	private static String lastDebugLine = "";
-	private static long lastDebugTick = -1;
-
-	private static void debugLog(Level level, String line) {
-		final long tick = level == null ? 0 : level.getGameTime();
-		if (!line.equals(lastDebugLine) || tick - lastDebugTick >= 100) {
-			lastDebugLine = line;
-			lastDebugTick = tick;
-			System.out.println("[MTRBR-RENDER] " + line);
-		}
-	}
 	public ColorLightIndicatorRenderer(BlockEntityRendererProvider.Context context) {
 	}
 
@@ -61,31 +49,21 @@ public final class ColorLightIndicatorRenderer implements BlockEntityRenderer<Co
 			boundSignalPos = blockEntity.getBoundSignalPos();
 		}
 		if (boundSignalPos == null) {
-			debugLog(level, pos + " NO-BINDING");
 			return;
 		}
 		final BlockEntity signalEntity = level.getBlockEntity(boundSignalPos);
 		if (!(signalEntity instanceof BlockSignalBase.BlockEntityBase)) {
-			debugLog(level, pos + " -> " + boundSignalPos + " SIGNAL-MISSING " + (signalEntity == null ? "null" : signalEntity.getClass().getSimpleName()));
-			return;
-		}
-		final int aspect = SignalLogic.getSignalAspect(level, boundSignalPos, signalEntity, false);
-		if (aspect == 1) {
-			debugLog(level, pos + " -> " + boundSignalPos + " ASPECT-RED");
 			return;
 		}
 		final ServerAspectCache.DisplayState serverState = ServerAspectCache.getState(boundSignalPos, false);
 		if (serverState == null || serverState.authorizationId().isEmpty() || serverState.routeContent().isBlank()) {
-			debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " NO-AUTHORIZED-ROUTE");
 			return;
 		}
 		final String indicatorModel = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
 		final java.util.List<ColorLightModel.Light> lights = ColorLightModel.getRouteLights(indicatorModel, serverState.routeContent());
 		if (lights.isEmpty()) {
-			debugLog(level, pos + " -> " + boundSignalPos + " route=" + serverState.routeContent() + " NO-ROUTE-LIGHTS");
 			return;
 		}
-		debugLog(level, pos + " -> " + boundSignalPos + " aspect=" + aspect + " route=" + serverState.routeContent() + " lights=" + lights.size());
 		for (final ColorLightModel.Light light : lights) {
 			drawLight(pos, angle, light);
 		}

@@ -16,9 +16,8 @@ public final class Authorization {
 	private final List<BlockAuthorization> blockAuthorizations;
 	private final long topologyRevision;
 	private final long revision;
-	private final boolean manualDrivingOverride;
 
-	public Authorization(String authorizationId, String requestId, List<BlockAuthorization> blockAuthorizations, List<String> pathNodes, long topologyRevision, long revision, boolean manualDrivingOverride) {
+	public Authorization(String authorizationId, String requestId, List<BlockAuthorization> blockAuthorizations, List<String> pathNodes, long topologyRevision, long revision) {
 		this.authorizationId = authorizationId;
 		this.requestId = requestId;
 		this.blockAuthorizations = List.copyOf(blockAuthorizations);
@@ -39,7 +38,6 @@ public final class Authorization {
 		this.pathNodes = List.copyOf(pathNodes);
 		this.topologyRevision = topologyRevision;
 		this.revision = revision;
-		this.manualDrivingOverride = manualDrivingOverride;
 	}
 
 	public String getAuthorizationId() {
@@ -86,10 +84,6 @@ public final class Authorization {
 
 	public long getRevision() {
 		return revision;
-	}
-
-	public boolean isManualDrivingOverride() {
-		return manualDrivingOverride;
 	}
 
 	/** One saved Signal Block projected onto its actual immutable-path extent. */

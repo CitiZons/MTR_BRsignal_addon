@@ -4,6 +4,7 @@ import org.mtr.core.simulation.Simulator;
 import org.mtrbr.data.SignalBlockSavedData;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Read-only projection of one already-selected immutable-path route segment.
@@ -36,7 +37,7 @@ public record RouteProjection(String pathFingerprint, long topologyRevision,
 		final List<String> junctionMovements = JunctionStateManager.resourcesFor(simulator, traversals);
 		// The boundary is selected above from immutablePath. Saved data is queried
 		// only for the stable definition named by that already-selected identity.
-		final String blockDefinitionId = entry.faceId() + "->" + boundary.id();
+		final String blockDefinitionId = blockDefinitionId(entry, boundary, traversals, junctionMovements);
 		final Result result;
 		if (traversals.isEmpty() || sections.isEmpty()) {
 			result = Result.EMPTY_PATH_SEGMENT;
@@ -48,6 +49,18 @@ public record RouteProjection(String pathFingerprint, long topologyRevision,
 		return new RouteProjection(path.getFingerprint(), topologyRevision, entry.key(), entry.distance(),
 				boundary.face() == null ? null : boundary.face().key(), boundary.isTerminal() ? boundary.id() : "", boundary.distance(),
 				traversals, sections, junctionMovements, blockDefinitionId, entry.distance(), boundary.distance(), result);
+	}
+
+	/** Stable identity for a physical directed route variant, independent of a vehicle/path prefix. */
+	public static String blockDefinitionId(PathSnapshot.FaceTraversal entry, PathSnapshot.ProtectionBoundary boundary,
+			List<PathSnapshot.PathTraversal> traversals, List<String> junctionMovements) {
+		final String traversalIdentity = traversals.stream()
+				.map(traversal -> traversal.sectionId() + ":" + traversal.startNode() + ">" + traversal.endNode() + ":" + traversal.travelAngle()
+						+ ":r=" + traversal.reversePositions())
+				.collect(Collectors.joining(","));
+		final String movementIdentity = String.join(",", junctionMovements);
+		return entry.faceId() + "->" + boundary.id() + "|dir=" + entry.direction()
+				+ "|traversals=" + traversalIdentity + "|junctions=" + movementIdentity;
 	}
 
 	public String boundaryIdentity() {

@@ -2,6 +2,7 @@
 build/
 run/
 run-server/
+server_logs/
 .idea/
 *.iml
 out/

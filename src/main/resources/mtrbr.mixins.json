@@ -6,6 +6,7 @@
   "refmap": "mtrbr.refmap.json",
   "mixins": [
     "DataMixin",
+	"MainWebserverMixin",
     "SimulatorMixin",
     "VehicleMixin",
     "VehicleAccess",

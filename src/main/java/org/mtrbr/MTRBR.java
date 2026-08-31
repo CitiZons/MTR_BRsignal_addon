@@ -33,6 +33,7 @@ import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.block.ColorLightRoute;
 import org.mtrbr.block.DispatcherConsoleBlock;
+import org.mtrbr.block.SignalBracketBlock;
 import org.mtrbr.data.RouteBindingsSavedData;
 import org.mtrbr.event.LeftClickHandler;
 import org.mtrbr.item.DebugToolItem;
@@ -42,9 +43,8 @@ import org.mtrbr.network.Network;
 import org.mtrbr.network.SyncRouteBindingsPacket;
 import org.mtrbr.network.SyncSignalAspectsPacket;
 import org.mtrbr.network.SyncDispatcherDataPacket;
+import org.mtrbr.web.WebTopologySnapshot;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.mtrbr.command.MTRBRCommands;
 
 @Mod(MTRBR.MOD_ID)
@@ -52,7 +52,6 @@ public final class MTRBR {
 
 	public static final String MOD_ID = "mtr_brsignal_addon";
 	public static final String MOD_NAME = "MTR_BRsignal_addon";
-	private static final Map<net.minecraft.core.BlockPos, String> INDICATOR_DEBUG_STATES = new HashMap<>();
 
 	public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, MOD_ID);
 	public static final RegistryObject<Item> DEBUG_TOOL = ITEMS.register("signal_debug_tool", () -> new DebugToolItem(new Item.Properties()));
@@ -78,6 +77,8 @@ public final class MTRBR {
 	public static final RegistryObject<ColorLightIndicatorBlock> COLOR_LIGHT_INDICATOR_4_5_BLOCK = BLOCKS.register("indicator_4-5", () -> new ColorLightIndicatorBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion()));
 	public static final RegistryObject<BlockItem> COLOR_LIGHT_INDICATOR_4_5_ITEM = ITEMS.register("indicator_4-5", () -> new BlockItem(COLOR_LIGHT_INDICATOR_4_5_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<BlockEntityType<ColorLightIndicatorBlockEntity>> COLOR_LIGHT_INDICATOR_4_5_BLOCK_ENTITY = BLOCK_ENTITIES.register("indicator_4-5", () -> BlockEntityType.Builder.of(ColorLightIndicatorBlockEntity::new, COLOR_LIGHT_INDICATOR_4_5_BLOCK.get()).build(null));
+	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_BLOCK = BLOCKS.register("signal_bracket", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion()));
+	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_ITEM = ITEMS.register("signal_bracket", () -> new BlockItem(SIGNAL_BRACKET_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<DispatcherConsoleBlock> DISPATCHER_CONSOLE_BLOCK = BLOCKS.register("dispatcher_console", () -> new DispatcherConsoleBlock(BlockBehaviour.Properties.of().strength(2.0F)));
 	public static final RegistryObject<BlockItem> DISPATCHER_CONSOLE_ITEM = ITEMS.register("dispatcher_console", () -> new BlockItem(DISPATCHER_CONSOLE_BLOCK.get(), new Item.Properties()));
 
@@ -96,6 +97,7 @@ public final class MTRBR {
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_4_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_4_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_4_5_ITEM.get()));
+				output.accept(new ItemStack(SIGNAL_BRACKET_ITEM.get()));
 			})
 			.build());
 
@@ -131,6 +133,7 @@ public final class MTRBR {
 						Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncDispatcherDataPacket(org.mtrbr.server.RouteRequestManager.getRequestSnapshots(simulator)));
 					}
 				});
+				WebTopologySnapshot.publish(event.getServer());
 			}
 		}
 	}
@@ -143,29 +146,22 @@ public final class MTRBR {
 			final var state = level.getBlockState(indicatorPos);
 			if (!(state.getBlock() instanceof ColorLightIndicatorBlock)) continue;
 			String content = "";
-			String authorization = "";
-			int aspect = 1;
 			for (final var display : displays.entrySet()) {
 				if (display.getKey().signalPos().equals(binding.getValue()) && !display.getValue().authorizationId().isEmpty()) {
 					content = display.getValue().routeContent();
-					authorization = display.getValue().authorizationId();
-					aspect = display.getValue().aspect();
 					break;
 				}
 			}
-			final String diagnostic = "indicator=" + indicatorPos + " signal=" + binding.getValue()
-					+ " aspect=" + aspect + " authorization=" + (authorization.isEmpty() ? "<none>" : authorization)
-					+ " content=" + (content.isBlank() ? "<none>" : content) + " modelRoute=renderer";
-			if (!diagnostic.equals(INDICATOR_DEBUG_STATES.put(indicatorPos, diagnostic))) {
-				System.out.println("[MTRBR-INDICATOR] " + diagnostic);
-			}
-			if (state.getValue(ColorLightIndicatorBlock.ROUTE) != ColorLightRoute.OFF) {
-				level.setBlock(indicatorPos, state.setValue(ColorLightIndicatorBlock.ROUTE, ColorLightRoute.OFF), Block.UPDATE_CLIENTS);
+			final ColorLightRoute route = ColorLightRoute.fromRouteContent(content);
+			if (state.getValue(ColorLightIndicatorBlock.ROUTE) != route) {
+				level.setBlock(indicatorPos, state.setValue(ColorLightIndicatorBlock.ROUTE, route), Block.UPDATE_CLIENTS);
 			}
 		}
 	}
 
 	private static void onServerStopping(ServerStoppingEvent event) {
+		WebTopologySnapshot.reset();
+		org.mtrbr.web.WebSessionManager.reset();
 		org.mtrbr.server.SectionStateManager.resetAll();
 		org.mtrbr.server.RouteRequestManager.resetAll();
 		org.mtrbr.server.ServerAspectManager.resetAll();

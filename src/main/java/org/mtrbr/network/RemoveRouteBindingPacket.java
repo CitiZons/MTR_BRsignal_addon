@@ -31,7 +31,11 @@ public final class RemoveRouteBindingPacket {
 	public static void handle(RemoveRouteBindingPacket message, Supplier<NetworkEvent.Context> contextSupplier) {
 		final NetworkEvent.Context context = contextSupplier.get();
 		context.enqueueWork(() -> {
-			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
+			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.signalPos)
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.nodePos)
+					&& PacketValidation.isSignal(serverLevel, message.signalPos)
+					&& PacketValidation.isNode(serverLevel, message.nodePos)) {
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 				data.remove(message.signalPos, message.nodePos);
 				org.mtrbr.server.ServerAspectManager.invalidateTopology(serverLevel);

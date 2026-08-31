@@ -1,7 +1,8 @@
 {
   "variants": {
-    "": {
-      "model": "mtr_brsignal_addon:block/dispatcher_console"
-    }
+    "facing=north": { "model": "mtr_brsignal_addon:block/dispatcher_console", "y": 180 },
+    "facing=east": { "model": "mtr_brsignal_addon:block/dispatcher_console", "y": 270 },
+    "facing=south": { "model": "mtr_brsignal_addon:block/dispatcher_console" },
+    "facing=west": { "model": "mtr_brsignal_addon:block/dispatcher_console", "y": 90 }
   }
 }

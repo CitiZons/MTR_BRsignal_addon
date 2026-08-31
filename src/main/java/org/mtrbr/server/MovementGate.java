@@ -14,6 +14,14 @@ public final class MovementGate {
 	private MovementGate() {
 	}
 
+	public static void clear(long vehicleId) {
+		LAST_ENFORCED_BOUNDARY.remove(vehicleId);
+	}
+
+	public static void clearAll() {
+		LAST_ENFORCED_BOUNDARY.clear();
+	}
+
 	public static void beforeVehicleSimulation(Vehicle vehicle) {
 		// Enforce before MTR advances as well as at tick end. The stopping-point
 		// hook handles braking; this closes the one-tick gap for a vehicle which
@@ -71,6 +79,8 @@ public final class MovementGate {
 			return;
 		}
 		double boundary = RouteRequestManager.getStopBoundary(simulator, vehicle.getId());
+		final double overrideBoundary = RouteRequestManager.getOneShotOverrideBoundary(simulator, vehicle.getId());
+		if (Double.isFinite(overrideBoundary)) boundary = overrideBoundary;
 		if (Double.isNaN(boundary)) {
 			return;
 		}
@@ -94,14 +104,6 @@ public final class MovementGate {
 			((VehicleExtraDataAccess) vehicle.vehicleExtraData).mtrbr$setSpeedTarget(0);
 			final Double previous = LAST_ENFORCED_BOUNDARY.put(vehicle.getId(), boundary);
 			if (previous == null || Math.abs(previous - boundary) > 1e-6) {
-				final org.mtrbr.server.RouteRequestManager.GateBoundaryInfo info = RouteRequestManager.getGateBoundaryInfo(simulator, vehicle.getId());
-				System.out.println("[MTRBR-ENFORCE] vehicle=" + vehicle.getId()
-						+ " head=" + String.format("%.1f", head)
-						+ " activityEnd=" + String.format("%.1f", info.activityEnd())
-						+ " activityFaces=" + info.activityFaces()
-						+ " nextSignalCandidate=" + info.nextSignalCandidate()
-						+ " stopBoundarySource=" + info.stopBoundarySource()
-						+ " finalBoundary=" + String.format("%.1f", boundary));
 			}
 		}
 	}

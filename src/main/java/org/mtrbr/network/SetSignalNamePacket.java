@@ -34,7 +34,9 @@ public final class SetSignalNamePacket {
 	public static void handle(SetSignalNamePacket message, Supplier<NetworkEvent.Context> contextSupplier) {
 		final NetworkEvent.Context context = contextSupplier.get();
 		context.enqueueWork(() -> {
-			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel) {
+			if (context.getSender() != null && context.getSender().level() instanceof ServerLevel serverLevel
+					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.signalPos)
+					&& PacketValidation.isSignal(serverLevel, message.signalPos)) {
 				final String trimmed = message.name == null ? "" : message.name.trim();
 				if (!trimmed.isEmpty() && !NAME_PATTERN.matcher(trimmed).matches()) {
 					return;
