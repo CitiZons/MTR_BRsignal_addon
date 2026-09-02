@@ -146,6 +146,10 @@ public final class RouteBindingsSavedData extends SavedData {
 		return copy;
 	}
 
+	public java.util.Set<BlockPos> getRouteBindingSignalPositions() {
+		return java.util.Set.copyOf(bindings.keySet());
+	}
+
 	/** Server-side read used to project which route content an authorization opens. */
 	public List<RouteBinding> getBindings(BlockPos signalPos) {
 		return new ArrayList<>(bindings.getOrDefault(signalPos, List.of()));
@@ -213,5 +217,29 @@ public final class RouteBindingsSavedData extends SavedData {
 
 	public Map<BlockPos, String> getSignalNames() {
 		return new LinkedHashMap<>(signalNames);
+	}
+
+	/** Idempotently removes every persisted binding owned by a deleted signal. */
+	public boolean clearSignalBindings(BlockPos signalPos) {
+		if (signalPos == null) return false;
+		boolean changed = bindings.remove(signalPos) != null;
+		changed |= nodeBindings.remove(signalPos) != null;
+		changed |= signalNames.remove(signalPos) != null;
+		changed |= indicatorBindings.entrySet().removeIf(entry -> signalPos.equals(entry.getValue()));
+		if (changed) setDirty();
+		return changed;
+	}
+
+	/** Idempotently removes bindings that reference a deleted node. */
+	public boolean clearNodeBindings(BlockPos nodePos) {
+		if (nodePos == null) return false;
+		boolean changed = bindings.entrySet().removeIf(entry -> {
+			final List<RouteBinding> list = entry.getValue();
+			list.removeIf(binding -> nodePos.equals(binding.node()));
+			return list.isEmpty();
+		});
+		changed |= nodeBindings.entrySet().removeIf(entry -> nodePos.equals(entry.getValue().node()));
+		if (changed) setDirty();
+		return changed;
 	}
 }

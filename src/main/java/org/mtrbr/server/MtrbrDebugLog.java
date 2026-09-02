@@ -83,6 +83,7 @@ public final class MtrbrDebugLog {
 	}
 
 	private static boolean isWarning(String category) {
+		if (category.startsWith("WEB-")) return true;
 		return category.contains("INVALID") || category.contains("FAIL") || category.contains("CONFLICT")
 				|| category.contains("DEADLOCK") || category.contains("STALE") || category.contains("RECOVERY")
 				|| category.contains("REJECT") || category.contains("MISMATCH") || category.contains("OVEREXTEND")

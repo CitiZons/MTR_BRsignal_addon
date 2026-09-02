@@ -19,6 +19,8 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -107,9 +109,11 @@ public final class MTRBR {
 		BLOCKS.register(modEventBus);
 		BLOCK_ENTITIES.register(modEventBus);
 		TABS.register(modEventBus);
+		ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, org.mtrbr.config.MtrbrServerConfig.SPEC);
 
 		Network.init();
 		MinecraftForge.EVENT_BUS.addListener(MTRBR::onPlayerLoggedIn);
+		MinecraftForge.EVENT_BUS.addListener(MTRBR::onPlayerLoggedOut);
 		MinecraftForge.EVENT_BUS.addListener(MTRBR::onServerTick);
 		MinecraftForge.EVENT_BUS.addListener(MTRBR::onServerStopping);
 		MinecraftForge.EVENT_BUS.addListener(MTRBRCommands::register);
@@ -117,6 +121,9 @@ public final class MTRBR {
 		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.server.ServerSignalRegistry::onChunkUnload);
 		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.server.ServerSignalRegistry::onBlockPlace);
 		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.server.ServerSignalRegistry::onBlockBreak);
+		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.web.PlatformGeometryCache::onChunkLoad);
+		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.web.PlatformGeometryCache::onBlockPlace);
+		MinecraftForge.EVENT_BUS.addListener(org.mtrbr.web.PlatformGeometryCache::onBlockBreak);
 		MinecraftForge.EVENT_BUS.addListener(LeftClickHandler::onLeftClickBlock);
 		DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> ClientHooks::init);
 	}
@@ -130,6 +137,7 @@ public final class MTRBR {
 					Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncSignalAspectsPacket(org.mtrbr.server.ServerAspectManager.snapshot(level)));
 					final Simulator simulator = org.mtrbr.server.SectionStateManager.getSimulator(level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath());
 					if (simulator != null) {
+						org.mtrbr.server.CapacityLeaseManager.persistCompiledZones(level, simulator);
 						Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncDispatcherDataPacket(org.mtrbr.server.RouteRequestManager.getRequestSnapshots(simulator)));
 					}
 				});
@@ -161,8 +169,10 @@ public final class MTRBR {
 
 	private static void onServerStopping(ServerStoppingEvent event) {
 		WebTopologySnapshot.reset();
+		org.mtrbr.web.PlatformGeometryCache.resetAll();
 		org.mtrbr.web.WebSessionManager.reset();
 		org.mtrbr.server.SectionStateManager.resetAll();
+		org.mtrbr.server.CapacityLeaseManager.resetAll();
 		org.mtrbr.server.RouteRequestManager.resetAll();
 		org.mtrbr.server.ServerAspectManager.resetAll();
 		org.mtrbr.server.ServerSignalRegistry.resetAll();
@@ -177,6 +187,12 @@ public final class MTRBR {
 			if (simulator != null) {
 				Network.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new SyncDispatcherDataPacket(org.mtrbr.server.RouteRequestManager.getRequestSnapshots(simulator)));
 			}
+		}
+	}
+
+	private static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+		if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+			org.mtrbr.web.WebSessionManager.invalidateForOfflinePlayer(serverPlayer.getUUID());
 		}
 	}
 

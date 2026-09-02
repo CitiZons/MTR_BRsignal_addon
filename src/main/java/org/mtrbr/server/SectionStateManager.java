@@ -78,9 +78,10 @@ public final class SectionStateManager {
 	}
 
 	public static void onTopologySync(Data data) {
-		final SimulationState state = data instanceof Simulator simulator ? STATES.computeIfAbsent(simulator, ignored -> new SimulationState(simulator)) : null;
-		if (state != null) {
+		if (data instanceof Simulator simulator) {
+			final SimulationState state = STATES.computeIfAbsent(simulator, ignored -> new SimulationState(simulator));
 			state.topologyDirty = true;
+			CapacityLeaseManager.rebuildSingleLineZones(simulator);
 		}
 	}
 
@@ -88,6 +89,13 @@ public final class SectionStateManager {
 		final SimulationState state = CURRENT.get();
 		if (state != null) {
 			state.observeVehicle(vehicle);
+		}
+	}
+
+	/** Removes physical occupancy only after MTR has explicitly removed a vehicle. */
+	public static void removeVehicleOccupancy(long vehicleId, String reason) {
+		for (final SimulationState state : STATES.values()) {
+			state.removeVehicleOccupancy(vehicleId, reason);
 		}
 	}
 
@@ -274,13 +282,6 @@ public final class SectionStateManager {
 		}
 
 		private void endTick() {
-			// Vehicle.simulate is the authoritative observation point. Vehicles
-			// not simulated this tick therefore cannot leave stale occupancy.
-			for (final Long vehicleId : Set.copyOf(vehicleSections.keySet())) {
-				if (!observedVehicles.contains(vehicleId)) {
-					applyVehicleOccupancy(vehicleId, Set.of(), false);
-				}
-			}
 			// Publish immediately after a state change, with a one-second fallback
 			// for stable state. Simulation-thread facts remain authoritative here;
 			// this only throttles immutable readers' snapshots.
@@ -334,7 +335,8 @@ public final class SectionStateManager {
 			final VehicleExtraData extraData = vehicle.vehicleExtraData;
 			final double head = ((VehicleAccess) vehicle).mtrbr$getRailProgress();
 			if (head < 0 || extraData.immutablePath.isEmpty()) {
-				applyVehicleOccupancy(vehicleId, Set.of(), false);
+				// A transiently unavailable immutable path is not a confirmed removal.
+				// Keep the previous occupancy until MTR removal is delivered explicitly.
 				return;
 			}
 			final double tail = head - extraData.getTotalVehicleLength();
@@ -397,6 +399,13 @@ public final class SectionStateManager {
 			if (changed) {
 				stateRevision++;
 			}
+		}
+
+		private void removeVehicleOccupancy(long vehicleId, String reason) {
+			if (!vehicleSections.containsKey(vehicleId)) return;
+			applyVehicleOccupancy(vehicleId, Set.of(), false);
+			observedVehicles.remove(vehicleId);
+			MtrbrDebugLog.event("MTRBR-OCCUPANCY-RELEASE", "vehicle=" + vehicleId + " reason=" + reason + " source=MTR_LIFECYCLE");
 		}
 
 		private boolean areSectionsAvailable(Collection<String> sectionIds, String ownerId, long vehicleId, boolean manualDrivingOverride) {

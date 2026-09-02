@@ -111,8 +111,16 @@ public final class MovementGate {
 	/** Native signal/reservation occupancy is not a second authority for an authorized vehicle. */
 	public static boolean shouldDisableNativeBlock(Vehicle vehicle) {
 		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
-		return simulator != null && (RouteRequestManager.hasAuthorization(simulator, vehicle.getId())
+		return simulator != null && (hasStableAuthorizationForNativeBypass(simulator, vehicle)
 				|| RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId()));
+	}
+
+	private static boolean hasStableAuthorizationForNativeBypass(org.mtr.core.simulation.Simulator simulator, Vehicle vehicle) {
+		if (!RouteRequestManager.hasAuthorization(simulator, vehicle.getId())) return false;
+		final RouteRequestManager.GateBoundaryInfo info = RouteRequestManager.getGateBoundaryInfo(simulator, vehicle.getId());
+		if (!Double.isFinite(info.activityEnd())) return false;
+		final org.mtrbr.mixin.VehicleAccess access = (org.mtrbr.mixin.VehicleAccess) vehicle;
+		return access.mtrbr$getRailProgress() < info.activityEnd() - 1.0E-6;
 	}
 
 	/** Same ownership rule at MTR's simulateStopped() startUp/reversal checks. */

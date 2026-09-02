@@ -5,11 +5,14 @@ package org.mtrbr.web;
  */
 public final class WebApiContract {
 	private static final String JSON = """
-			{"schema":2,"readOnly":false,"snapshots":[
+			{"schema":3,"readOnly":false,"snapshots":[
 			{"id":"topology","method":"GET","path":"/mtrbr/api/topology"},
 			{"id":"state","method":"GET","path":"/mtrbr/api/state"},
-			{"id":"session","method":"GET","path":"/mtrbr/api/session"}
-			],"commandEndpoint":{"method":"POST","path":"/mtrbr/api/commands","available":true,"authentication":"X-MTRBR-Token from /mtrbr web_token","request":{"action":"approve|revoke|override","vehicleId":"long"},"commands":[
+			{"id":"session","method":"GET","path":"/mtrbr/api/session"},
+			{"id":"lines","method":"GET","path":"/mtrbr/api/lines","staticTopology":true},
+			{"id":"linePreviewNodes","method":"POST","path":"/mtrbr/api/lines/preview-nodes","staticTopology":false},
+			{"id":"lineSaveNodes","method":"POST","path":"/mtrbr/api/lines/save-nodes","staticTopology":false}
+			],"commandEndpoint":{"method":"POST","path":"/mtrbr/api/commands","available":true,"authentication":"X-MTRBR-Token and X-MTRBR-Device from /mtrbr web_token generate","request":{"action":"approve|revoke|override","vehicleId":"long"},"commands":[
 			"dispatcher.approve","dispatcher.revoke","dispatcher.override"
 			]}}
 			""";

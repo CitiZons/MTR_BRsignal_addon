@@ -39,4 +39,5 @@ public final class ClientHooks {
 	public static void openDispatcherScreen() {
 		Minecraft.getInstance().setScreen(new DispatcherScreen());
 	}
+
 }

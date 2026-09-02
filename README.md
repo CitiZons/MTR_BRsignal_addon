@@ -1,6 +1,16 @@
 # MTR_BRsignal_addon
 
+Copyright (c) 2026 CitiZons. Licensed under the [MIT License](LICENSE).
+
 Version: `0.1.1`
+
+## 近期进展
+
+- Web 调度界面采用 Terminus 风格，显示实时 Section 占用和锁闭、站台、信号机、车辆短码、请求抽屉、在线玩家权限状态，以及浏览器内的调度控制。
+- Web 会话使用 `/mtrbr web_token generate`、`list` 与 `revocation` 管理；每个 token 仅绑定一台设备，泄漏或 OP 离线后永久失效，每个 OP 最多持有五个 token。专用服务器使用 `web_public_host` 与 MTR Web server 实际端口生成访问地址。
+- 信号机名称可在 Web UI 中查看和修改；信号机图标可在浏览器中调整显示位置，不会改变游戏内的绑定关系。
+- Depot 路径编辑器支持连续重复节点归一化、真实轨道端点显示坐标、候选节点预检、整条路径的方向约束求解，以及详细的无效路径诊断。现有 MTR Depot Path 仍是物理路径来源，编辑器不会绕过调度安全逻辑。
+- Web 操作会写入既有 MTRBR debug 日志，包括路径预检/保存、调度操作、信号命名、操作者与失败上下文；不会记录 token 或 device ID。
 
 ## 文档
 
@@ -60,18 +70,22 @@ Minecraft Transit Railway（MTR）的英式闭塞信号扩展，Forge 1.20.1。
 /mtrbr priority <vehicle_code> <value>             # 设置指定车辆的调度优先级数值
 /mtrbr audit                                       # 输出当前进路、闭塞与资源状态的诊断审计
 /mtrbr protection regenerate                       # 按当前信号拓扑重建 SignalFace 到 Block 的保护定义
-/mtrbr web_token                                   # 仅向执行 OP 发送带调度 token 的完整 Web URL
+/mtrbr web_token generate                          # 生成一个带调度 token 的完整 Web URL（每个 OP 最多 5 个）
+/mtrbr web_token list                              # 列出自己的 token，按 1-5 编号
+/mtrbr web_token revocation <number>               # 注销指定编号的 token，剩余 token 自动重新编号
 ```
 
 ## Web 调度
 
-启用 MTR Web server 后，在游戏内以 OP 身份执行 `/mtrbr web_token`。命令只会向执行者本人发送一个可点击的完整地址，例如：
+启用 MTR Web server 后，在游戏内以 OP 身份执行 `/mtrbr web_token generate`。命令只会向执行者本人发送一个可点击的完整地址。单人存档使用：
 
 ```text
 http://localhost:<port>/mtrbr/?token=<token>
 ```
 
-该 token 与对应 OP 绑定，临时有效；浏览器定期验证 OP 仍在线且仍拥有权限。没有 token，或 OP 已离线/失去权限时，Web UI 只显示实时快照，不能执行调度操作。`localhost` 适用于在服务器所在机器上打开浏览器；远程访问时请将主机名替换为服务器地址，并确保 MTR Web server 端口可达。
+专用服务器必须在服务器配置中设置 `web_public_host`，例如 `chousile.cn`；生成的地址会使用该主机名和 MTR Web server 的实际端口。配置为空时，专服拒绝生成 URL，不会猜测绑定地址或公网 IP。
+
+每个 token 绑定一个浏览器设备。同一 token 被不同设备访问时，token 永久标记为 `LEAKED`；对应 OP 离线时，所有该 OP 的有效 token 永久标记为 `PLAYER_OFFLINE`。失效后的 Web UI 始终只读，服务器也会拒绝所有调度和信号命名 API。失效 token 仍占用 OP 的五个 token 名额，直到执行 `/mtrbr web_token revocation <number>`。
 
 首次部署或调整信号拓扑后执行 `/mtrbr protection regenerate`，重新生成规范的 `SignalFace -> A->B -> railIds` Block definition；无法确定当前 occurrence 的稳定 definition 时授权明确失败为 `BLOCK_DEFINITION_MISSING`，不会借用旧 terminal、其他 occurrence 或其他 path fingerprint。运行诊断可在 `logs/mtrbr-debug.log` 中查看 `MTRBR-ROUTE-PROJECTION`、`MTRBR-AUTH-*`、`MTRBR-RESOURCE-RELEASE`、`MTR_TURNBACK_*` 和 `MTRBR-DEPARTURE-GUARD`。
 
@@ -99,3 +113,10 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-8.0.482.8-hotspot"
 ```
 
 当前源码已通过 `compileJava`；构建输出中的弃用 API 提示不属于信号、闭塞或资源生命周期逻辑。
+
+## 许可证与第三方声明
+
+本项目源代码采用 [MIT License](LICENSE)。随 JAR 分发的 Terminus Regular
+字体采用 SIL Open Font License 1.1；其版权声明和完整许可证文本，以及其他
+第三方声明，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Minecraft、
+Forge 和 MTR 是其各自权利人的产品或项目，本项目不授予其商标或许可证权利。

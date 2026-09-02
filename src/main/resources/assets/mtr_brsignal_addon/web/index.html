@@ -7,6 +7,12 @@
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
+  <div id="token-invalidation" class="token-invalidation" role="alertdialog" aria-modal="true" hidden>
+    <div class="token-invalidation-box">
+      <button id="token-invalidation-close" class="token-invalidation-close" type="button" aria-label="Close">X</button>
+      <p id="token-invalidation-message"></p>
+    </div>
+  </div>
   <header class="masthead">
     <div class="brand"><span class="brand-mark"></span><span>MTRBR</span><small>INTERLOCKING DESK</small></div>
     <div class="readout"><span id="dimension">AWAITING TOPOLOGY</span><span id="revision">REV --</span></div>
@@ -30,25 +36,40 @@
       <h2>REQUEST QUEUE</h2>
       <div id="request-list" class="request-list"></div>
     </aside>
+    <button id="line-toggle" class="line-toggle" title="Depot paths">LINE</button>
+    <aside id="line-drawer" class="line-drawer" aria-hidden="true">
+      <div class="drawer-heading"><h2>LINE</h2><button id="line-refresh" type="button" title="Refresh depot paths">REFRESH</button></div>
+      <div id="line-list" class="line-list"></div>
+    </aside>
     <section class="diagram-wrap">
       <canvas id="diagram" aria-label="Rail topology map"></canvas>
+	  <form id="signal-name-form" class="signal-name-form" hidden><input id="signal-name" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,39}" autocomplete="off"><button type="submit">SAVE</button></form>
       <div class="map-title">TOPOLOGY // <span id="map-dimension">--</span></div>
       <div class="scale"><i></i><span id="scale-label">-- m</span></div>
+      <aside id="line-edit-prompt" class="line-edit-prompt" hidden>
+        <h2>PATH EDIT</h2>
+        <div class="line-node-actions">
+          <button id="node-change" type="button">CHANGE</button>
+          <button id="node-add" type="button">ADD</button>
+          <button id="node-confirm" type="button">CONFIRM</button>
+          <button id="node-abandon" type="button">ABANDON</button>
+          <button id="node-delete" type="button">DELETE</button>
+          <button id="node-cancel" type="button">CANCEL</button>
+          <button id="node-save" type="button">SAVE</button>
+        </div>
+      </aside>
     </section>
     <aside class="legend">
       <h2>INDICATIONS</h2>
       <div><i class="rail"></i>TRACK</div>
       <div><i class="signal"></i>SIGNAL</div>
       <div><i class="platform"></i>PLATFORM</div>
-      <div><i class="occupied"></i>OCCUPIED</div>
-      <div><i class="locked"></i>LOCKED</div>
+      <div class="realtime-legend"><i class="occupied"></i>OCCUPIED</div>
+      <div class="realtime-legend"><i class="locked"></i>LOCKED</div>
       <div class="rule"></div>
       <p id="status">CONNECTING</p>
       <div id="action-drawer" class="action-drawer" hidden>
-        <h2 id="action-code">--</h2>
-        <button data-action="approve">APPROVE</button>
-        <button data-action="revoke">REVOKE</button>
-        <button data-action="override">OVERRIDE</button>
+        <div id="dispatch-actions"><h2 id="action-code">--</h2><button data-action="approve">APPROVE</button><button data-action="revoke">REVOKE</button><button data-action="override">OVERRIDE</button></div>
       </div>
     </aside>
   </main>

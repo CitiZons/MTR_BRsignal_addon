@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 import org.mtrbr.server.PathSnapshot;
+import org.mtrbr.server.MtrbrDebugLog;
 import org.mtrbr.server.RouteRequestManager;
 
 import java.util.ArrayList;
@@ -24,11 +25,13 @@ public final class SignalBlockSavedData extends SavedData {
 	private static final String KEY_OCCURRENCES = "occurrences";
 	private static final String KEY_BLOCKS = "blockRails";
 	private static final String KEY_SIGNAL_FACES = "signalFaces";
+	private static final String KEY_SINGLE_LINE_ZONES = "singleLineZones";
 	private static final int CURRENT_VERSION = 9;
 	private final Map<String, String> faceToBlock = new HashMap<>();
 	private final Map<String, String> occurrenceToBlock = new HashMap<>();
 	private final Map<String, List<String>> blockRails = new HashMap<>();
 	private final Map<String, SignalFaceDefinition> signalFaces = new HashMap<>();
+	private final Map<String, SingleLineZoneDefinition> singleLineZones = new HashMap<>();
 	/** Legacy values are retained only in memory until the explicit migrate command runs. */
 	private final Map<String, List<String>> legacyFaceRails = new HashMap<>();
 	private static volatile Map<String, Snapshot> SNAPSHOTS = Map.of();
@@ -41,11 +44,11 @@ public final class SignalBlockSavedData extends SavedData {
 
 	private static String dimension(ServerLevel level) { return level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath(); }
 
-	public static Snapshot getSnapshot(String dimension) { return SNAPSHOTS.getOrDefault(dimension, new Snapshot(Map.of(), Map.of(), Map.of())); }
+	public static Snapshot getSnapshot(String dimension) { return SNAPSHOTS.getOrDefault(dimension, new Snapshot(Map.of(), Map.of(), Map.of(), Map.of())); }
 
 	private void publishSnapshot(String dimension) {
 		final Map<String, Snapshot> next = new HashMap<>(SNAPSHOTS);
-		next.put(dimension, new Snapshot(faceToBlock, occurrenceToBlock, blockRails));
+		next.put(dimension, new Snapshot(faceToBlock, occurrenceToBlock, blockRails, singleLineZones));
 		SNAPSHOTS = Collections.unmodifiableMap(next);
 	}
 
@@ -66,6 +69,15 @@ public final class SignalBlockSavedData extends SavedData {
 			data.signalFaces.put(faceId, new SignalFaceDefinition(faceId, signalPos, nodePos,
 					face.getBoolean("backSide"), face.getFloat("travelAngle"), face.getBoolean("doubleSided"),
 					face.getLong("topologyRevision"), face.getBoolean("worldVerified")));
+		}
+		final CompoundTag persistedZones = tag.getCompound(KEY_SINGLE_LINE_ZONES);
+		for (final String zoneId : persistedZones.getAllKeys()) {
+			final CompoundTag zone = persistedZones.getCompound(zoneId);
+			final List<String> sectionIds = readStrings(zone.getList("sectionIds", Tag.TAG_STRING));
+			if (!sectionIds.isEmpty()) {
+				data.singleLineZones.put(zoneId, new SingleLineZoneDefinition(zoneId, sectionIds,
+						zone.getLong("topologyRevision"), zone.getLong("routeRevision")));
+			}
 		}
 		// Legacy values are captured for the one-shot explicit migration only. They
 		// are never returned by getBlockId/getRailIds and are not written by save().
@@ -141,6 +153,17 @@ public final class SignalBlockSavedData extends SavedData {
 			persistedFaces.put(entry.getKey(), value);
 		}
 		tag.put(KEY_SIGNAL_FACES, persistedFaces);
+		final CompoundTag persistedZones = new CompoundTag();
+		for (final SingleLineZoneDefinition zone : singleLineZones.values()) {
+			final CompoundTag value = new CompoundTag();
+			final ListTag sectionIds = new ListTag();
+			zone.sectionIds().forEach(sectionId -> sectionIds.add(StringTag.valueOf(sectionId)));
+			value.put("sectionIds", sectionIds);
+			value.putLong("topologyRevision", zone.topologyRevision());
+			value.putLong("routeRevision", zone.routeRevision());
+			persistedZones.put(zone.zoneId(), value);
+		}
+		tag.put(KEY_SINGLE_LINE_ZONES, persistedZones);
 		return tag;
 	}
 
@@ -157,7 +180,14 @@ public final class SignalBlockSavedData extends SavedData {
 
 	public void removeSignalFaceDefinitions(BlockPos signalPos) {
 		if (signalPos == null) return;
-		final boolean changed = signalFaces.values().removeIf(face -> signalPos.equals(face.signalPos()));
+		final java.util.Set<String> removedFaceIds = signalFaces.values().stream()
+				.filter(face -> signalPos.equals(face.signalPos())).map(SignalFaceDefinition::faceId).collect(java.util.stream.Collectors.toSet());
+		boolean changed = signalFaces.values().removeIf(face -> signalPos.equals(face.signalPos()));
+		changed |= faceToBlock.keySet().removeIf(removedFaceIds::contains);
+		changed |= occurrenceToBlock.keySet().removeIf(key -> removedFaceIds.stream().anyMatch(faceId -> key.contains("|" + faceId + "|path=")));
+		final java.util.Set<String> referencedBlocks = new java.util.HashSet<>(faceToBlock.values());
+		referencedBlocks.addAll(occurrenceToBlock.values());
+		changed |= blockRails.keySet().removeIf(blockId -> !referencedBlocks.contains(blockId));
 		if (changed) setDirty();
 	}
 
@@ -169,9 +199,40 @@ public final class SignalBlockSavedData extends SavedData {
 		}
 	}
 
+	public Map<String, SingleLineZoneDefinition> getSingleLineZones() {
+		return Map.copyOf(singleLineZones);
+	}
+
+	/** Replaces the route-derived zone definitions; active leases remain runtime-only. */
+	public void setSingleLineZones(Iterable<SingleLineZoneDefinition> definitions) {
+		final Map<String, SingleLineZoneDefinition> next = new HashMap<>();
+		for (final SingleLineZoneDefinition definition : definitions) {
+			if (definition != null && !definition.zoneId().isBlank() && !definition.sectionIds().isEmpty()) {
+				next.put(definition.zoneId(), definition);
+			}
+		}
+		if (!next.equals(singleLineZones)) {
+			singleLineZones.clear();
+			singleLineZones.putAll(next);
+			setDirty();
+		}
+	}
+
+	public record SingleLineZoneDefinition(String zoneId, List<String> sectionIds, long topologyRevision, long routeRevision) {
+		public SingleLineZoneDefinition {
+			sectionIds = sectionIds == null ? List.of() : sectionIds.stream()
+					.filter(sectionId -> sectionId != null && !sectionId.isBlank()).distinct().sorted().toList();
+		}
+	}
+
 	public String getBlockId(String faceId) { return faceToBlock.getOrDefault(faceId, ""); }
 	public String getOccurrenceBlockId(String pathFingerprint, PathSnapshot.FaceTraversalKey key) {
-		return occurrenceToBlock.getOrDefault(occurrenceKey(pathFingerprint, key), "");
+		final String lookupKey = occurrenceKey(pathFingerprint, key);
+		final String blockId = occurrenceToBlock.getOrDefault(lookupKey, "");
+		MtrbrDebugLog.event("MTRBR-OCCURRENCE-BLOCK-LOOKUP", "pathFingerprint=" + pathFingerprint
+				+ " occurrenceFaceKey=" + key + " lookupKey=" + lookupKey
+				+ " hit=" + (!blockId.isBlank()) + " blockDefinitionId=" + (blockId.isBlank() ? "<missing>" : blockId));
+		return blockId;
 	}
 	public List<String> getRailIdsForBlock(String blockId) { return blockRails.getOrDefault(blockId, List.of()); }
 	public List<String> getRailIds(String faceId) {
@@ -206,11 +267,13 @@ public final class SignalBlockSavedData extends SavedData {
 		return pathFingerprint + "|" + key.canonical();
 	}
 
-	public record Snapshot(Map<String, String> faceToBlock, Map<String, String> occurrenceToBlock, Map<String, List<String>> blockRails) {
+	public record Snapshot(Map<String, String> faceToBlock, Map<String, String> occurrenceToBlock, Map<String, List<String>> blockRails,
+			Map<String, SingleLineZoneDefinition> singleLineZones) {
 		public Snapshot {
 			faceToBlock = Map.copyOf(faceToBlock);
 			occurrenceToBlock = Map.copyOf(occurrenceToBlock);
 			blockRails = Map.copyOf(blockRails);
+			singleLineZones = Map.copyOf(singleLineZones);
 		}
 		public String getBlockId(String faceId) { return faceToBlock.getOrDefault(faceId, ""); }
 		public String getOccurrenceBlockId(String pathFingerprint, PathSnapshot.FaceTraversalKey key) {
@@ -309,9 +372,18 @@ public final class SignalBlockSavedData extends SavedData {
 			final RouteRequestManager.GeneratedProtection protection = entry.getValue();
 			if (!isCanonicalBlockId(protection.blockId()) || protection.railIds().isEmpty()) continue;
 			final String existingBlockId = occurrenceToBlock.get(entry.getKey());
-			if (existingBlockId != null && boundaryId(existingBlockId).equals(protection.boundaryId())) continue;
+			// Boundary equality is insufficient for multiple-path occurrences: a topology
+			// change can keep the same boundary while changing traversals or junction
+			// movements, which are part of the canonical Block identity.
+			if (protection.blockId().equals(existingBlockId)
+					&& blockRails.containsKey(existingBlockId)
+					&& blockRails.get(existingBlockId).equals(protection.railIds())) continue;
 			occurrenceToBlock.put(entry.getKey(), protection.blockId());
-			blockRails.putIfAbsent(protection.blockId(), protection.railIds());
+			blockRails.put(protection.blockId(), protection.railIds());
+			MtrbrDebugLog.event("MTRBR-OCCURRENCE-BLOCK-UPDATED", "lookupKey=" + entry.getKey()
+					+ " oldBlockDefinitionId=" + (existingBlockId == null || existingBlockId.isBlank() ? "<missing>" : existingBlockId)
+					+ " newBlockDefinitionId=" + protection.blockId() + " boundaryId=" + protection.boundaryId()
+					+ " railIds=" + protection.railIds());
 			changed++;
 		}
 		if (changed > 0) setDirty();

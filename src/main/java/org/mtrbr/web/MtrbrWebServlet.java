@@ -17,10 +17,13 @@ public final class MtrbrWebServlet extends HttpServlet {
 		 switch (path) {
 			case "/api/topology" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.topologyJson());
 			case "/api/state" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.stateJson());
-			case "/api/session" -> send(response, "application/json; charset=UTF-8", "{\"canDispatch\":" + WebTopologySnapshot.canDispatch(token(request)) + "}");
+			case "/api/lines" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.linesJson());
+			case "/api/session" -> {
+				final WebSessionManager.SessionView session = WebTopologySnapshot.session(token(request), deviceId(request));
+				send(response, "application/json; charset=UTF-8", "{\"canDispatch\":" + session.canDispatch() + ",\"invalidationReason\":\"" + session.invalidationReason() + "\"}");
+			}
 			case "/api/contract" -> send(response, "application/json; charset=UTF-8", WebApiContract.json());
 			case "/index.html", "/app.css", "/app.js" -> sendResource(response, path);
-			case "/CharlesWright-Bold.otf" -> sendBinaryResource(response, path, "font/otf");
 			case "/Terminus-Regular.ttf" -> sendBinaryResource(response, path, "font/ttf");
 			default -> response.sendError(HttpServletResponse.SC_NOT_FOUND);
 		}
@@ -28,11 +31,25 @@ public final class MtrbrWebServlet extends HttpServlet {
 
 	@Override
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
-		if ("/api/commands".equals(request.getPathInfo())) {
+		if ("/api/lines/preview-nodes".equals(request.getPathInfo())) {
+			final JsonObject body = JsonParser.parseReader(request.getReader()).getAsJsonObject();
+			final JsonObject result = DepotPathEditorService.previewNodes(WebTopologySnapshot.server(), token(request), deviceId(request), body);
+			send(response, result.get("ok").getAsBoolean() ? HttpServletResponse.SC_OK : HttpServletResponse.SC_CONFLICT, "application/json; charset=UTF-8", result.toString());
+		} else if ("/api/lines/save-nodes".equals(request.getPathInfo())) {
+			final JsonObject body = JsonParser.parseReader(request.getReader()).getAsJsonObject();
+			final JsonObject result = DepotPathEditorService.saveNodes(WebTopologySnapshot.server(), token(request), deviceId(request), body);
+			send(response, result.get("ok").getAsBoolean() ? HttpServletResponse.SC_OK : HttpServletResponse.SC_CONFLICT, "application/json; charset=UTF-8", result.toString());
+		} else if ("/api/commands".equals(request.getPathInfo())) {
 			final JsonObject body = JsonParser.parseReader(request.getReader()).getAsJsonObject();
 			final String action = body.has("action") ? body.get("action").getAsString() : "";
-			final long vehicleId = body.has("vehicleId") ? body.get("vehicleId").getAsLong() : Long.MIN_VALUE;
-			if (WebTopologySnapshot.dispatch(token(request), action, vehicleId)) {
+			final boolean accepted;
+			if ("name_signal".equals(action)) {
+				accepted = body.has("signalId") && WebTopologySnapshot.renameSignal(token(request), deviceId(request), body.get("signalId").getAsString(), body.has("name") ? body.get("name").getAsString() : "");
+			} else {
+				final long vehicleId = body.has("vehicleId") ? body.get("vehicleId").getAsLong() : Long.MIN_VALUE;
+				accepted = WebTopologySnapshot.dispatch(token(request), deviceId(request), action, vehicleId);
+			}
+			if (accepted) {
 				send(response, "application/json; charset=UTF-8", "{\"ok\":true}");
 			} else {
 				send(response, HttpServletResponse.SC_FORBIDDEN, "application/json; charset=UTF-8", "{\"ok\":false}");
@@ -44,6 +61,10 @@ public final class MtrbrWebServlet extends HttpServlet {
 
 	private static String token(HttpServletRequest request) {
 		return request.getHeader("X-MTRBR-Token");
+	}
+
+	private static String deviceId(HttpServletRequest request) {
+		return request.getHeader("X-MTRBR-Device");
 	}
 
 	private static void sendResource(HttpServletResponse response, String path) throws IOException {

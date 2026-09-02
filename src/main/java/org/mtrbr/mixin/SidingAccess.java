@@ -1,7 +1,9 @@
 package org.mtrbr.mixin;
 
 import org.mtr.core.data.Siding;
+import org.mtr.core.data.PathData;
 import org.mtr.libraries.it.unimi.dsi.fastutil.longs.LongArrayList;
+import org.mtr.libraries.it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -11,4 +13,13 @@ public interface SidingAccess {
 
 	@Accessor(value = "departures", remap = false)
 	LongArrayList mtrbr$getDepartures();
+
+	@Accessor(value = "pathSidingToMainRoute", remap = false)
+	ObjectArrayList<PathData> mtrbr$getPathSidingToMainRoute();
+
+	@Accessor(value = "pathMainRoute", remap = false)
+	ObjectArrayList<PathData> mtrbr$getPathMainRoute();
+
+	@Accessor(value = "pathMainRouteToSiding", remap = false)
+	ObjectArrayList<PathData> mtrbr$getPathMainRouteToSiding();
 }

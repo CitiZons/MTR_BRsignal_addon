@@ -6,7 +6,7 @@ license = "MIT"
 modId = "mtr_brsignal_addon"
 version = "${version}"
 displayName = "MTR_BRsignal_addon"
-authors = "MTR BR Team"
+authors = "CitiZons"
 description = "British Railway style signalling addon for Minecraft Transit Railway."
 
 [[dependencies.mtr_brsignal_addon]]

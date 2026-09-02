@@ -40,7 +40,13 @@ public final class MTRBRCommands {
 				.then(Commands.literal("requests")
 						.executes(context -> listRequests(context.getSource().getLevel(), context.getSource())))
 				.then(Commands.literal("web_token")
-						.executes(context -> issueWebToken(context.getSource())))
+						.then(Commands.literal("generate")
+								.executes(context -> issueWebToken(context.getSource())))
+						.then(Commands.literal("list")
+								.executes(context -> listWebTokens(context.getSource())))
+						.then(Commands.literal("revocation")
+								.then(Commands.argument("number", IntegerArgumentType.integer(1, 5))
+										.executes(context -> revokeWebToken(context.getSource(), IntegerArgumentType.getInteger(context, "number"))))))
 				.then(Commands.literal("approve")
 						.then(Commands.argument("vehicle_code", StringArgumentType.word())
 								.executes(context -> approve(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), context.getSource()))))
@@ -77,13 +83,70 @@ public final class MTRBRCommands {
 			player.sendSystemMessage(Component.literal("MTR web server is disabled."));
 			return 0;
 		}
-		final String token = org.mtrbr.web.WebSessionManager.issue(player);
-		final String url = "http://localhost:" + webserverPort + "/mtrbr/?token=" + token;
+		final String host;
+		if (player.server.isDedicatedServer()) {
+			host = org.mtrbr.config.MtrbrServerConfig.webPublicHost();
+			if (host.isBlank()) {
+				player.sendSystemMessage(Component.literal("MTRBR web_public_host is not configured."));
+				return 0;
+			}
+		} else {
+			host = "localhost";
+		}
+		final org.mtrbr.web.WebSessionManager.IssueResult issued = org.mtrbr.web.WebSessionManager.issue(player);
+		if (!issued.issued()) {
+			player.sendSystemMessage(Component.literal("Web token limit reached (5). Revoke an existing token first."));
+			return 0;
+		}
+		final String url = "http://" + host + ":" + webserverPort + "/mtrbr/?token=" + issued.token();
 		player.sendSystemMessage(Component.literal("Web dispatch URL: ")
 				.append(Component.literal(url).withStyle(style -> style
 						.withColor(net.minecraft.ChatFormatting.AQUA)
 						.withUnderlined(true)
 						.withClickEvent(new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_URL, url)))));
+		return 1;
+	}
+
+	private static int listWebTokens(net.minecraft.commands.CommandSourceStack source) {
+		final var player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.literal("This command must be run by an in-game operator."));
+			return 0;
+		}
+		final int webserverPort = org.mtr.mod.Init.getServerPort();
+		if (webserverPort <= 0) {
+			player.sendSystemMessage(Component.literal("MTR web server is disabled."));
+			return 0;
+		}
+		final String host = player.server.isDedicatedServer() ? org.mtrbr.config.MtrbrServerConfig.webPublicHost() : "localhost";
+		if (host.isBlank()) {
+			player.sendSystemMessage(Component.literal("MTRBR web_public_host is not configured."));
+			return 0;
+		}
+		final List<org.mtrbr.web.WebSessionManager.TokenView> tokens = org.mtrbr.web.WebSessionManager.list(player.getUUID());
+		if (tokens.isEmpty()) {
+			player.sendSystemMessage(Component.literal("No web tokens."));
+			return 1;
+		}
+		for (int index = 0; index < tokens.size(); index++) {
+			final var entry = tokens.get(index);
+			final String url = "http://" + host + ":" + webserverPort + "/mtrbr/?token=" + entry.token();
+			player.sendSystemMessage(Component.literal((index + 1) + ". [" + entry.status() + "] " + url));
+		}
+		return 1;
+	}
+
+	private static int revokeWebToken(net.minecraft.commands.CommandSourceStack source, int number) {
+		final var player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.literal("This command must be run by an in-game operator."));
+			return 0;
+		}
+		if (!org.mtrbr.web.WebSessionManager.revoke(player.getUUID(), number)) {
+			source.sendFailure(Component.literal("No web token with number " + number + "."));
+			return 0;
+		}
+		player.sendSystemMessage(Component.literal("Web token " + number + " revoked. Remaining tokens were renumbered."));
 		return 1;
 	}
 
