@@ -5,7 +5,7 @@ Run the commands from the addon root after a successful build. Read `gradle.prop
 ## Archive Checks
 
 ```powershell
-$jar = Join-Path $PWD 'build\libs\mtr_brsignal_addon-0.1.0.jar'
+$jar = Join-Path $PWD 'build\libs\mtr_brsignal_addon-0.1.2.jar'
 Get-Item -LiteralPath $jar | Select-Object FullName, Length, LastWriteTime
 jar tf $jar | Select-String -Pattern 'META-INF/mods.toml|mtrbr.mixins.json|pack.mcmeta|org/mtrbr/MTRBR.class|mtrbr.refmap.json'
 ```
@@ -21,8 +21,8 @@ jar tf $jar | Select-String -SimpleMatch 'assets/mtr_brsignal_addon/'
 ## Deployment Hash Check
 
 ```powershell
-$source = Join-Path $PWD 'build\libs\mtr_brsignal_addon-0.1.0.jar'
-$target = 'D:\Minecraft\CitiZons\10.alpha\C10.alpha.4.client\.minecraft\mods\mtr_brsignal_addon-0.1.0.jar'
+$source = Join-Path $PWD 'build\libs\mtr_brsignal_addon-0.1.2.jar'
+$target = 'D:\Minecraft\CitiZons\10.alpha\C10.alpha.4.client\.minecraft\mods\mtr_brsignal_addon-0.1.2.jar'
 Get-FileHash -LiteralPath $source -Algorithm SHA256
 Get-FileHash -LiteralPath $target -Algorithm SHA256
 ```

@@ -2,7 +2,7 @@
 
 Copyright (c) 2026 CitiZons. Licensed under the [MIT License](LICENSE).
 
-Version: `0.1.1`
+Version: `0.1.2`
 
 ## 近期进展
 
