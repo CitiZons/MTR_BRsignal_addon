@@ -414,6 +414,17 @@ function draw() {
   }
   stations.forEach(drawStationLabel);
 
+  ctx.save();
+  ctx.strokeStyle = '#3d8cff';
+  ctx.lineWidth = Math.max(.72, .544 / view.scale);
+  for (const link of (data.repeaterLinks || [])) {
+    ctx.beginPath();
+    ctx.moveTo(link.signalX, link.signalZ);
+    ctx.lineTo(link.repeaterX, link.repeaterZ);
+    ctx.stroke();
+  }
+  ctx.restore();
+
   for (const signal of data.signals) {
     const position = signalPosition(signal);
     ctx.save();

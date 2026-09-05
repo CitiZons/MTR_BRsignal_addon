@@ -57,23 +57,24 @@ public final class LedIndicatorBlock extends Block implements EntityBlock {
 
 	public LedIndicatorBlock(Properties properties) {
 		super(properties);
-		registerDefaultState(getStateDefinition().any().setValue(FACING, Direction.NORTH).setValue(IS_22_5, false).setValue(IS_45, false));
+		registerDefaultState(getStateDefinition().any().setValue(IndicatorMount.HANGING, false).setValue(FACING, Direction.NORTH).setValue(IS_22_5, false).setValue(IS_45, false));
 	}
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-		builder.add(FACING, IS_22_5, IS_45);
+		builder.add(IndicatorMount.HANGING, FACING, IS_22_5, IS_45);
 	}
 
 	@Override
 	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		final int quadrant = org.mtr.core.tool.Angle.getQuadrant(context.getRotation(), true);
 		final Direction facing = Direction.from2DDataValue(quadrant / 4);
-		return defaultBlockState().setValue(FACING, facing).setValue(IS_22_5, quadrant % 2 == 1).setValue(IS_45, quadrant % 4 >= 2);
+		return defaultBlockState().setValue(IndicatorMount.HANGING, IndicatorMount.placement(context)).setValue(FACING, facing).setValue(IS_22_5, quadrant % 2 == 1).setValue(IS_45, quadrant % 4 >= 2);
 	}
 
 	@Override
 	public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+		if (IndicatorMount.isHanging(state)) return IndicatorMount.shape(state);
 		final int facingIndex = switch (state.getValue(FACING)) {
 			case NORTH -> 0;
 			case EAST -> 1;

@@ -100,3 +100,25 @@ tasks.register("depotPathRegression", JavaExec) {
     doFirst { workingDir.mkdirs() }
 }
 tasks.named("check") { dependsOn "depotPathRegression" }
+
+// Route 3/6 must pass the same validation used by client UI and server bindings.
+tasks.register("indicatorRouteRegression", JavaExec) {
+    group = "verification"
+    description = "Checks all six indicator routes and preserves LED path validation"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "org.mtrbr.data.IndicatorRouteRegression"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+}
+tasks.named("check") { dependsOn "indicatorRouteRegression" }
+
+// Repeaters derive their dynamic fullbright layers from the authored JSONs.
+tasks.register("repeatingSignalRegression", JavaExec) {
+    group = "verification"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "org.mtrbr.render.RepeatingSignalRegression"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+    workingDir = projectDir
+}
+tasks.named("check") { dependsOn "repeatingSignalRegression" }

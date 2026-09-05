@@ -6,6 +6,5 @@ server_logs/
 .idea/
 *.iml
 out/
-libs/*.jar
 __pycache__/
 *.pyc

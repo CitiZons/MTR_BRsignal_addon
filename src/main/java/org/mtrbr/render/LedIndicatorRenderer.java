@@ -80,16 +80,16 @@ public final class LedIndicatorRenderer implements BlockEntityRenderer<LedIndica
 			}
 			final ResourceLocation texture = ContentTextureRegistry.getTexture(binding.content());
 			if (texture != null && Minecraft.getInstance().getResourceManager().getResource(texture).isPresent()) {
-				drawScreen(pos, angle, new org.mtr.mapping.holder.Identifier(texture.getNamespace(), texture.getPath()));
+				drawScreen(pos, angle, org.mtrbr.block.IndicatorMount.offset(state), new org.mtr.mapping.holder.Identifier(texture.getNamespace(), texture.getPath()));
 			}
 		}
 	}
 
-	private static void drawScreen(BlockPos pos, float angle, org.mtr.mapping.holder.Identifier texture) {
+	private static void drawScreen(BlockPos pos, float angle, double heightOffset, org.mtr.mapping.holder.Identifier texture) {
 		// 模型空间：屏幕面在 z=5/16，图层在 z=0.3 略向外偏移；绕方块中心随 blockstate 模型额外旋转 180°。
 		MainRenderer.scheduleRender(texture, false, QueuedRenderLayer.EXTERIOR, (graphicsHolder, cameraOffset) -> {
 			graphicsHolder.push();
-			graphicsHolder.translate(pos.getX() + 0.5 - cameraOffset.getXMapped(), pos.getY() + 0.5 - cameraOffset.getYMapped(), pos.getZ() + 0.5 - cameraOffset.getZMapped());
+			graphicsHolder.translate(pos.getX() + 0.5 - cameraOffset.getXMapped(), pos.getY() + heightOffset + 0.5 - cameraOffset.getYMapped(), pos.getZ() + 0.5 - cameraOffset.getZMapped());
 			graphicsHolder.rotateYDegrees(-angle);
 			graphicsHolder.translate(-0.5, -0.5, -0.5);
 			IDrawing.drawTexture(graphicsHolder,

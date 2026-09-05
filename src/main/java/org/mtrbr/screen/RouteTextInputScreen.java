@@ -12,7 +12,7 @@ import org.mtrbr.network.SetRouteBindingPacket;
 
 /**
  * 进路绑定内容输入对话框。
- * 格式：route=X（X=1/2/4/5）或 path=Y（Y=0-20 数字 / 大写字母 / UF,US,DF,DS）。
+ * 格式：route=X（X=1–6）或 path=Y（Y=0-20 数字 / 大写字母 / UF,US,DF,DS）。
  */
 public final class RouteTextInputScreen extends Screen {
 
@@ -44,7 +44,7 @@ public final class RouteTextInputScreen extends Screen {
 		guiGraphics.fillGradient(0, 0, width, height, 0xB0404040, 0xB0404040);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 		guiGraphics.drawCenteredString(font, "信号机 " + signalPos + " -> 节点 " + nodePos, width / 2, height / 2 - 60, 0xFFFFFFFF);
-		guiGraphics.drawCenteredString(font, "格式: route=1|2|4|5  或  path=0-20/大写字母/UF,US,DF,DS,DN,DR,UP,UR/adl,adr,arl,arr,atl,atm,atr", width / 2, height / 2 - 45, 0xFFAAAAAA);
+		guiGraphics.drawCenteredString(font, "格式: route=1–6  或  path=0-20/大写字母/UF,US,DF,DS,DN,DR,UP,UR/adl,adr,arl,arr,atl,atm,atr", width / 2, height / 2 - 45, 0xFFAAAAAA);
 		if (error != null) {
 			guiGraphics.drawCenteredString(font, error, width / 2, height / 2 + 38, 0xFFFF5555);
 		}

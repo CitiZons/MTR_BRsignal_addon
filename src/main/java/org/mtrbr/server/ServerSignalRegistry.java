@@ -6,6 +6,9 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import org.mtr.mod.block.BlockSignalBase;
+import org.mtrbr.block.ColorLightIndicatorBlock;
+import org.mtrbr.block.LedIndicatorBlock;
+import org.mtrbr.block.RepeatingSignalBlock;
 import org.mtrbr.data.SignalBlockSavedData;
 import org.mtrbr.data.RouteBindingsSavedData;
 import org.mtrbr.network.Network;
@@ -96,6 +99,9 @@ public final class ServerSignalRegistry {
 			final BlockPos deletedPos = event.getPos().immutable();
 			final boolean wasSignal = level.getBlockState(deletedPos).getBlock() instanceof org.mtr.mod.block.BlockSignalBase;
 			final boolean wasNode = level.getBlockState(deletedPos).getBlock() instanceof org.mtr.mod.block.BlockNode;
+			final boolean wasIndicator = level.getBlockState(deletedPos).getBlock() instanceof LedIndicatorBlock
+					|| level.getBlockState(deletedPos).getBlock() instanceof ColorLightIndicatorBlock
+					|| level.getBlockState(deletedPos).getBlock() instanceof RepeatingSignalBlock;
 			// BreakEvent fires before the block-state replacement. Refresh on the
 			// next server task so the registry observes the post-break world.
 			level.getServer().execute(() -> {
@@ -105,6 +111,11 @@ public final class ServerSignalRegistry {
 				}
 				if (wasNode && !(level.getBlockState(deletedPos).getBlock() instanceof org.mtr.mod.block.BlockNode)) {
 					RouteBindingsSavedData.get(level).clearNodeBindings(deletedPos);
+				}
+				if (wasIndicator && !(level.getBlockState(deletedPos).getBlock() instanceof LedIndicatorBlock)
+						&& !(level.getBlockState(deletedPos).getBlock() instanceof ColorLightIndicatorBlock)
+						&& !(level.getBlockState(deletedPos).getBlock() instanceof RepeatingSignalBlock)) {
+					RouteBindingsSavedData.get(level).clearIndicatorBinding(deletedPos);
 				}
 				refreshChunk(level, deletedPos);
 				ServerAspectManager.invalidateTopology(level);

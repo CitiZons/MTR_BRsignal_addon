@@ -21,6 +21,7 @@ import org.mtr.mod.render.StoredMatrixTransformations;
 import org.mtrbr.MTRBR;
 import org.mtrbr.client.SignalCache;
 import org.mtrbr.data.ClientBindings;
+import org.mtrbr.data.ClientIndicatorBindings;
 import org.mtrbr.data.NodeBinding;
 import org.mtrbr.data.RouteBinding;
 import org.mtrbr.logic.SignalLogic;
@@ -35,6 +36,7 @@ public final class SignalOverlayRenderer {
 
 	private static final int DEBUG_LINE_COLOR = 0x99FF0000;
 	private static final int ROUTE_LINE_COLOR = 0x9900FF00;
+	private static final int INDICATOR_LINE_COLOR = 0x990000FF;
 	private static final int LABEL_BOX_COLOR = 0x99000000;
 	private static final int NODE_RENDER_RADIUS = 48;
 
@@ -75,7 +77,19 @@ public final class SignalOverlayRenderer {
 				}
 			}
 		}
+
+		// Indicator/repeater bindings are separate from SignalCache, so render
+		// their blue diagnostic links from the synchronized client mirror.
+		if (debugHeld) {
+			for (final var binding : ClientIndicatorBindings.getAll().entrySet()) {
+				if (binding.getValue() != null) {
+					drawThickLine(binding.getKey(), binding.getValue(), INDICATOR_LINE_COLOR);
+				}
+			}
+		}
+
 	}
+
 
 	/** 在已绑定节点的正中央高度（节点 y+0.5）绘制浮空白色箭头，方向由 NodeBinding.reversed 决定。 */
 	private static void drawBindingDirectionArrow(Level level, BlockPos signalPos, BlockPos nodePos) {

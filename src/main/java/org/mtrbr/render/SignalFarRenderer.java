@@ -15,6 +15,7 @@ import net.minecraftforge.client.event.RenderLevelStageEvent;
 import org.mtr.mod.block.BlockSignalBase;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.block.LedIndicatorBlockEntity;
+import org.mtrbr.block.RepeatingSignalBlockEntity;
 
 /**
  * 远距离信号灯渲染：MTR 信号灯是方块实体，受普通方块实体渲染距离/视距限制，
@@ -59,6 +60,7 @@ public final class SignalFarRenderer {
 					// the same far-render handoff as the MTR signal they are bound to.
 					if (!(blockEntity instanceof BlockSignalBase.BlockEntityBase)
 							&& !(blockEntity instanceof ColorLightIndicatorBlockEntity)
+							&& !(blockEntity instanceof RepeatingSignalBlockEntity)
 							&& !(blockEntity instanceof LedIndicatorBlockEntity)) {
 						continue;
 					}

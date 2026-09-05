@@ -23,12 +23,14 @@ public final class SignalTopology {
 
 	public static Map<String, SignalFace> build(ServerLevel level) {
 		final Map<String, SignalFace> faces = new LinkedHashMap<>();
-		final SignalBlockSavedData persisted = SignalBlockSavedData.get(level);
+        int persistedFallbackFaces = 0;
+        int liveFaces = 0;
+        final SignalBlockSavedData persisted = SignalBlockSavedData.get(level);
 		// Historical definitions remain usable when their signal chunk is unloaded.
 		for (final SignalBlockSavedData.SignalFaceDefinition definition : persisted.getSignalFaceDefinitions().values()) {
-			if (definition.nodePos() == null) continue;
-			faces.put(definition.faceId(), new SignalFace(definition.faceId(), definition.signalPos(), definition.nodePos(),
-					definition.backSide(), definition.travelAngle()));
+			if (!definition.worldVerified() || definition.signalPos() == null || definition.nodePos() == null) continue;
+			if (faces.put(definition.faceId(), new SignalFace(definition.faceId(), definition.signalPos(), definition.nodePos(),
+                    definition.backSide(), definition.travelAngle())) == null) persistedFallbackFaces++;
 		}
 		final RouteBindingsSavedData bindings = RouteBindingsSavedData.get(level);
 		final Map<BlockPos, NodeBinding> nodeBindings = bindings.getNodeBindings();
@@ -60,18 +62,22 @@ public final class SignalTopology {
 			// actual A -> B direction (the same convention as PathSnapshot).
 			final float frontTravelAngle = signalAngle - 90 + directionOffset;
 			addFace(faces, signalPos, nodePos, false, frontTravelAngle);
+            liveFaces++;
 			persisted.setSignalFaceDefinition(new SignalBlockSavedData.SignalFaceDefinition(id(signalPos, false), signalPos, nodePos,
 					false, frontTravelAngle, level.getBlockEntity(signalPos) instanceof BlockSignalBase.BlockEntityBase entity && entity.isDoubleSided,
 					ServerSignalRegistry.getRevision(level), true));
 			DIAGNOSTICS.put(id(signalPos, false), new DiagnosticInfo(signalAngle, binding != null && binding.reversed()));
 			if (level.getBlockEntity(signalPos) instanceof BlockSignalBase.BlockEntityBase entity && entity.isDoubleSided) {
 				addFace(faces, signalPos, nodePos, true, frontTravelAngle + 180);
+                liveFaces++;
 				persisted.setSignalFaceDefinition(new SignalBlockSavedData.SignalFaceDefinition(id(signalPos, true), signalPos, nodePos,
 						true, frontTravelAngle + 180, true, ServerSignalRegistry.getRevision(level), true));
 				DIAGNOSTICS.put(id(signalPos, true), new DiagnosticInfo(signalAngle, binding != null && binding.reversed()));
 			}
-		}
-		return Map.copyOf(faces);
+		}        MtrbrDebugLog.event("MTRBR-SIGNAL-TOPOLOGY", "dimension=" + level.dimension().location()
+                + " liveFaces=" + liveFaces + " persistedFallbackFaces=" + persistedFallbackFaces
+                + " totalFaces=" + faces.size() + " registryRevision=" + ServerSignalRegistry.getRevision(level));
+        return Map.copyOf(faces);
 	}
 
 	/** Read-only direction metadata for diagnostics; never used by routing. */
@@ -120,3 +126,5 @@ public final class SignalTopology {
 		return signalPos.getX() + "," + signalPos.getY() + "," + signalPos.getZ() + ":" + (reversed ? "reverse" : "forward");
 	}
 }
+
+

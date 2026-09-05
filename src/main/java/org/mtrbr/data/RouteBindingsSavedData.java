@@ -12,6 +12,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * 服务端持久化的进路绑定数据：信号机方块位置 -> 该信号机的进路绑定列表。
@@ -22,6 +24,7 @@ public final class RouteBindingsSavedData extends SavedData {
 	private static final String KEY_BINDINGS = "bindings";
 	private static final String KEY_NODE_BINDINGS = "node_bindings";
 	private static final String KEY_INDICATOR_BINDINGS = "indicator_bindings";
+	private static final String KEY_REPEATING_INDICATORS = "repeating_indicators";
 	private static final String KEY_SIGNAL_NAMES = "signal_names";
 	private static final String KEY_NODE = "node";
 	private static final String KEY_LIST = "list";
@@ -29,6 +32,7 @@ public final class RouteBindingsSavedData extends SavedData {
 	private final Map<BlockPos, List<RouteBinding>> bindings = new HashMap<>();
 	private final Map<BlockPos, NodeBinding> nodeBindings = new HashMap<>();
 	private final Map<BlockPos, BlockPos> indicatorBindings = new HashMap<>();
+	private final Set<BlockPos> repeatingIndicatorBindings = new HashSet<>();
 	private final Map<BlockPos, String> signalNames = new HashMap<>();
 
 	public static RouteBindingsSavedData get(ServerLevel level) {
@@ -71,6 +75,11 @@ public final class RouteBindingsSavedData extends SavedData {
 					indicatorBindingsTag.getCompound(key).getInt("y"),
 					indicatorBindingsTag.getCompound(key).getInt("z")));
 		}
+		final ListTag repeatingIndicatorsTag = tag.getList(KEY_REPEATING_INDICATORS, Tag.TAG_COMPOUND);
+		for (final Tag entry : repeatingIndicatorsTag) {
+			final CompoundTag position = (CompoundTag) entry;
+			data.repeatingIndicatorBindings.add(new BlockPos(position.getInt("x"), position.getInt("y"), position.getInt("z")));
+		}
 		final CompoundTag signalNamesTag = tag.getCompound(KEY_SIGNAL_NAMES);
 		for (final String key : signalNamesTag.getAllKeys()) {
 			final String[] parts = key.split(",");
@@ -112,6 +121,15 @@ public final class RouteBindingsSavedData extends SavedData {
 			indicatorBindingsTag.put(indicatorPos.getX() + "," + indicatorPos.getY() + "," + indicatorPos.getZ(), posTag);
 		}
 		tag.put(KEY_INDICATOR_BINDINGS, indicatorBindingsTag);
+		final ListTag repeatingIndicatorsTag = new ListTag();
+		for (final BlockPos position : repeatingIndicatorBindings) {
+			final CompoundTag positionTag = new CompoundTag();
+			positionTag.putInt("x", position.getX());
+			positionTag.putInt("y", position.getY());
+			positionTag.putInt("z", position.getZ());
+			repeatingIndicatorsTag.add(positionTag);
+		}
+		tag.put(KEY_REPEATING_INDICATORS, repeatingIndicatorsTag);
 		final CompoundTag signalNamesTag = new CompoundTag();
 		for (final Map.Entry<BlockPos, String> entry : signalNames.entrySet()) {
 			final BlockPos pos = entry.getKey();
@@ -189,14 +207,37 @@ public final class RouteBindingsSavedData extends SavedData {
 
 	/** 记录进路指示器 -> 信号机的绑定（与服务端方块实体 NBT 双写，防止区块保存时序导致丢失）。 */
 	public void setIndicatorBinding(BlockPos indicatorPos, BlockPos signalPos) {
-		indicatorBindings.put(indicatorPos.immutable(), signalPos.immutable());
+		final BlockPos immutableIndicator = indicatorPos.immutable();
+		indicatorBindings.put(immutableIndicator, signalPos.immutable());
+		repeatingIndicatorBindings.remove(immutableIndicator);
+		setDirty();
+	}
+
+	/** Records a repeater binding separately so web topology can render it even when its chunk is unloaded. */
+	public void setRepeatingIndicatorBinding(BlockPos indicatorPos, BlockPos signalPos) {
+		final BlockPos immutableIndicator = indicatorPos.immutable();
+		indicatorBindings.put(immutableIndicator, signalPos.immutable());
+		repeatingIndicatorBindings.add(immutableIndicator);
 		setDirty();
 	}
 
 	public void removeIndicatorBinding(BlockPos indicatorPos) {
-		if (indicatorBindings.remove(indicatorPos) != null) {
-			setDirty();
-		}
+		final boolean removed = indicatorBindings.remove(indicatorPos) != null;
+		final boolean removedRepeater = repeatingIndicatorBindings.remove(indicatorPos);
+		if (removed || removedRepeater) setDirty();
+	}
+
+	/** Idempotently removes the binding owned by a deleted indicator block. */
+	public boolean clearIndicatorBinding(BlockPos indicatorPos) {
+		if (indicatorPos == null) return false;
+		boolean changed = indicatorBindings.remove(indicatorPos) != null;
+		changed |= repeatingIndicatorBindings.remove(indicatorPos);
+		if (changed) setDirty();
+		return changed;
+	}
+
+	public Set<BlockPos> getRepeatingIndicatorBindings() {
+		return Set.copyOf(repeatingIndicatorBindings);
 	}
 
 	public Map<BlockPos, BlockPos> getIndicatorBindings() {
@@ -226,6 +267,7 @@ public final class RouteBindingsSavedData extends SavedData {
 		changed |= nodeBindings.remove(signalPos) != null;
 		changed |= signalNames.remove(signalPos) != null;
 		changed |= indicatorBindings.entrySet().removeIf(entry -> signalPos.equals(entry.getValue()));
+		changed |= repeatingIndicatorBindings.removeIf(indicatorPos -> !indicatorBindings.containsKey(indicatorPos));
 		if (changed) setDirty();
 		return changed;
 	}

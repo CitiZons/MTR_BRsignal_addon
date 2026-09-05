@@ -7,8 +7,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.network.NetworkEvent;
 import org.mtrbr.block.LedIndicatorBlockEntity;
+import org.mtrbr.block.RepeatingSignalBlockEntity;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.data.RouteBindingsSavedData;
+import org.mtrbr.web.WebTopologySnapshot;
 
 import java.util.function.Supplier;
 
@@ -36,12 +38,15 @@ public final class UnbindIndicatorPacket {
 					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.indicatorPos)
 					&& PacketValidation.isIndicator(serverLevel, message.indicatorPos)) {
 				final BlockEntity blockEntity = serverLevel.getBlockEntity(message.indicatorPos);
-				if (blockEntity instanceof LedIndicatorBlockEntity led) {
+				if (blockEntity instanceof RepeatingSignalBlockEntity repeating) {
+                    repeating.setBoundSignalPos(null);
+                } else if (blockEntity instanceof LedIndicatorBlockEntity led) {
 					led.setBoundSignalPos(null);
 				} else if (blockEntity instanceof ColorLightIndicatorBlockEntity colorLight) {
 					colorLight.setBoundSignalPos(null);
 				}
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
+				WebTopologySnapshot.invalidateTopology(serverLevel);
 				data.removeIndicatorBinding(message.indicatorPos);
 				if (blockEntity != null) {
 					serverLevel.getServer().getPlayerList().broadcastAll(ClientboundBlockEntityDataPacket.create(blockEntity), serverLevel.dimension());

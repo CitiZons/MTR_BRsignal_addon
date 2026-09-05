@@ -17,7 +17,9 @@
 	"SidingLifecycleMixin",
     "ServerSignalAspectMixin"
   ],
-  "client": [],
+  "client": [
+    "RenderSignalBaseMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

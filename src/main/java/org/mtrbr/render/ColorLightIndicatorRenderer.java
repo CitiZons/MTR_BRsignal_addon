@@ -65,14 +65,14 @@ public final class ColorLightIndicatorRenderer implements BlockEntityRenderer<Co
 			return;
 		}
 		for (final ColorLightModel.Light light : lights) {
-			drawLight(pos, angle, light);
+			drawLight(pos, angle, org.mtrbr.block.IndicatorMount.offset(state), light);
 		}
 	}
 
-	private static void drawLight(BlockPos pos, float angle, ColorLightModel.Light light) {
+	private static void drawLight(BlockPos pos, float angle, double heightOffset, ColorLightModel.Light light) {
 		MainRenderer.scheduleRender(WHITE_TEXTURE, false, QueuedRenderLayer.LIGHT, (graphicsHolder, cameraOffset) -> {
 			graphicsHolder.push();
-			graphicsHolder.translate(pos.getX() + 0.5 - cameraOffset.getXMapped(), pos.getY() + 0.5 - cameraOffset.getYMapped(), pos.getZ() + 0.5 - cameraOffset.getZMapped());
+			graphicsHolder.translate(pos.getX() + 0.5 - cameraOffset.getXMapped(), pos.getY() + heightOffset + 0.5 - cameraOffset.getYMapped(), pos.getZ() + 0.5 - cameraOffset.getZMapped());
 			graphicsHolder.rotateYDegrees(-(angle + 180));
 			graphicsHolder.translate(-0.5, -0.5, -0.5);
 			// The route model supplies full element bounds. Keep the authored 3-D

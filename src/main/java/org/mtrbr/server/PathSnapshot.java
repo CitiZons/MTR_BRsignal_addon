@@ -25,11 +25,17 @@ public final class PathSnapshot {
 	private final List<ReverseOccurrence> reverseOccurrences;
 	private final Set<Integer> diagnosedStops = new HashSet<>();
 	private final String fingerprint;
+	private final double invalidJunctionBoundary;
 	private final Map<Simulator, TopologyMatch> topologyMatches = Collections.synchronizedMap(new IdentityHashMap<>());
 	private final Map<String, FaceTraversalPoints> faceTraversalPoints = new HashMap<>();
 	private static final Map<Vehicle, CachedSnapshot> VEHICLE_CACHE = Collections.synchronizedMap(new java.util.WeakHashMap<>());
 
 	private PathSnapshot(List<PathSection> sections, String fingerprint) {
+		this(sections, fingerprint, Double.NaN);
+	}
+
+	private PathSnapshot(List<PathSection> sections, String fingerprint, double invalidJunctionBoundary) {
+		this.invalidJunctionBoundary = invalidJunctionBoundary;
 		this.sections = List.copyOf(sections);
 		final List<PathTraversal> pathTraversals = new ArrayList<>();
 		for (int index = 0; index < this.sections.size(); index++) {
@@ -77,9 +83,36 @@ public final class PathSnapshot {
 			signature.append(sectionId).append('@').append(pathData.getStartDistance()).append('-').append(pathData.getEndDistance()).append(':').append(railSignature).append(';');
 			signature.append("dir=").append(travelAngle).append(':').append(pathData.reversePositions).append(';');
 		}
-		final PathSnapshot snapshot = new PathSnapshot(sections, sha256(signature.toString()));
+		final PathSnapshot snapshot = new PathSnapshot(sections, sha256(signature.toString()),
+				findInvalidJunctionBoundary(vehicle.vehicleExtraData.immutablePath));
+		if (Double.isFinite(snapshot.invalidJunctionBoundary)) {
+			MtrbrDebugLog.event("MTRBR-PATH-JUNCTION-INVALID", "vehicle=" + vehicle.getId()
+					+ " boundary=" + snapshot.invalidJunctionBoundary + " reason=INCOMPATIBLE_NODE_TANGENTS");
+		}
 		VEHICLE_CACHE.put(vehicle, new CachedSnapshot(immutablePath, snapshot));
 		return snapshot;
+	}
+
+	/** Legacy cached LINE paths must not carry a train across a same-side branch jump. */
+	public static double findInvalidJunctionBoundary(List<PathData> path) {
+		PathData previous = null;
+		for (final PathData next : path) {
+			// Native path assembly can insert zero-distance handoff records.
+			if (next.getEndDistance() <= next.getStartDistance() + 1.0E-6) continue;
+			if (previous != null && previous.getRail() != null && next.getRail() != null && !previous.isOppositeRail(next)) {
+				final var end = previous.reversePositions ? previous.getOrderedPosition1() : previous.getOrderedPosition2();
+				final var start = next.reversePositions ? next.getOrderedPosition2() : next.getOrderedPosition1();
+				if (end.equals(start) && previous.getRail().getStartAngle(end).getOpposite() != next.getRail().getStartAngle(start)) {
+					return previous.getEndDistance();
+				}
+			}
+			previous = next;
+		}
+		return Double.NaN;
+	}
+
+	public double getInvalidJunctionBoundary() {
+		return invalidJunctionBoundary;
 	}
 
 	public static void clear(Vehicle vehicle) {

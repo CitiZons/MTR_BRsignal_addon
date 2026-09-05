@@ -6,8 +6,10 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraftforge.network.NetworkEvent;
 import org.mtrbr.block.LedIndicatorBlockEntity;
+import org.mtrbr.block.RepeatingSignalBlockEntity;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.data.RouteBindingsSavedData;
+import org.mtrbr.web.WebTopologySnapshot;
 
 import java.util.function.Supplier;
 
@@ -40,14 +42,19 @@ public final class BindIndicatorPacket {
 					&& PacketValidation.isIndicator(serverLevel, message.indicatorPos)
 					&& PacketValidation.isSignal(serverLevel, message.signalPos)) {
 				final net.minecraft.world.level.block.entity.BlockEntity blockEntity = serverLevel.getBlockEntity(message.indicatorPos);
-				if (blockEntity instanceof LedIndicatorBlockEntity led) {
+				final boolean repeatingBinding = blockEntity instanceof RepeatingSignalBlockEntity;
+				if (repeatingBinding) {
+                    ((RepeatingSignalBlockEntity) blockEntity).setBoundSignalPos(message.signalPos);
+                } else if (blockEntity instanceof LedIndicatorBlockEntity led) {
 					led.setBoundSignalPos(message.signalPos);
 				} else if (blockEntity instanceof ColorLightIndicatorBlockEntity colorLight) {
 					colorLight.setBoundSignalPos(message.signalPos);
 				}
 				// 双写 SavedData，确保重进游戏后绑定不丢失
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
-				data.setIndicatorBinding(message.indicatorPos, message.signalPos);
+				WebTopologySnapshot.invalidateTopology(serverLevel);
+				if (repeatingBinding) data.setRepeatingIndicatorBinding(message.indicatorPos, message.signalPos);
+				else data.setIndicatorBinding(message.indicatorPos, message.signalPos);
 				// 显式广播方块实体数据包，确保客户端同步（sendBlockUpdated 在状态未变化时可能不发）
 				if (blockEntity != null) {
 					serverLevel.getServer().getPlayerList().broadcastAll(ClientboundBlockEntityDataPacket.create(blockEntity), serverLevel.dimension());

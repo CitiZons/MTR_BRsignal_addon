@@ -73,6 +73,7 @@ public final class RouteRequestManager {
 		current.lastObservedTail = tail;
 		current.lastObservedPath = path;
 		current.lastObservedTick = SectionStateManager.getCurrentTick();
+		updateSidingContext(simulator, current);
 		CapacityLeaseManager.releaseExitedZones(simulator, vehicle.getId(), current.sections);
 		if (path.isEmpty()) {
 			if (!current.pathEmpty) {
@@ -97,7 +98,33 @@ public final class RouteRequestManager {
 		current.pathEmpty = false;
 		ensureTraversalContext(current);
 
-		final List<PathSnapshot.FaceTraversal> faceTraversals = path.getFaceTraversals(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension));
+		final ServerAspectManager.FaceSnapshot faceSnapshot = ServerAspectManager.getFaceSnapshot(simulator.dimension);
+		final boolean faceTopologyChanged = current.lastFaceTopologyRevision >= 0
+				&& current.lastFaceTopologyRevision != faceSnapshot.revision();
+		if (faceTopologyChanged) {
+			// A request created while the server was still loading signal chunks may
+			// have been denied with NO_FACE_TRAVERSAL. Re-enter the normal checking
+			// chain when the authoritative face snapshot changes; never hand control
+			// back to native MTR merely because the first snapshot was incomplete.
+			if (current.authorization != null) {
+				invalidateAuthorization(simulator, current, ReleaseReason.INVALID, RequestState.CHECKING);
+			} else if (current.request != null && current.request.getState() != RequestState.CHECKING
+					&& current.request.getState() != RequestState.RELEASED && current.request.getState() != RequestState.INVALID
+					&& current.request.getState() != RequestState.REVOKED && current.request.getState() != RequestState.CANCELED) {
+				transition(current.request, RequestState.CHECKING, "Signal topology revision changed");
+			}
+			current.lastCheckedStateRevision = -1;
+			current.lastCheckedTick = -20;
+			current.authorizationRetryPending = false;
+			clearFixedUnauthorisedGateBoundary(current);
+			MtrbrDebugLog.event("MTRBR-FACE-TOPOLOGY-RECHECK", "vehicle=" + vehicle.getId()
+					+ " request=" + (current.request == null ? "<none>" : current.request.getRequestId())
+					+ " oldRevision=" + current.lastFaceTopologyRevision + " newRevision=" + faceSnapshot.revision()
+					+ " action=RECHECK_CONTROL_RANGE");
+		}
+		current.lastFaceTopologyRevision = faceSnapshot.revision();
+
+		final List<PathSnapshot.FaceTraversal> faceTraversals = path.getFaceTraversals(simulator.dimension, faceSnapshot);
 		for (final PathSnapshot.FaceTraversal faceTraversal : faceTraversals) {
 			if (faceTraversal.distance() > current.lastHead && faceTraversal.distance() <= head) {
 				current.lastPassedSignalMillis = System.currentTimeMillis();
@@ -174,7 +201,7 @@ public final class RouteRequestManager {
 				&& current.request.getState() != RequestState.INVALID
 				&& current.request.getState() != RequestState.REVOKED
 				&& current.request.getState() != RequestState.CANCELED
-				&& current.request.getPathFingerprint().equals(path.getFingerprint())) {
+				&& current.request.getPathFingerprint().equals(path.getFingerprint()) && !faceTopologyChanged) {
 			current.managed = true;
 			current.request.setRemainingPathDistance(Math.max(0, current.endDistance - head));
 			return;
@@ -2840,6 +2867,16 @@ public final class RouteRequestManager {
 	public record RequestSnapshot(long vehicleId, String vehicleCode, RequestState state, double head, double controlDistance, double endDistance, double authorizationEndDistance, boolean authorized, boolean oneShotOverride, double speedKmh, String routeName, String destination, String nextStation, int occupiedBlocks, int authorizedBlocks, int lockedBlocks) {
 	}
 
+	private static void updateSidingContext(Simulator simulator, VehicleState vehicle) {
+		final long sidingId = vehicle.vehicle.vehicleExtraData.getSidingId();
+		final Siding siding = simulator.sidingIdMap.get(sidingId);
+		if (vehicle.inSiding || siding != null && vehicle.path != null && vehicle.path.isEmpty()) {
+			vehicle.inSiding = true;
+			vehicle.sidingDisplay = siding == null ? "" : siding.getDepotName();
+		} else if (!vehicle.inSiding) {
+			vehicle.sidingDisplay = "";
+		}
+	}
 	private static String vehicleCode(VehicleState vehicle) {
 		return getVehicleCode(vehicle.vehicle.getId());
 	}
@@ -3214,6 +3251,7 @@ public final class RouteRequestManager {
 		private final Map<String, PendingBlockRelease> pendingReleaseBlocks = new HashMap<>();
 		private long lastCheckedStateRevision = -1;
 		private long lastCheckedTick = -20;
+		private long lastFaceTopologyRevision = -1;
 	}
 
 	private enum TurnbackHandoffPhase {
@@ -3288,3 +3326,5 @@ public final class RouteRequestManager {
 		}
 	}
 }
+
+

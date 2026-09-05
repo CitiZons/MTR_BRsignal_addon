@@ -63,9 +63,9 @@ public final class DepotPathEditorService {
 		final PreparedEdit prepared = prepare(simulator, request);
 		if (prepared.failure() != null) return prepared.failure();
 		final Depot depot = prepared.depot();
-		final SolveResult solved = solve(prepared.graph(), prepared.nodes());
+		final SolveResult solved = solve(prepared.graph(), prepared.nodes(), prepared.depot().getPath());
 		if (solved.failure() != null) return solved.failure();
-		final JsonObject directedFailure = directedContinuityFailure(solved.edges());
+		final JsonObject directedFailure = directedContinuityFailure(solved.edges(), depot.getPath());
 		if (directedFailure != null) return directedFailure;
 
 		if (!applySolvedPath(simulator, depot, solved.edges())) return failure("PATH_SAVE_FAILED");
@@ -110,8 +110,8 @@ public final class DepotPathEditorService {
 	private static boolean restorePersistedNodes(Simulator simulator, Depot depot, List<Position> nodes, String source) {
 		// No overlay means MTR retains sole ownership of the native generated path.
 		if (nodes.size() < 2) return false;
-		final SolveResult solved = solve(graph(simulator, depot.getPath()), nodes);
-		if (solved.failure() != null || directedContinuityFailure(solved.edges()) != null) {
+		final SolveResult solved = solve(graph(simulator, depot.getPath()), nodes, depot.getPath());
+		if (solved.failure() != null || directedContinuityFailure(solved.edges(), depot.getPath()) != null) {
 			MtrbrDebugLog.event("MANUAL-DEPOT-PATH", "source=" + source + " depot=" + Long.toUnsignedString(depot.getId(), 16) + " result=REJECTED");
 			return false;
 		}
@@ -146,9 +146,20 @@ public final class DepotPathEditorService {
 
 	/** Validate the actual MTR representation before any path/cache/status is replaced. */
 	private static ObjectArrayList<PathData> rebuildPath(List<PathData> original, List<DirectedRail> edges) {
-		if (directedContinuityFailure(edges) != null) return null;
+		if (directedContinuityFailure(edges, original) != null) return null;
 		final ObjectArrayList<PathData> rebuilt = new ObjectArrayList<>();
 		for (final DirectedRail edge : edges) rebuilt.add(pathData(edge, original));
+		for (int index = 0; index + 1 < rebuilt.size(); index++) {
+			final PathData before = rebuilt.get(index);
+			if (before.isOppositeRail(rebuilt.get(index + 1)) && before.getDwellTime() <= 0) {
+				// MTR's automatic stopping-index scan requires positive dwell even on a
+				// turnback rail. Native SidingPathFinder uses 1 for a non-platform reverse.
+				final PathData stop = original.stream().filter(segment -> segment.getRail() == before.getRail()
+						&& segment.getDwellTime() > 0).findFirst().orElse(before);
+				rebuilt.set(index, directedPathData(edges.get(index), stop.getSavedRailBaseId(),
+						Math.max(1, stop.getDwellTime()), stop.getStopIndex()));
+			}
+		}
 		SidingPathFinder.generatePathDataDistances(rebuilt, 0);
 		return matchesDirectedPath(rebuilt, edges) ? rebuilt : null;
 	}
@@ -166,7 +177,7 @@ public final class DepotPathEditorService {
 	private static JsonObject previewNodes(Simulator simulator, JsonObject request) {
 		final PreparedEdit prepared = prepare(simulator, request);
 		if (prepared.failure() != null) return prepared.failure();
-		final SolveResult solved = solve(prepared.graph(), prepared.nodes());
+		final SolveResult solved = solve(prepared.graph(), prepared.nodes(), prepared.depot().getPath());
 		if (solved.failure() != null) return solved.failure();
 		if (rebuildPath(prepared.depot().getPath(), solved.edges()) == null) return failure("PATH_DISCONNECTED");
 		final JsonObject result = success();
@@ -193,7 +204,8 @@ public final class DepotPathEditorService {
 	}
 
 	/** Resolves every waypoint as one constrained route, retaining alternate arrival directions. */
-	private static SolveResult solve(List<DirectedRail> graph, List<Position> nodes) {
+	private static SolveResult solve(List<DirectedRail> graph, List<Position> nodes, List<PathData> original) {
+		final Set<Rail> scheduledStops = scheduledStops(original);
 		final Map<Position, List<DirectedRail>> outgoing = new HashMap<>();
 		for (final DirectedRail edge : graph) outgoing.computeIfAbsent(edge.start(), ignored -> new ArrayList<>()).add(edge);
 		final Map<RouteState, PlannedRoute> states = new HashMap<>();
@@ -204,7 +216,7 @@ public final class DepotPathEditorService {
 			if (start.equals(end)) return SolveResult.failure(pathFailure("REPEATED_NODE", index - 1, index, start, end));
 			final Map<RouteState, PlannedRoute> nextStates = new HashMap<>();
 			for (final PlannedRoute state : states.values()) {
-				for (final Leg leg : findLegs(outgoing, start, state.arrivalFacing(), end)) {
+				for (final Leg leg : findLegs(outgoing, start, state.edges().isEmpty() ? null : state.edges().get(state.edges().size() - 1), end, scheduledStops)) {
 					final PlannedRoute candidate = state.extend(leg);
 					final PlannedRoute previous = nextStates.get(new RouteState(candidate.arrivalSectionId(), candidate.arrivalFacing()));
 					if (previous == null || candidate.cost() < previous.cost()) nextStates.put(new RouteState(candidate.arrivalSectionId(), candidate.arrivalFacing()), candidate);
@@ -217,27 +229,25 @@ public final class DepotPathEditorService {
 		return SolveResult.success(states.values().stream().min(Comparator.comparingDouble(PlannedRoute::cost)).orElseThrow().edges());
 	}
 
-	private static List<Leg> findLegs(Map<Position, List<DirectedRail>> outgoing, Position start, Angle startFacing, Position end) {
+	private static List<Leg> findLegs(Map<Position, List<DirectedRail>> outgoing, Position start, DirectedRail incoming, Position end, Set<Rail> scheduledStops) {
+		final Angle startFacing = incoming == null ? null : incoming.rail().getStartAngle(start).getOpposite();
 		final PriorityQueue<SearchNode> queue = new PriorityQueue<>(Comparator.comparingDouble(SearchNode::cost));
 		final Map<StateKey, SearchNode> visited = new HashMap<>();
 		final Map<RouteState, SearchNode> arrivals = new HashMap<>();
-		final SearchNode root = new SearchNode(start, startFacing, 0, null, null);
+		final SearchNode root = new SearchNode(start, startFacing, 0, null, incoming);
 		queue.add(root);
-		visited.put(new StateKey(start, "", startFacing), root);
+		visited.put(new StateKey(start, incoming == null ? "" : incoming.sectionId(), startFacing), root);
 		while (!queue.isEmpty() && visited.size() <= MAX_VISITED_NODES) {
 			final SearchNode current = queue.remove();
 			if (visited.get(new StateKey(current.position(), current.edge() == null ? "" : current.edge().sectionId(), current.facing())) != current) continue;
-			if (current.edge() != null && current.position().equals(end)) {
+			if (current.previous() != null && current.position().equals(end)) {
 				arrivals.putIfAbsent(new RouteState(current.edge().sectionId(), current.facing()), current);
 				continue;
 			}
 			for (final DirectedRail edge : outgoing.getOrDefault(current.position(), List.of())) {
 				if (!edge.existingPathEdge() && edge.rail().getSpeedLimitMetersPerMillisecond(edge.start()) <= 0) continue;
-				final Angle railFacing = edge.rail().getStartAngle(edge.start());
-				// A heading change across two different rails is a normal junction turn.
-				// canTurnBack only constrains reversing on the same rail.
-				if (current.facing() != null && current.facing() != railFacing
-						&& current.edge() != null && current.edge().rail() == edge.rail() && !edge.rail().canTurnBack()) continue;
+				// Keep the incoming rail across waypoint boundaries: a waypoint is not a reversal.
+				if (!canFollow(current.edge(), edge, scheduledStops)) continue;
 				final Angle nextFacing = edge.rail().getStartAngle(edge.end()).getOpposite();
 				final SearchNode next = new SearchNode(edge.end(), nextFacing, current.cost() + edge.rail().railMath.getLength(), current, edge);
 				final StateKey key = new StateKey(next.position(), next.edge().sectionId(), next.facing());
@@ -309,11 +319,34 @@ public final class DepotPathEditorService {
 		return !path.isEmpty();
 	}
 
-	private static JsonObject directedContinuityFailure(List<DirectedRail> edges) {
+	/** Scheduled platform/siding stops retain native dwell metadata when LINE is rebuilt. */
+	private static Set<Rail> scheduledStops(List<PathData> original) {
+		final Set<Rail> result = new HashSet<>();
+		for (final PathData segment : original) {
+			final Rail rail = segment.getRail();
+			if (rail != null && segment.getDwellTime() > 0 && (rail.isPlatform() || rail.isSiding())) result.add(rail);
+		}
+		return result;
+	}
+
+	private static boolean canFollow(DirectedRail previous, DirectedRail next, Set<Rail> scheduledStops) {
+		if (previous == null) return true;
+		if (!previous.end().equals(next.start())) return false;
+		// Compare local tangents at the shared node, not distant endpoint bearings.
+		// B -> junction -> C is not a curve when B and C depart on the same side.
+		if (previous.rail().getStartAngle(previous.end()).getOpposite() == next.rail().getStartAngle(next.start())) return true;
+		// A real reversal retraces the SAME rail; canTurnBack is not a branch-jump permit.
+		return previous.rail() == next.rail() && previous.start().equals(next.end())
+				&& (next.rail().canTurnBack() || scheduledStops.contains(next.rail()));
+	}
+
+	private static JsonObject directedContinuityFailure(List<DirectedRail> edges, List<PathData> original) {
+		final Set<Rail> stops = scheduledStops(original);
 		for (int index = 1; index < edges.size(); index++) {
-			final Position previous = edges.get(index - 1).end();
-			final Position next = edges.get(index).start();
-			if (!previous.equals(next)) return pathFailure("PATH_DISCONNECTED", index - 1, index, previous, next);
+			final DirectedRail previous = edges.get(index - 1);
+			final DirectedRail next = edges.get(index);
+			if (!previous.end().equals(next.start())) return pathFailure("PATH_DISCONNECTED", index - 1, index, previous.end(), next.start());
+			if (!canFollow(previous, next, stops)) return pathFailure("PATH_DIRECTION_MISMATCH", index - 1, index, previous.start(), next.end());
 		}
 		return edges.isEmpty() ? failure("PATH_DISCONNECTED") : null;
 	}
