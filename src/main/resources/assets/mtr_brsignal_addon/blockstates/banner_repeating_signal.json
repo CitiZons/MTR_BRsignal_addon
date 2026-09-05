@@ -1,0 +1,132 @@
+{
+  "variants": {
+    "facing=north,is_22_5=false,is_45=false,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal",
+      "y": 0
+    },
+    "facing=north,is_22_5=false,is_45=false,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_hanging",
+      "y": 0
+    },
+    "facing=north,is_22_5=true,is_45=false,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_22_5",
+      "y": 0
+    },
+    "facing=north,is_22_5=true,is_45=false,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_22_5_hanging",
+      "y": 0
+    },
+    "facing=north,is_22_5=false,is_45=true,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_45",
+      "y": 0
+    },
+    "facing=north,is_22_5=false,is_45=true,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_45_hanging",
+      "y": 0
+    },
+    "facing=north,is_22_5=true,is_45=true,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_67_5",
+      "y": 90
+    },
+    "facing=north,is_22_5=true,is_45=true,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_67_5_hanging",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=false,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=false,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_hanging",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=false,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_22_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=false,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_22_5_hanging",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=true,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_45",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=true,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_45_hanging",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=true,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_67_5",
+      "y": 180
+    },
+    "facing=east,is_22_5=true,is_45=true,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_67_5_hanging",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=false,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=false,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_hanging",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=false,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_22_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=false,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_22_5_hanging",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=true,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_45",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=true,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_45_hanging",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=true,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_67_5",
+      "y": 270
+    },
+    "facing=south,is_22_5=true,is_45=true,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_67_5_hanging",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=false,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=false,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_hanging",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=false,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_22_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=false,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_22_5_hanging",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=true,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_45",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=true,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_45_hanging",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=true,hanging=false": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_67_5",
+      "y": 0
+    },
+    "facing=west,is_22_5=true,is_45=true,hanging=true": {
+      "model": "mtr_brsignal_addon:block/banner_repeating_signal_67_5_hanging",
+      "y": 0
+    }
+  }
+}

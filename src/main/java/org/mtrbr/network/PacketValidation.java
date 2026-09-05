@@ -8,6 +8,7 @@ import org.mtr.mod.block.BlockNode;
 import org.mtr.mod.block.BlockSignalBase;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.block.LedIndicatorBlockEntity;
+import org.mtrbr.block.RepeatingSignalBlockEntity;
 
 /** Minimal server-side validation for privileged signal configuration packets. */
 final class PacketValidation {
@@ -32,6 +33,6 @@ final class PacketValidation {
 
 	static boolean isIndicator(ServerLevel level, BlockPos position) {
 		final BlockEntity blockEntity = level.getBlockEntity(position);
-		return blockEntity instanceof LedIndicatorBlockEntity || blockEntity instanceof ColorLightIndicatorBlockEntity;
+		return blockEntity instanceof RepeatingSignalBlockEntity || blockEntity instanceof LedIndicatorBlockEntity || blockEntity instanceof ColorLightIndicatorBlockEntity;
 	}
 }

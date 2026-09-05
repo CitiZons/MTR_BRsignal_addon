@@ -16,6 +16,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.block.LedIndicatorBlockEntity;
+import org.mtrbr.block.RepeatingSignalBlockEntity;
 import org.mtrbr.client.CenterToast;
 import org.mtrbr.client.ClientHooks;
 import org.mtrbr.data.ClientIndicatorBindings;
@@ -69,7 +70,7 @@ public final class DebugToolItem extends Item {
 			if (isShift && SignalLogic.isIndicatorBlock(context.getLevel().getBlockState(clickedPos))) {
 				selectedIndicator = clickedPos.immutable();
 				selectedSignal = null;
-				CenterToast.add("已选中进路指示器，请 shift+右击信号机完成绑定");
+				CenterToast.add(Component.translatable("message.mtr_brsignal_addon.display_selected").getString());
 				return InteractionResult.SUCCESS;
 			}
 
@@ -81,13 +82,15 @@ public final class DebugToolItem extends Item {
 					Network.CHANNEL.sendToServer(new BindIndicatorPacket(indicatorPos, signalPos));
 					// 客户端乐观更新，UI 立即显示已绑定
 					final BlockEntity blockEntity = context.getLevel().getBlockEntity(indicatorPos);
-					if (blockEntity instanceof LedIndicatorBlockEntity led) {
+					if (blockEntity instanceof RepeatingSignalBlockEntity repeating) {
+                    repeating.setBoundSignalPos(signalPos);
+                } else if (blockEntity instanceof LedIndicatorBlockEntity led) {
 						led.setBoundSignalPos(signalPos);
 					} else if (blockEntity instanceof ColorLightIndicatorBlockEntity colorLight) {
 						colorLight.setBoundSignalPos(signalPos);
 					}
 					ClientIndicatorBindings.set(indicatorPos, signalPos);
-					CenterToast.add("进路指示器已绑定到信号机 " + signalPos);
+					CenterToast.add(Component.translatable("message.mtr_brsignal_addon.display_bound", signalPos.toString()).getString());
 					selectedIndicator = null;
 				} else {
 					selectedSignal = clickedPos.immutable();

@@ -7,12 +7,12 @@ import java.util.regex.Pattern;
 /**
  * 进路绑定内容校验。
  * 允许格式：
- * route=X，X 为 1、2、4、5 之一；
+ * route=X，X 为 1–6 之一；
  * path=Y，Y 为 0-20 的数字、1-4 个大写字母、指定双字母组合，或指定小写箭头组合。
  */
 public final class RouteContent {
 
-	private static final Pattern ROUTE_PATTERN = Pattern.compile("^route=([1245])$", Pattern.CASE_INSENSITIVE);
+	private static final Pattern ROUTE_PATTERN = Pattern.compile("^route=([1-6])$", Pattern.CASE_INSENSITIVE);
 	private static final Pattern PATH_NUMBER_PATTERN = Pattern.compile("^path=(\\d{1,2})$", Pattern.CASE_INSENSITIVE);
 	private static final Pattern PATH_LETTER_PATTERN = Pattern.compile("^path=([A-Z]{1,4})$");
 	private static final Set<String> SPECIAL_COMBOS = Set.of("UF", "US", "DF", "DS", "DN", "DR", "UP", "UR");

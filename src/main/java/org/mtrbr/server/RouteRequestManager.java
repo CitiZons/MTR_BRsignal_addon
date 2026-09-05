@@ -73,6 +73,7 @@ public final class RouteRequestManager {
 		current.lastObservedTail = tail;
 		current.lastObservedPath = path;
 		current.lastObservedTick = SectionStateManager.getCurrentTick();
+		updateSidingContext(simulator, current);
 		CapacityLeaseManager.releaseExitedZones(simulator, vehicle.getId(), current.sections);
 		if (path.isEmpty()) {
 			if (!current.pathEmpty) {
@@ -2840,6 +2841,16 @@ public final class RouteRequestManager {
 	public record RequestSnapshot(long vehicleId, String vehicleCode, RequestState state, double head, double controlDistance, double endDistance, double authorizationEndDistance, boolean authorized, boolean oneShotOverride, double speedKmh, String routeName, String destination, String nextStation, int occupiedBlocks, int authorizedBlocks, int lockedBlocks) {
 	}
 
+	private static void updateSidingContext(Simulator simulator, VehicleState vehicle) {
+		final long sidingId = vehicle.vehicle.vehicleExtraData.getSidingId();
+		final Siding siding = simulator.sidingIdMap.get(sidingId);
+		if (vehicle.inSiding || siding != null && vehicle.path != null && vehicle.path.isEmpty()) {
+			vehicle.inSiding = true;
+			vehicle.sidingDisplay = siding == null ? "" : siding.getDepotName();
+		} else if (!vehicle.inSiding) {
+			vehicle.sidingDisplay = "";
+		}
+	}
 	private static String vehicleCode(VehicleState vehicle) {
 		return getVehicleCode(vehicle.vehicle.getId());
 	}

@@ -1,0 +1,90 @@
+{
+	"format_version": "1.21.11",
+	"credit": "Made with Blockbench",
+	"parent": "block/block",
+	"textures": {
+		"2": "mtr_brsignal_addon:block/repeating_signal/on",
+		"particle": "mtr_brsignal_addon:block/grey",
+		"t1": "mtr_brsignal_addon:block/grey",
+		"dark": "mtr_brsignal_addon:block/black"
+	},
+	"elements": [
+		{
+			"from": [
+				4,
+				0,
+				5
+			],
+			"to": [
+				12,
+				8,
+				10
+			],
+			"rotation": {
+				"angle": 22.5,
+				"axis": "y",
+				"origin": [
+					8,
+					0,
+					8
+				]
+			},
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						16,
+						16
+					],
+					"texture": "#t1"
+				},
+				"east": {
+					"uv": [
+						1.5,
+						0,
+						4,
+						3
+					],
+					"texture": "#t1"
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						16,
+						16
+					],
+					"texture": "#dark"
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						2.5,
+						3
+					],
+					"texture": "#t1"
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						3,
+						2.5
+					],
+					"texture": "#t1"
+				},
+				"down": {
+					"uv": [
+						0,
+						1.5,
+						3,
+						4
+					],
+					"texture": "#t1"
+				}
+			}
+		}
+	]
+}

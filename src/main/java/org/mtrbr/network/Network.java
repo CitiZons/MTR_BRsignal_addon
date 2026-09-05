@@ -7,7 +7,7 @@ import org.mtrbr.MTRBR;
 
 public final class Network {
 
-	private static final String PROTOCOL_VERSION = "5";
+	private static final String PROTOCOL_VERSION = "6";
 
 	public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
 			ResourceLocation.fromNamespaceAndPath(MTRBR.MOD_ID, "main"),
@@ -34,5 +34,6 @@ public final class Network {
 		CHANNEL.registerMessage(nextId++, SyncDispatcherDataPacket.class, SyncDispatcherDataPacket::encode, SyncDispatcherDataPacket::decode, SyncDispatcherDataPacket::handle);
 		CHANNEL.registerMessage(nextId++, RequestDispatcherDataPacket.class, RequestDispatcherDataPacket::encode, RequestDispatcherDataPacket::decode, RequestDispatcherDataPacket::handle);
 		CHANNEL.registerMessage(nextId++, DispatcherActionPacket.class, DispatcherActionPacket::encode, DispatcherActionPacket::decode, DispatcherActionPacket::handle);
+        CHANNEL.registerMessage(nextId++, SetIndicatorMountPacket.class, SetIndicatorMountPacket::encode, SetIndicatorMountPacket::decode, SetIndicatorMountPacket::handle);
 	}
 }

@@ -63,6 +63,7 @@ public abstract class VehicleMixin {
 	)
 	private double mtrbr$overrideMovingNativeBlock(Vehicle vehicle, int pathIndex, double railProgress, double brakingDistance, ObjectArrayList<Object2ObjectAVLTreeMap<Position, Object2ObjectAVLTreeMap<Position, VehiclePosition>>> vehiclePositions, boolean includeBlocked, boolean includeReserved) {
 		final Vehicle self = (Vehicle) (Object) this;
+		if (MovementGate.isInvalidJunctionBlocked(self)) return 0;
 		if (MovementGate.shouldDisableNativeBlock(self)) return -1;
 		return ((VehicleNativeAccess) self).mtrbr$invokeRailBlockedDistance(pathIndex, railProgress, brakingDistance, vehiclePositions, includeBlocked, includeReserved);
 	}
@@ -79,6 +80,7 @@ public abstract class VehicleMixin {
 	)
 	private double mtrbr$overrideStoppedNativeBlock(Vehicle vehicle, int pathIndex, double railProgress, double brakingDistance, ObjectArrayList<Object2ObjectAVLTreeMap<Position, Object2ObjectAVLTreeMap<Position, VehiclePosition>>> vehiclePositions, boolean includeBlocked, boolean includeReserved) {
 		final Vehicle self = (Vehicle) (Object) this;
+		if (MovementGate.isInvalidJunctionBlocked(self)) return 0;
 		if (MovementGate.shouldBypassNativeStoppedBlock(self)) return -1;
 		return ((VehicleNativeAccess) self).mtrbr$invokeRailBlockedDistance(pathIndex, railProgress, brakingDistance, vehiclePositions, includeBlocked, includeReserved);
 	}

@@ -7,8 +7,10 @@ public enum ColorLightRoute implements StringRepresentable {
 	OFF("off"),
 	ROUTE_1("1"),
 	ROUTE_2("2"),
+	ROUTE_3("3"),
 	ROUTE_4("4"),
-	ROUTE_5("5");
+	ROUTE_5("5"),
+	ROUTE_6("6");
 
 	private final String name;
 
@@ -26,8 +28,10 @@ public enum ColorLightRoute implements StringRepresentable {
 		return switch (content.trim().toLowerCase(java.util.Locale.ROOT)) {
 			case "route=1" -> ROUTE_1;
 			case "route=2" -> ROUTE_2;
+			case "route=3" -> ROUTE_3;
 			case "route=4" -> ROUTE_4;
 			case "route=5" -> ROUTE_5;
+			case "route=6" -> ROUTE_6;
 			default -> OFF;
 		};
 	}

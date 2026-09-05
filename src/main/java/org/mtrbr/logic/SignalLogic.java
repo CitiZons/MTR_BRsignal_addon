@@ -13,6 +13,7 @@ import org.mtr.mod.block.BlockSignalBase;
 import org.mtr.mod.client.MinecraftClientData;
 import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.LedIndicatorBlock;
+import org.mtrbr.block.RepeatingSignalBlock;
 import org.mtrbr.client.ServerAspectCache;
 
 /**
@@ -40,7 +41,8 @@ public final class SignalLogic {
 	/** 该方块状态是否为本 mod 的 LED 或色灯进路显示器。 */
 	public static boolean isIndicatorBlock(BlockState state) {
 		return state.getBlock() instanceof LedIndicatorBlock
-				|| state.getBlock() instanceof ColorLightIndicatorBlock;
+				|| state.getBlock() instanceof ColorLightIndicatorBlock
+                || state.getBlock() instanceof RepeatingSignalBlock;
 	}
 
 	/** 是否为 LED 进路显示器。 */
@@ -60,7 +62,7 @@ public final class SignalLogic {
 					+ (state.getValue(LedIndicatorBlock.IS_22_5) ? 22.5F : 0)
 					+ (state.getValue(LedIndicatorBlock.IS_45) ? 45 : 0);
 		}
-		if (state.getBlock() instanceof ColorLightIndicatorBlock) {
+		if (state.getBlock() instanceof ColorLightIndicatorBlock || state.getBlock() instanceof RepeatingSignalBlock) {
 			return state.getValue(ColorLightIndicatorBlock.FACING).toYRot()
 					+ (state.getValue(ColorLightIndicatorBlock.IS_22_5) ? 22.5F : 0)
 					+ (state.getValue(ColorLightIndicatorBlock.IS_45) ? 45 : 0);

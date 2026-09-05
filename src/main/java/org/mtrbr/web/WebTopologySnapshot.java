@@ -18,6 +18,7 @@ import org.mtrbr.server.ServerAspect;
 import org.mtrbr.server.ServerAspectManager;
 import org.mtrbr.server.MtrbrDebugLog;
 import org.mtrbr.server.SignalFace;
+import org.mtrbr.block.RepeatingSignalBlockEntity;
 import org.mtrbr.data.RouteBindingsSavedData;
 import org.mtrbr.network.Network;
 import org.mtrbr.network.SyncRouteBindingsPacket;
@@ -35,7 +36,7 @@ import java.util.Set;
 public final class WebTopologySnapshot {
 	private static final double PLATFORM_MIN_LATERAL_DISTANCE = 2;
 	private static final double PLATFORM_MAX_LATERAL_DISTANCE = 5;
-	private static final double PLATFORM_INTERVAL_MERGE_GAP = 1.5;
+	private static final double PLATFORM_INTERVAL_MERGE_GAP = 2.5;
 	private static volatile String topologyJson = "{\"dimensions\":[]}";
 	private static volatile String stateJson = "{\"dimensions\":[]}";
 	private static volatile String linesJson = "{\"schema\":1,\"dimensions\":[]}";
@@ -101,6 +102,11 @@ public final class WebTopologySnapshot {
 		topologyJson = topology.toString();
 		stateJson = state.toString();
 		linesJson = lines.toString();
+	}
+
+	/** Forces the next publish to rebuild block-entity-derived topology links. */
+	public static void invalidateTopology(ServerLevel level) {
+		if (level != null) TOPOLOGY_CACHE.remove(level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath());
 	}
 
 	public static String topologyJson() {
@@ -279,6 +285,25 @@ public final class WebTopologySnapshot {
 			signals.add(signal);
 		}
 		result.add("signals", signals);
+		final JsonArray repeaterLinks = new JsonArray();
+		final Set<String> repeaterLinkKeys = new HashSet<>();
+		// Use the persisted indicator binding index rather than scanning block
+		// positions. This also works when the repeater is outside the currently
+		// loaded chunk set, and keeps the web view consistent after a refresh.
+		for (final Map.Entry<BlockPos, BlockPos> binding : RouteBindingsSavedData.get(level).getIndicatorBindings().entrySet()) {
+			final BlockPos repeaterPos = binding.getKey();
+			final BlockPos signalPos = binding.getValue();
+			if (!(level.getBlockEntity(repeaterPos) instanceof RepeatingSignalBlockEntity)) continue;
+			final String key = signalPos.asLong() + ":" + repeaterPos.asLong();
+			if (!repeaterLinkKeys.add(key)) continue;
+			final JsonObject link = new JsonObject();
+			link.addProperty("signalX", signalPos.getX() + .5);
+			link.addProperty("signalZ", signalPos.getZ() + .5);
+			link.addProperty("repeaterX", repeaterPos.getX() + .5);
+			link.addProperty("repeaterZ", repeaterPos.getZ() + .5);
+			repeaterLinks.add(link);
+		}
+		result.add("repeaterLinks", repeaterLinks);
 		return result;
 	}
 

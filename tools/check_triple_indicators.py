@@ -129,11 +129,12 @@ class TripleIndicators(unittest.TestCase):
             shapes = [tuple(map(float, b.split(","))) for b in re.findall(r"Block.box\(([^)]+)\)", source)]
             self.assertEqual(len(shapes), 16)
             states = json.loads((ASSETS / f"blockstates/{prefix}.json").read_text())["variants"]
-            self.assertEqual(len(states), 80)  # 16 orientations x all 5 enum values
+            states = {k.replace(",hanging=false", ""): v for k, v in states.items() if "hanging=true" not in k}
+            self.assertEqual(len(states), 112)  # 16 orientations x all 7 enum values
             for fi, facing in enumerate(("north", "east", "south", "west")):
                 for variant in range(4):
                     angle = {"north": 180, "east": 270, "south": 0, "west": 90}[facing]+variant*22.5
-                    for route in ("off", "1", "2", "4", "5"):
+                    for route in ("off", "1", "2", "3", "4", "5", "6"):
                         key = f"facing={facing},is_22_5={str(bool(variant&1)).lower()},is_45={str(bool(variant&2)).lower()},route={route}"
                         entry = states[key]
                         self.assertIn("_null", entry["model"])

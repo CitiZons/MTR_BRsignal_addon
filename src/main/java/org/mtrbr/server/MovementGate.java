@@ -27,6 +27,7 @@ public final class MovementGate {
 		// hook handles braking; this closes the one-tick gap for a vehicle which
 		// was already at or beyond an unauthorized boundary when simulation starts.
 		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
+		if (simulator != null && enforceInvalidJunction(vehicle)) return;
 		if (simulator != null && RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId())) {
 			RouteRequestManager.logNativeTurnbackActivityGateDeferral(simulator, vehicle.getId());
 			return;
@@ -39,6 +40,9 @@ public final class MovementGate {
 		if (simulator == null) {
 			return mtrStoppingPoint;
 		}
+		// Physical path validity is independent of authorization, dispatch override and native handoff.
+		mtrStoppingPoint = clampToPathBoundary(mtrStoppingPoint, ((VehicleAccess) vehicle).mtrbr$getRailProgress(),
+				PathSnapshot.from(vehicle).getInvalidJunctionBoundary());
 		// MTR owns stopping-point, speed and path reversal between native terminal
 		// entry and a newly authorized Activity. Do not write an old-direction stop.
 		if (RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId())) {
@@ -71,6 +75,7 @@ public final class MovementGate {
 		if (simulator == null) {
 			return;
 		}
+		if (enforceInvalidJunction(vehicle)) return;
 		// During a recognized native terminal handoff, MTR alone owns railProgress,
 		// speed and its stopping point. This is a bounded state, not a generic
 		// INVALID_ACTIVITY bypass; normal enforcement resumes on activity ready or timeout.
@@ -106,6 +111,26 @@ public final class MovementGate {
 			if (previous == null || Math.abs(previous - boundary) > 1e-6) {
 			}
 		}
+	}
+
+	static double clampToPathBoundary(double stoppingPoint, double head, double invalidBoundary) {
+		if (!Double.isFinite(invalidBoundary)) return stoppingPoint;
+		// Stop on the incoming rail. Never rewind a vehicle already beyond a legacy bad node.
+		return Math.min(stoppingPoint, Math.max(head, invalidBoundary - EPSILON));
+	}
+
+	/** Also veto native startUp at the bad node; a valid BR prefix cannot authorize invalid geometry. */
+	public static boolean isInvalidJunctionBlocked(Vehicle vehicle) {
+		if (SectionStateManager.getCurrentSimulator() == null) return false;
+		final double boundary = PathSnapshot.from(vehicle).getInvalidJunctionBoundary();
+		return Double.isFinite(boundary) && ((VehicleAccess) vehicle).mtrbr$getRailProgress() >= boundary - EPSILON;
+	}
+
+	private static boolean enforceInvalidJunction(Vehicle vehicle) {
+		if (!isInvalidJunctionBlocked(vehicle)) return false;
+		((VehicleAccess) vehicle).mtrbr$setSpeed(0);
+		((VehicleExtraDataAccess) vehicle.vehicleExtraData).mtrbr$setSpeedTarget(0);
+		return true;
 	}
 
 	/** Native signal/reservation occupancy is not a second authority for an authorized vehicle. */

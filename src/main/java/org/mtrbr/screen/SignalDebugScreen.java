@@ -12,6 +12,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import org.mtr.mod.block.BlockSignalBase;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.block.LedIndicatorBlockEntity;
+import org.mtrbr.block.RepeatingSignalBlockEntity;
 import org.mtrbr.data.ClientBindings;
 import org.mtrbr.data.ClientIndicatorBindings;
 import org.mtrbr.data.ClientSignalNames;
@@ -153,10 +154,10 @@ public final class SignalDebugScreen extends Screen {
 		final boolean reversed = nodeBinding != null && nodeBinding.reversed();
 		guiGraphics.drawString(font, "节点  " + (nodePos == null ? "未找到" : nodePos + (reversed ? "（反向）" : "")), sx(0), 92, 0xFFFFFFFF);
 
-		guiGraphics.drawString(font, "指示器  " + (boundIndicatorPositions.isEmpty() ? "未绑定" : "已绑定"), sx(0), INDICATOR_HEADER_BASELINE, 0xFFFFFFFF);
+		guiGraphics.drawString(font, "指示器 / 复示信号  " + (boundIndicatorPositions.isEmpty() ? "未绑定" : "已绑定"), sx(0), INDICATOR_HEADER_BASELINE, 0xFFFFFFFF);
 		for (int i = 0; i < boundIndicatorPositions.size(); i++) {
 			final BlockPos indicatorPos = boundIndicatorPositions.get(i);
-			final String type = level.getBlockEntity(indicatorPos) instanceof LedIndicatorBlockEntity ? "LED" : "色灯";
+			final String type = level.getBlockEntity(indicatorPos) instanceof LedIndicatorBlockEntity ? "LED" : level.getBlockEntity(indicatorPos) instanceof RepeatingSignalBlockEntity ? "复示" : "色灯";
 			guiGraphics.drawString(font, "  " + type + " " + indicatorPos, sx(0), INDICATOR_ROW_BASELINE + i * 18, 0xFFFFFFFF);
 		}
 
@@ -245,6 +246,9 @@ public final class SignalDebugScreen extends Screen {
 					}
 					for (final BlockPos pos : chunk.getBlockEntitiesPos()) {
 						final BlockEntity blockEntity = level.getBlockEntity(pos);
+						if (blockEntity instanceof RepeatingSignalBlockEntity repeating && signalPos.equals(repeating.getBoundSignalPos())) {
+							result.add(pos);
+						}
 						if (blockEntity instanceof LedIndicatorBlockEntity led && signalPos.equals(led.getBoundSignalPos())) {
 							result.add(pos);
 						}
