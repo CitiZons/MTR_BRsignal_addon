@@ -21,6 +21,9 @@ let dismissedInvalidationReason = '';
 let selectedVehicleId = null;
 let hoveredVehicleId = null;
 let vehicleMarkers = [];
+let deleteVehicleId = null;
+let deleteArmed = false;
+const vehicleQuarantineStates = new Map();
 let hoveredSignalId = null;
 let signalDrag = null;
 let selectedLineId = null;
@@ -34,7 +37,7 @@ let nodePreviewSerial = 0;
 let lineNodePress = null;
 const signalOffsets = JSON.parse(localStorage.getItem('mtrbr-signal-offsets') || '{}');
 
-function currentRequests() { return selectedState()?.requests || []; }
+function currentRequests() { return (selectedState()?.requests || []).map(request => ({ ...request, vehicleId: String(request.vehicleId) })); }
 function highlightedRequest() { return currentRequests().find(request => request.vehicleId === (hoveredVehicleId ?? selectedVehicleId)); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]); }
 function requestStateClass(stateName) {
@@ -366,14 +369,20 @@ function draw() {
 
   for (const platform of (data.platforms || [])) drawPlatform(platform);
 
-  const rails = line ? data.rails : [...data.rails].sort((left, right) => {
-    const leftOccupied = sections.get(left.id)?.occupied ? 1 : 0;
-    const rightOccupied = sections.get(right.id)?.occupied ? 1 : 0;
-    return leftOccupied - rightOccupied;
-  });
+  const sectionLayer = rail => {
+    const section = sections.get(rail.id);
+    if (section?.occupied) return 2;
+    if (section?.locked) return 1;
+    return 0;
+  };
+  const rails = line ? data.rails : [...data.rails].sort((left, right) => sectionLayer(left) - sectionLayer(right));
   for (const rail of rails) {
     const section = sections.get(rail.id);
-    ctx.strokeStyle = line ? '#969da0' : highlightedSections.has(rail.id) ? (blinkYellow ? '#f0b42e' : '#969da0') : sectionColor(section);
+    ctx.strokeStyle = line
+      ? '#969da0'
+      : section?.occupied
+        ? '#c82424'
+        : sectionColor(section);
     ctx.lineWidth = Math.max(.72, .544 / view.scale);
     drawRail(rail.points);
     if (!line && section && section.vehicles && section.vehicles.length) {
@@ -382,6 +391,19 @@ function draw() {
         const vehicleId = section.vehicleIds?.[index] ?? currentRequests().find(entry => entry.code === code)?.vehicleId ?? null;
         vehicleMarkers.push({ code, vehicleId, marker: midpoint, index });
       });
+    }
+  }
+
+  // Draw request highlights as a final overlay so the base free-section layer
+  // can never cover the yellow/gray selection state.
+  if (!line && highlightedSections.size) {
+    for (const rail of data.rails) {
+      if (!highlightedSections.has(rail.id)) continue;
+      const section = sections.get(rail.id);
+      if (section?.occupied) continue;
+      ctx.strokeStyle = blinkYellow ? '#f0b42e' : '#969da0';
+      ctx.lineWidth = Math.max(.72, .544 / view.scale);
+      drawRail(rail.points);
     }
   }
 
@@ -434,6 +456,7 @@ function draw() {
   }
 
   ctx.restore();
+  positionVehicleDeleteForm();
   document.querySelector('#scale-label').textContent = `${Math.round(100 / view.scale)} m`;
 }
 
@@ -441,8 +464,9 @@ function renderPanels() {
   const players = state?.players || [];
   document.querySelector('#player-list').innerHTML = players.map(player => `<div class="player"><img src="${encodeURI(player.avatar)}" alt=""><span class="player-name">${escapeHtml(player.name)}</span><b class="player-state ${player.dispatching ? 'on' : 'off'}">${player.dispatching ? 'ON' : 'OFF'}</b></div>`).join('');
   const requests = [...currentRequests()].sort((left, right) => shortCodeCompare(left.code, right.code));
+  requests.forEach(request => vehicleQuarantineStates.set(request.vehicleId, request.quarantineState || 'NORMAL'));
   document.querySelector('#request-list').innerHTML = requests.map(request => `<div class="request ${request.vehicleId === selectedVehicleId ? 'selected' : ''}" data-vehicle-id="${request.vehicleId}"><span class="request-code">${escapeHtml(request.code)}</span><span class="request-state ${requestStateClass(request.state)}">${escapeHtml(request.state)}</span><span class="request-detail">R: ${escapeHtml(request.route || '--')} | N: ${escapeHtml(request.next || '--')} | D: ${escapeHtml(request.destination || '--')}</span></div>`).join('');
-  document.querySelectorAll('.request').forEach(row => row.addEventListener('click', () => selectVehicle(Number(row.dataset.vehicleId))));
+  document.querySelectorAll('.request').forEach(row => row.addEventListener('click', () => openVehicleDelete(row.dataset.vehicleId)));
   const selected = requests.find(request => request.vehicleId === selectedVehicleId);
   const actions = document.querySelector('#action-drawer');
   actions.hidden = !(canDispatch && selected);
@@ -511,7 +535,8 @@ async function loadLines(force = false) {
 }
 
 function selectVehicle(vehicleId) {
-  const deselected = selectedVehicleId === vehicleId;
+	  vehicleId = String(vehicleId ?? '');
+	  const deselected = selectedVehicleId === vehicleId;
   selectedVehicleId = deselected ? null : vehicleId;
   if (!deselected) {
     document.querySelector('#vehicle-drawer').classList.add('open');
@@ -520,6 +545,149 @@ function selectVehicle(vehicleId) {
   }
   renderPanels();
   draw();
+}
+
+function vehicleMarker(vehicleId) {
+  return vehicleMarkers.find(marker => marker.vehicleId === vehicleId) || null;
+}
+
+function vehicleLabelPosition(vehicle) {
+  const vertical = Math.abs(vehicle.marker.dz) > Math.abs(vehicle.marker.dx);
+  const offset = vehicle.index * -18;
+  return {
+    x: view.x + vehicle.marker.x * view.scale + (vertical ? -offset : 0),
+    z: view.y + vehicle.marker.z * view.scale + (vertical ? 0 : offset)
+  };
+}
+
+function positionVehicleDeleteForm() {
+  const form = document.querySelector('#vehicle-delete-form');
+  if (form.hidden || deleteVehicleId === null) return;
+  const marker = vehicleMarker(deleteVehicleId);
+  if (!marker) {
+    closeVehicleDelete();
+    return;
+  }
+  const position = vehicleLabelPosition(marker);
+  form.style.left = `${position.x}px`;
+  form.style.top = `${position.z - 16}px`;
+}
+
+function closeVehicleDelete() {
+  const form = document.querySelector('#vehicle-delete-form');
+  form.hidden = true;
+  deleteVehicleId = null;
+  deleteArmed = false;
+  document.querySelector('#vehicle-delete-confirm').disabled = true;
+  document.querySelector('#vehicle-quarantine').disabled = true;
+  document.querySelector('#vehicle-delete').disabled = true;
+}
+
+function openVehicleDelete(vehicleId) {
+  vehicleId = String(vehicleId ?? '');
+  if (!vehicleId) return;
+  if (deleteVehicleId === vehicleId && !document.querySelector('#vehicle-delete-form').hidden) {
+    closeVehicleDelete();
+    draw();
+    return;
+  }
+  selectVehicle(vehicleId);
+  const form = document.querySelector('#vehicle-delete-form');
+  deleteVehicleId = vehicleId;
+  deleteArmed = vehicleQuarantineStates.get(vehicleId) === 'DELETE_PENDING';
+  form.dataset.vehicleId = String(vehicleId);
+  const quarantineState = vehicleQuarantineStates.get(vehicleId) || 'NORMAL';
+  const quarantine = document.querySelector('#vehicle-quarantine');
+  const deleteButton = document.querySelector('#vehicle-delete');
+  const confirm = document.querySelector('#vehicle-delete-confirm');
+  quarantine.textContent = quarantineState === 'QUARANTINED' || quarantineState === 'DELETE_PENDING' ? 'RELEASE' : 'QUARANTINE';
+  deleteButton.textContent = quarantineState === 'DELETE_PENDING' ? 'CANCEL' : 'DELETE';
+  quarantine.disabled = !canDispatch || quarantineState === 'DELETE_PENDING';
+  deleteButton.disabled = !canDispatch || quarantineState === 'NORMAL';
+  confirm.disabled = !canDispatch || quarantineState !== 'DELETE_PENDING';
+  form.hidden = false;
+  positionVehicleDeleteForm();
+  draw();
+}
+
+function refreshVehicleDeleteForm() {
+  if (deleteVehicleId !== null && !document.querySelector('#vehicle-delete-form').hidden) openVehicleDeleteControls(deleteVehicleId);
+}
+
+function openVehicleDeleteControls(vehicleId) {
+  const form = document.querySelector('#vehicle-delete-form');
+  const quarantineState = vehicleQuarantineStates.get(vehicleId) || 'NORMAL';
+  const quarantine = document.querySelector('#vehicle-quarantine');
+  const deleteButton = document.querySelector('#vehicle-delete');
+  const confirm = document.querySelector('#vehicle-delete-confirm');
+  quarantine.textContent = quarantineState === 'QUARANTINED' || quarantineState === 'DELETE_PENDING' ? 'RELEASE' : 'QUARANTINE';
+  deleteButton.textContent = quarantineState === 'DELETE_PENDING' ? 'CANCEL' : 'DELETE';
+  quarantine.disabled = !canDispatch || quarantineState === 'DELETE_PENDING';
+  deleteButton.disabled = !canDispatch || quarantineState === 'NORMAL';
+  confirm.disabled = !canDispatch || quarantineState !== 'DELETE_PENDING';
+}
+
+function armVehicleDelete() {
+  if (!canDispatch || deleteVehicleId === null) return;
+  const current = vehicleQuarantineStates.get(deleteVehicleId) || 'NORMAL';
+  const action = current === 'DELETE_PENDING' ? 'cancel_delete' : 'delete_pending';
+  postVehicleAction(action,
+    action === 'delete_pending' ? 'DELETE PENDING // CONFIRM TO REMOVE' : 'DELETE CANCELED // VEHICLE QUARANTINED',
+    action === 'delete_pending' ? 'DELETE REJECTED // VEHICLE NOT QUARANTINED' : 'CANCEL REJECTED // INVALID DELETE STATE',
+    action === 'delete_pending' ? 'DELETE_PENDING' : 'QUARANTINED');
+}
+
+async function postVehicleAction(action, successText, failureText, nextState) {
+  if (!canDispatch || deleteVehicleId === null) return;
+  const vehicleId = deleteVehicleId;
+  const buttons = [document.querySelector('#vehicle-quarantine'), document.querySelector('#vehicle-delete'), document.querySelector('#vehicle-delete-confirm')];
+  buttons.forEach(button => { button.disabled = true; });
+  try {
+    const response = await fetch('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json', ...requestOptions.headers }, body: JSON.stringify({ action, vehicleId }) });
+    if (!response.ok) {
+      document.querySelector('#status').textContent = failureText;
+      openVehicleDeleteControls(vehicleId);
+      return;
+    }
+    if (nextState) vehicleQuarantineStates.set(vehicleId, nextState);
+    document.querySelector('#status').textContent = successText;
+    openVehicleDeleteControls(vehicleId);
+  } catch (_) {
+    document.querySelector('#status').textContent = `${action.toUpperCase()} FAILED // SERVER UNAVAILABLE`;
+    openVehicleDeleteControls(vehicleId);
+  }
+}
+
+async function toggleVehicleQuarantine() {
+  if (!canDispatch || deleteVehicleId === null) return;
+  const vehicleId = deleteVehicleId;
+  const current = vehicleQuarantineStates.get(vehicleId) || 'NORMAL';
+  const action = current === 'QUARANTINED' ? 'release' : 'quarantine';
+  await postVehicleAction(action,
+    action === 'quarantine' ? 'VEHICLE QUARANTINED' : 'QUARANTINE RELEASED',
+    action === 'quarantine' ? 'QUARANTINE REJECTED // VEHICLE NOT FOUND' : 'RELEASE REJECTED // INVALID STATE',
+    action === 'quarantine' ? 'QUARANTINED' : 'NORMAL');
+}
+
+async function confirmVehicleDelete() {
+  if (!canDispatch || deleteVehicleId === null || vehicleQuarantineStates.get(deleteVehicleId) !== 'DELETE_PENDING') {
+    document.querySelector('#status').textContent = 'CONFIRM REJECTED // DELETE NOT PENDING';
+    return;
+  }
+  const vehicleId = deleteVehicleId;
+  const response = await fetch('api/commands', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...requestOptions.headers },
+    body: JSON.stringify({ action: 'confirm_quarantine_removal', vehicleId })
+  });
+  if (!response.ok) {
+    document.querySelector('#status').textContent = 'CONFIRM REJECTED // VEHICLE NOT FOUND';
+    return;
+  }
+  if (selectedVehicleId === vehicleId) selectedVehicleId = null;
+  closeVehicleDelete();
+  document.querySelector('#status').textContent = 'QUARANTINED VEHICLE REMOVED';
+  await refresh();
 }
 
 function focusVehicle(vehicleId) {
@@ -531,10 +699,12 @@ function focusVehicle(vehicleId) {
 }
 
 function vehicleAt(event) {
-  const point = canvasPoint(event);
-  const x = point.x, z = point.z;
-  const tolerance = 16 / view.scale;
-  return vehicleMarkers.find(vehicle => Math.abs(vehicle.marker.x - x) < tolerance && Math.abs(vehicle.marker.z - z) < tolerance);
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left, z = event.clientY - rect.top;
+  return vehicleMarkers.find(vehicle => {
+    const label = vehicleLabelPosition(vehicle);
+    return Math.abs(label.x - x) < 16 && Math.abs(label.z - z) < 10;
+  });
 }
 
 function projection(points, x, z) {
@@ -706,8 +876,19 @@ async function saveSignalName(event) {
 
 async function dispatch(action) {
   if (!canDispatch || selectedVehicleId === null) return;
-  await fetch('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json', ...requestOptions.headers }, body: JSON.stringify({ action, vehicleId: selectedVehicleId }) });
-  refresh();
+  try {
+    const response = await fetch('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json', ...requestOptions.headers }, body: JSON.stringify({ action, vehicleId: String(selectedVehicleId) }) });
+    if (!response.ok) {
+      let reason = 'COMMAND REJECTED';
+      try { reason = `COMMAND REJECTED // ${(await response.json()).reason || response.status}`; } catch (_) { reason += ` // ${response.status}`; }
+      document.querySelector('#status').textContent = reason;
+      return;
+    }
+    document.querySelector('#status').textContent = `${action.toUpperCase()} SUBMITTED`;
+    await refresh();
+  } catch (_) {
+    document.querySelector('#status').textContent = 'COMMAND FAILED // SERVER UNAVAILABLE';
+  }
 }
 
 function changeNode() {
@@ -929,7 +1110,7 @@ canvas.addEventListener('click', event => {
   if (lineMode()) return;
   if (signalAt(event)) return;
   const vehicle = vehicleAt(event);
-  if (vehicle?.vehicleId !== null && vehicle?.vehicleId !== undefined) selectVehicle(vehicle.vehicleId);
+  if (vehicle?.vehicleId !== null && vehicle?.vehicleId !== undefined) openVehicleDelete(vehicle.vehicleId);
 });
 canvas.addEventListener('pointerup', event => {
   if (signalDrag) {
@@ -1009,13 +1190,32 @@ document.querySelector('#node-cancel').addEventListener('click', cancelNodeDraft
 document.querySelector('#node-save').addEventListener('click', saveNodeDraft);
 document.querySelector('#signal-name-form').addEventListener('submit', saveSignalName);
 document.querySelector('#signal-name').addEventListener('keydown', event => { if (event.key === 'Escape') document.querySelector('#signal-name-form').hidden = true; });
+document.querySelector('#vehicle-delete').addEventListener('click', armVehicleDelete);
+document.querySelector('#vehicle-quarantine').addEventListener('click', toggleVehicleQuarantine);
+document.querySelector('#vehicle-delete-confirm').addEventListener('click', confirmVehicleDelete);
 document.addEventListener('pointerdown', event => {
   const form = document.querySelector('#signal-name-form');
-  if (form.hidden || form.contains(event.target)) return;
-  const clickedSignal = event.target === canvas ? signalAt(event) : null;
-  if (clickedSignal?.id === form.dataset.signalId) return;
-  form.hidden = true;
-  hoveredSignalId = null;
+  if (!form.hidden && !form.contains(event.target)) {
+    const clickedSignal = event.target === canvas ? signalAt(event) : null;
+    if (clickedSignal?.id !== form.dataset.signalId) {
+      form.hidden = true;
+      hoveredSignalId = null;
+      draw();
+    }
+  }
+  const deleteForm = document.querySelector('#vehicle-delete-form');
+  if (!deleteForm.hidden && !deleteForm.contains(event.target)) {
+    const clickedVehicle = event.target === canvas ? vehicleAt(event) : null;
+    if (clickedVehicle?.vehicleId !== deleteVehicleId) {
+      closeVehicleDelete();
+      draw();
+    }
+  }
+});
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  document.querySelector('#signal-name-form').hidden = true;
+  closeVehicleDelete();
   draw();
 });
 document.querySelector('#token-invalidation-close').addEventListener('click', () => {

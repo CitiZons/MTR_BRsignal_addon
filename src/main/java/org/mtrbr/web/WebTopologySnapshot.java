@@ -42,6 +42,9 @@ public final class WebTopologySnapshot {
 	private static volatile MinecraftServer server;
 	private static final Map<String, TopologyCacheEntry> TOPOLOGY_CACHE = new HashMap<>();
 	private static final Map<String, LineCacheEntry> LINE_CACHE = new HashMap<>();
+	private static final Map<Long, QuarantineState> QUARANTINE_STATES = new HashMap<>();
+
+	private enum QuarantineState { QUARANTINED, DELETE_PENDING }
 
 	private WebTopologySnapshot() {
 	}
@@ -124,6 +127,7 @@ public final class WebTopologySnapshot {
 		server = null;
 		TOPOLOGY_CACHE.clear();
 		LINE_CACHE.clear();
+		synchronized (QUARANTINE_STATES) { QUARANTINE_STATES.clear(); }
 	}
 
 	public static WebSessionManager.SessionView session(String token, String deviceId) {
@@ -138,6 +142,38 @@ public final class WebTopologySnapshot {
 			return false;
 		}
 		final String actor = WebSessionManager.operator(current, token);
+		if ("quarantine".equals(action) || "release".equals(action) || "delete_pending".equals(action) || "cancel_delete".equals(action)) {
+			synchronized (QUARANTINE_STATES) {
+				final QuarantineState state = QUARANTINE_STATES.get(vehicleId);
+				final boolean exists = true;
+				final boolean accepted;
+				switch (action) {
+					case "quarantine" -> { accepted = exists && state == null; if (accepted) QUARANTINE_STATES.put(vehicleId, QuarantineState.QUARANTINED); }
+					case "release" -> { accepted = state == QuarantineState.QUARANTINED; if (accepted) QUARANTINE_STATES.remove(vehicleId); }
+					case "delete_pending" -> { accepted = state == QuarantineState.QUARANTINED; if (accepted) QUARANTINE_STATES.put(vehicleId, QuarantineState.DELETE_PENDING); }
+					case "cancel_delete" -> { accepted = state == QuarantineState.DELETE_PENDING; if (accepted) QUARANTINE_STATES.put(vehicleId, QuarantineState.QUARANTINED); }
+					default -> { accepted = false; }
+				}
+				MtrbrDebugLog.event("WEB-DISPATCH", "actor=" + actor + " action=" + action + " vehicle=" + vehicleId + " accepted=" + accepted);
+				return accepted;
+			}
+		}
+		// A quarantined vehicle may no longer have a live request snapshot. Resolve
+		// explicit removal against every simulator before applying the request gate
+		// used by approve/revoke/override.
+		if ("confirm_quarantine_removal".equals(action)) {
+			for (final ServerLevel level : current.getAllLevels()) {
+				final String dimension = level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
+				final Simulator simulator = SectionStateManager.getSimulator(dimension);
+				if (simulator != null && QUARANTINE_STATES.getOrDefault(vehicleId, QuarantineState.DELETE_PENDING) == QuarantineState.DELETE_PENDING && RouteRequestManager.forceRemoveVehicle(simulator, vehicleId)) {
+					synchronized (QUARANTINE_STATES) { QUARANTINE_STATES.remove(vehicleId); }
+					MtrbrDebugLog.event("WEB-DISPATCH", "actor=" + actor + " action=" + action + " vehicle=" + vehicleId + " dimension=" + dimension + " accepted=true");
+					return true;
+				}
+			}
+			MtrbrDebugLog.event("WEB-DISPATCH", "actor=" + actor + " action=" + action + " vehicle=" + vehicleId + " accepted=false reason=NOT_QUARANTINED");
+			return false;
+		}
 		for (final ServerLevel level : current.getAllLevels()) {
 			final String dimension = level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
 			final Simulator simulator = SectionStateManager.getSimulator(dimension);
@@ -156,6 +192,13 @@ public final class WebTopologySnapshot {
 		}
 		MtrbrDebugLog.event("WEB-DISPATCH", "actor=" + actor + " action=" + action + " vehicle=" + vehicleId + " accepted=false reason=VEHICLE_NOT_FOUND");
 		return false;
+	}
+
+	public static String quarantineState(long vehicleId) {
+		synchronized (QUARANTINE_STATES) {
+			final QuarantineState state = QUARANTINE_STATES.get(vehicleId);
+			return state == null ? "NORMAL" : state.name();
+		}
 	}
 
 	public static boolean renameSignal(String token, String deviceId, String signalId, String name) {
@@ -284,6 +327,10 @@ public final class WebTopologySnapshot {
 				segmentJson.addProperty("length", segment.getRailLength());
 				segmentJson.addProperty("platform", segment.getRail().isPlatform());
 				segmentJson.addProperty("direction", segment.reversePositions ? -1 : 1);
+				final Position travelStart = travelStart(segment);
+				final Position travelEnd = travelEnd(segment);
+				segmentJson.add("fromNode", node(travelStart));
+				segmentJson.add("toNode", node(travelEnd));
 				segmentJson.addProperty("disconnected", previous != null && !sameEnd(previous, segment));
 				segmentJson.add("points", samplePath(segment));
 				segments.add(segmentJson);
@@ -297,10 +344,18 @@ public final class WebTopologySnapshot {
 		return result;
 	}
 
+	private static Position travelStart(PathData segment) {
+		return segment.reversePositions ? segment.getOrderedPosition2() : segment.getOrderedPosition1();
+	}
+
+	private static Position travelEnd(PathData segment) {
+		return segment.reversePositions ? segment.getOrderedPosition1() : segment.getOrderedPosition2();
+	}
+
 	private static boolean sameEnd(PathData previous, PathData next) {
-		final Vector end = previous.getPosition(previous.getRailLength());
-		final Vector start = next.getPosition(0);
-		return Math.abs(end.x - start.x) < 0.01 && Math.abs(end.y - start.y) < 0.01 && Math.abs(end.z - start.z) < 0.01;
+		final Position end = travelEnd(previous);
+		final Position start = travelStart(next);
+		return end.getX() == start.getX() && end.getY() == start.getY() && end.getZ() == start.getZ();
 	}
 
 	private static JsonArray position(PathData segment, double distance) {
@@ -451,7 +506,13 @@ public final class WebTopologySnapshot {
 
 	private static List<PlatformInterval> mergeIntervals(List<PlatformCandidate> candidates) {
 		if (candidates.isEmpty()) return List.of();
-		final List<PlatformCandidate> sorted = candidates.stream().sorted(Comparator.comparingDouble(PlatformCandidate::start)).toList();
+		final List<PlatformCandidate> sorted = candidates.stream()
+				.map(candidate -> new PlatformCandidate(
+						Math.max(0, Math.min(candidate.start(), candidate.end())),
+						Math.max(0, Math.max(candidate.start(), candidate.end()))))
+				.filter(candidate -> candidate.end() - candidate.start() > 1.0E-4)
+				.sorted(Comparator.comparingDouble(PlatformCandidate::start)).toList();
+		if (sorted.isEmpty()) return List.of();
 		final List<PlatformInterval> intervals = new ArrayList<>();
 		double start = sorted.get(0).start();
 		double end = sorted.get(0).end();
@@ -466,7 +527,19 @@ public final class WebTopologySnapshot {
 			}
 		}
 		intervals.add(new PlatformInterval(start, end));
-		return List.copyOf(intervals);
+		// A second normalization pass removes overlaps introduced by projection
+		// rounding and guarantees monotonic, non-empty output intervals.
+		final List<PlatformInterval> normalized = new ArrayList<>();
+		for (final PlatformInterval interval : intervals) {
+			if (interval.end() - interval.start() <= 1.0E-4) continue;
+			if (!normalized.isEmpty() && interval.start() <= normalized.get(normalized.size() - 1).end() + 1.0E-4) {
+				final PlatformInterval previous = normalized.remove(normalized.size() - 1);
+				normalized.add(new PlatformInterval(previous.start(), Math.max(previous.end(), interval.end())));
+			} else {
+				normalized.add(interval);
+			}
+		}
+		return List.copyOf(normalized);
 	}
 
 	private record RailBounds(int minX, int maxX, int minZ, int maxZ) {
@@ -532,7 +605,7 @@ public final class WebTopologySnapshot {
 			displaySections.keySet().stream().sorted().forEach(vehicleId -> {
 				if (section.sectionId.equals(displaySections.get(vehicleId))) {
 					vehicles.add(RouteRequestManager.getVehicleCode(vehicleId));
-					vehicleIds.add(vehicleId);
+					vehicleIds.add(Long.toString(vehicleId));
 				}
 			});
 			entry.add("vehicles", vehicles);
@@ -553,12 +626,13 @@ public final class WebTopologySnapshot {
 		final JsonArray requests = new JsonArray();
 		for (final RouteRequestManager.RequestSnapshot request : RouteRequestManager.getRequestSnapshots(simulator)) {
 			final JsonObject entry = new JsonObject();
-			entry.addProperty("vehicleId", request.vehicleId());
+			entry.addProperty("vehicleId", Long.toString(request.vehicleId()));
 			entry.addProperty("code", request.vehicleCode());
 			entry.addProperty("state", request.oneShotOverride() ? "OVERRIDE" : request.state().name());
 			entry.addProperty("route", request.routeName());
 			entry.addProperty("next", request.nextStation());
 			entry.addProperty("destination", request.destination());
+			entry.addProperty("quarantineState", quarantineState(request.vehicleId()));
 			final JsonArray requestSections = new JsonArray();
 			final RouteRequestManager.VehicleSnapshot vehicle = vehicles.get(request.vehicleId());
 			if (vehicle != null && vehicle.path() != null) {

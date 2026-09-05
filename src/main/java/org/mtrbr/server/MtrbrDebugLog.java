@@ -89,6 +89,7 @@ public final class MtrbrDebugLog {
 				|| category.contains("REJECT") || category.contains("MISMATCH") || category.contains("OVEREXTEND")
 				|| category.contains("EXHAUSTED") || category.contains("LOCK-OWNER") || category.contains("RESOURCE")
 				|| category.equals("MTRBR-PROTECTION-REGENERATE") || category.equals("MTRBR-ROUTE-PROJECTION")
-				|| category.equals("MTRBR-MAPPING-DIAGNOSTIC");
+				|| category.equals("MTRBR-MAPPING-DIAGNOSTIC") || category.equals("MTRBR-VEHICLE-CODE")
+				|| category.equals("MTRBR-TURNBACK-OCCURRENCE") || category.equals("MTRBR-TURNBACK-WINDOW");
 	}
 }

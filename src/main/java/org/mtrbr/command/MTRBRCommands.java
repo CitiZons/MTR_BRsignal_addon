@@ -37,6 +37,10 @@ public final class MTRBRCommands {
 				.then(Commands.literal("revoke_pending")
 						.then(Commands.argument("vehicle_code", StringArgumentType.word())
 								.executes(context -> revokePending(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), context.getSource()))))
+				.then(Commands.literal("quarantine")
+						.then(Commands.literal("confirm_removal")
+								.then(Commands.argument("vehicle_code", StringArgumentType.word())
+										.executes(context -> confirmQuarantineRemoval(context.getSource().getLevel(), StringArgumentType.getString(context, "vehicle_code"), context.getSource())))))
 				.then(Commands.literal("requests")
 						.executes(context -> listRequests(context.getSource().getLevel(), context.getSource())))
 				.then(Commands.literal("web_token")
@@ -289,6 +293,20 @@ public final class MTRBRCommands {
 		RouteRequestManager.revokePendingAuthorization(simulator, vehicleId);
 		MtrbrDebugLog.event("DISPATCH", "command=revoke_pending vehicle=" + vehicleId + " actor=" + source.getTextName());
 		source.sendSuccess(() -> Component.literal("Pending authorization revoke queued for vehicle " + vehicleCode + "."), false);
+		return 1;
+	}
+
+	private static int confirmQuarantineRemoval(ServerLevel level, String vehicleCode, net.minecraft.commands.CommandSourceStack source) {
+		final Long vehicleId = resolveVehicleId(source, vehicleCode);
+		if (vehicleId == null) return 0;
+		final Simulator simulator = getSimulator(level, source);
+		if (simulator == null) return 0;
+		if (!RouteRequestManager.confirmQuarantinedVehicleRemoval(simulator, vehicleId)) {
+			source.sendFailure(Component.literal("Vehicle " + vehicleCode + " is not quarantined."));
+			return 0;
+		}
+		MtrbrDebugLog.event("DISPATCH", "command=quarantine_confirm_removal vehicle=" + vehicleId + " actor=" + source.getTextName());
+		source.sendSuccess(() -> Component.literal("Quarantined vehicle " + vehicleCode + " resources released."), true);
 		return 1;
 	}
 

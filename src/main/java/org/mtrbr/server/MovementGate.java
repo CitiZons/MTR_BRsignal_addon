@@ -128,6 +128,7 @@ public final class MovementGate {
 		// At a genuine MTR terminal, the opposite-rail hop happens inside
 		// simulateStopped() before the new direction can be authorized. This is not
 		// forward permission: it lets MTR complete its own terminal transition.
-		return shouldDisableNativeBlock(vehicle) || vehicle.vehicleExtraData.getIsTerminating();
+		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();
+		return shouldDisableNativeBlock(vehicle) || simulator != null && RouteRequestManager.isTurnbackHandoff(simulator, vehicle.getId());
 	}
 }

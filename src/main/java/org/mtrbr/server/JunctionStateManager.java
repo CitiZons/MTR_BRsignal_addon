@@ -26,15 +26,46 @@ public final class JunctionStateManager {
 		REQUEST_VEHICLES.computeIfAbsent(simulator, ignored -> new HashMap<>()).put(requestId, vehicleId);
 	}
 
+	static List<String> unownedResources(Simulator simulator, List<String> ids, String owner) {
+		final Map<String, JunctionRecord> state = STATES.get(simulator);
+		if (state == null) return List.copyOf(ids);
+		synchronized (state) {
+			return ids.stream().filter(id -> {
+				final JunctionRecord record = state.get(id);
+				return record == null || (!owner.equals(record.reservedBy) && !owner.equals(record.lockedBy));
+			}).toList();
+		}
+	}
+
+	/** Relabel retained locks without releasing them; caller verifies train identity. */
+	static void transferRequestOwner(Simulator simulator, String previous, String next, long vehicleId) {
+		registerOwner(simulator, next, vehicleId);
+		final Map<String, JunctionRecord> state = STATES.get(simulator);
+		if (state == null) return;
+		synchronized (state) {
+			for (final JunctionRecord record : state.values()) {
+				if (previous.equals(record.reservedBy)) record.reservedBy = next;
+				if (previous.equals(record.lockedBy)) record.lockedBy = next;
+			}
+		}
+	}
+
 	public static List<String> resourcesFor(Simulator simulator, List<PathSnapshot.PathTraversal> traversals) {
 		final Set<String> resources = new java.util.LinkedHashSet<>();
 		for (int index = 0; index < traversals.size(); index++) {
 			final PathSnapshot.PathTraversal traversal = traversals.get(index);
 			final String incoming = index == 0 ? "<entry>" : traversals.get(index - 1).sectionId();
 			final String outgoing = index + 1 >= traversals.size() ? "<exit>" : traversals.get(index + 1).sectionId();
-			addIfJunction(simulator, resources, traversal.endNode(), incoming, traversal.sectionId(), outgoing);
+			addNodeIfJunction(simulator, resources, traversal.startNode(), traversal.index());
+			addIfJunction(simulator, resources, traversal.endNode(), incoming, traversal.sectionId(), outgoing, traversal.index());
 		}
 		return List.copyOf(resources);
+	}
+
+	/** Node locks are runtime resources and must not change persisted Block IDs. */
+	public static List<String> blockDefinitionMovements(List<String> resources) {
+		return resources.stream().filter(resource -> !resource.startsWith("junction-node|") && !resource.startsWith("junction-occurrence|"))
+				.distinct().toList();
 	}
 
 	public static boolean conflicts(Simulator simulator, List<String> resources, String owner) {
@@ -165,15 +196,35 @@ public final class JunctionStateManager {
 		return REQUEST_VEHICLES.getOrDefault(simulator, Map.of()).getOrDefault(requestId, Long.MIN_VALUE);
 	}
 
-	private static void addIfJunction(Simulator simulator, Set<String> result, net.minecraft.core.BlockPos node, String incoming, String traversed, String outgoing) {
+	private static void addIfJunction(Simulator simulator, Set<String> result, net.minecraft.core.BlockPos node, String incoming, String traversed, String outgoing, int occurrence) {
 		if (node == null) {
 			return;
 		}
 		final Position position = new Position(node.getX(), node.getY(), node.getZ());
 		final Map<?, ?> outgoingRails = simulator.positionsToRail.get(position);
 		if (outgoingRails != null && outgoingRails.size() >= 3) {
+			result.add(nodeKey(node));
+			result.add(occurrenceKey(node, occurrence));
 			result.add(key(node, incoming, traversed, outgoing));
 		}
+	}
+
+	private static void addNodeIfJunction(Simulator simulator, Set<String> result, net.minecraft.core.BlockPos node, int occurrence) {
+		if (node == null) return;
+		final Position position = new Position(node.getX(), node.getY(), node.getZ());
+		final Map<?, ?> outgoingRails = simulator.positionsToRail.get(position);
+		if (outgoingRails != null && outgoingRails.size() >= 3) {
+			result.add(nodeKey(node));
+			result.add(occurrenceKey(node, occurrence));
+		}
+	}
+
+	private static String nodeKey(net.minecraft.core.BlockPos node) {
+		return "junction-node|" + node.getX() + "," + node.getY() + "," + node.getZ();
+	}
+
+	private static String occurrenceKey(net.minecraft.core.BlockPos node, int occurrence) {
+		return "junction-occurrence|" + node.getX() + "," + node.getY() + "," + node.getZ() + "|path=" + occurrence;
 	}
 
 	private static String key(net.minecraft.core.BlockPos node, String incoming, String traversed, String outgoing) {

@@ -31,6 +31,8 @@ public final class RouteRequestManager {
 	private static final Map<String, Long> CODE_TO_VEHICLE = new HashMap<>();
 	/** MTR lifecycle callbacks only enqueue; cleanup runs at Simulator.tick tail. */
 	private static final Map<Long, ConfirmedVehicleRemoval> CONFIRMED_MTR_REMOVALS = new HashMap<>();
+	/** Server topology updates are observed by the simulation thread at its next safe tick boundary. */
+	private static final java.util.Set<String> PENDING_MAPPING_RETRIES = java.util.concurrent.ConcurrentHashMap.newKeySet();
 	private static long nextVehicleCode;
 	private static final String VEHICLE_CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".replace("O", "");
 	private static final long VEHICLE_CODE_CAPACITY = (long) Math.pow(VEHICLE_CODE_ALPHABET.length(), 4);
@@ -53,13 +55,19 @@ public final class RouteRequestManager {
 		final PathSnapshot path = PathSnapshot.from(vehicle);
 		final VehicleState current = state.vehicles.computeIfAbsent(vehicle.getId(), ignored -> new VehicleState());
 		final double previousHead = current.head;
-		final boolean hadPreviousObservation = current.observed;
+		final boolean hadPreviousObservation = current.lastObservedTick >= 0;
+		final String previousPathFingerprint = current.path == null ? "" : current.path.getFingerprint();
+		final boolean pathChanged = !previousPathFingerprint.isBlank() && !path.isEmpty()
+				&& !previousPathFingerprint.equals(path.getFingerprint());
 		current.vehicle = vehicle;
+		final boolean pathWasEmpty = current.pathEmpty;
 		current.path = path;
 		current.head = head;
 		current.tail = tail;
 		current.sections = Set.copyOf(occupiedSections);
-		current.observed = !path.isEmpty();
+		// A Vehicle was observed even when MTR has not populated immutablePath yet.
+		// Empty path is a path-readiness state, never evidence that the Vehicle vanished.
+		current.observed = true;
 		current.missingTicks = 0;
 		current.lastObservedHead = head;
 		current.lastObservedTail = tail;
@@ -67,8 +75,26 @@ public final class RouteRequestManager {
 		current.lastObservedTick = SectionStateManager.getCurrentTick();
 		CapacityLeaseManager.releaseExitedZones(simulator, vehicle.getId(), current.sections);
 		if (path.isEmpty()) {
+			if (!current.pathEmpty) {
+				MtrbrDebugLog.event("MTRBR-MTR-PATH-EMPTY", "vehicle=" + vehicle.getId()
+						+ " headDistance=" + fmt(head) + " request=" + (current.request == null ? "<none>" : current.request.getRequestId())
+						+ " action=OBSERVATION_DEFERRED");
+			}
+			current.pathEmpty = true;
 			return;
 		}
+		if (pathWasEmpty) {
+			MtrbrDebugLog.event("MTRBR-MTR-PATH-READY", "vehicle=" + vehicle.getId()
+					+ " pathFingerprint=" + path.getFingerprint() + " headDistance=" + fmt(head)
+					+ " action=ENTER_OBSERVATION_CHAIN");
+		}
+		if (pathChanged) {
+			MtrbrDebugLog.event("MTRBR-MTR-PATH-CHANGED", "vehicle=" + vehicle.getId()
+					+ " oldPathFingerprint=" + previousPathFingerprint
+					+ " newPathFingerprint=" + path.getFingerprint()
+					+ " headDistance=" + fmt(head) + " source=MTR_IMMUTABLE_PATH");
+		}
+		current.pathEmpty = false;
 		ensureTraversalContext(current);
 
 		final List<PathSnapshot.FaceTraversal> faceTraversals = path.getFaceTraversals(simulator.dimension, ServerAspectManager.getFaceSnapshot(simulator.dimension));
@@ -96,8 +122,8 @@ public final class RouteRequestManager {
 
 		// MTR can restart a repeated depot route at distance zero after the train
 		// completes a cycle/turnback while retaining the same immutable path
-		// fingerprint. Do not carry the previous cycle's locked resources into the
-		// new run; release them and let the normal request path create a new generation.
+		// fingerprint. Retire movement authority, but retain physical protection
+		// until clearance or same-train ownership handover is confirmed.
 		if (hadPreviousObservation && current.request != null && current.authorization != null
 				&& current.request.getPathFingerprint().equals(path.getFingerprint())
 				&& head + 20.0 < previousHead) {
@@ -105,15 +131,7 @@ public final class RouteRequestManager {
 			MtrbrDebugLog.event("REQUEST-CYCLE-RESET", "vehicle=" + vehicle.getId()
 					+ " request=" + requestId + " previousHead=" + String.format("%.1f", previousHead)
 					+ " newHead=" + String.format("%.1f", head));
-			releaseAll(simulator, current);
-			transition(current.request, RequestState.RELEASED, "MTR repeated route cycle restarted");
-			current.request = null;
-			current.activityAuthorization = null;
-			current.authorizationEndDistance = Double.NaN;
-			current.controlFaceId = "";
-			current.controlDistance = 0;
-			current.endDistance = 0;
-			current.authorizationLookaheadEndDistance = 0;
+			resetRouteCycle(simulator, current);
 		}
 
 		boolean inSiding = false;
@@ -178,10 +196,10 @@ public final class RouteRequestManager {
 			final boolean hasDirectionMatchedFaceAhead = rawFaces.stream()
 					.filter(PathSnapshot::isDirectionMatched)
 					.anyMatch(face -> face.distance() > head);
-			// No same-direction face exists ahead: this route is explicitly unmanaged.
+			// A never-managed route without a same-direction face remains unmanaged.
 			// If one exists but the control range cannot be proven (fence/topology/
 			// snapshot), retain fail-closed management and let the existing boundary hold.
-			current.managed = hasDirectionMatchedFaceAhead;
+			current.managed = hasDirectionMatchedFaceAhead || hasRetainedControl(current);
 			return;
 		}
 
@@ -200,7 +218,8 @@ public final class RouteRequestManager {
 			|| !current.request.getPathFingerprint().equals(path.getFingerprint());
 
 		if (needsNewRequest) {
-			release(simulator, current);
+			final RouteRequest previousRequest = current.request;
+			if (current.authorization != null) invalidateAuthorization(simulator, current, ReleaseReason.INVALID, RequestState.INVALID);
 			current.generation++;
 			current.controlFaceId = range.faceId();
 			current.controlDistance = range.controlDistance();
@@ -218,8 +237,14 @@ public final class RouteRequestManager {
 					.filter(point -> point.distance() >= 0 && point.distance() <= requestEndDistance)
 					.map(PathSnapshot.FaceTraversal::faceId)
 					.toList();
-			current.request = new RouteRequest(vehicle.getId(), path.getFingerprint(), current.generation, SectionStateManager.getCurrentTick(),
+			final RouteRequest nextRequest = new RouteRequest(vehicle.getId(), path.getFingerprint(), current.generation, SectionStateManager.getCurrentTick(),
 				Math.max(0, current.endDistance - head), sectionIds, requestTraversals, signalFaceIds);
+			adoptRetainedResources(simulator, current, previousRequest, nextRequest);
+			current.request = nextRequest;
+			MtrbrDebugLog.event("MTRBR-REQUEST-CREATED", "vehicle=" + vehicle.getId()
+					+ " request=" + current.request.getRequestId() + " pathFingerprint=" + path.getFingerprint()
+					+ " controlDistance=" + fmt(current.controlDistance) + " endDistance=" + fmt(current.endDistance)
+					+ " sections=" + sectionIds.size());
 			transition(current.request, RequestState.APPROACHING, "Entered control approach");
 			transition(current.request, RequestState.REQUESTED, "Complete route request created");
 			transition(current.request, RequestState.CHECKING, "Section check scheduled");
@@ -230,6 +255,7 @@ public final class RouteRequestManager {
 
 	public static void finishSimulationTick(Simulator simulator) {
 		final State state = STATES.computeIfAbsent(simulator, ignored -> new State());
+		processPendingMappingRetries(simulator, state);
 		processConfirmedMtrRemovals(simulator, state);
 		state.vehicles.entrySet().removeIf(entry -> {
 			if (entry.getValue().observed) {
@@ -255,8 +281,16 @@ public final class RouteRequestManager {
 		final Map<String, Set<String>> retainedSections = new HashMap<>();
 		final Map<String, Set<String>> retainedBlocks = new HashMap<>();
 		final Map<String, Set<String>> retainedJunctions = new HashMap<>();
+		boolean unknownResourceOwner = false;
 		for (final VehicleState vehicle : state.vehicles.values()) {
-			if (vehicle.request == null) continue;
+			retainPendingOwners(vehicle, retainedSections, retainedBlocks, retainedJunctions);
+			if (vehicle.request == null) {
+				// Pending leases carry their own owners even without a Request.
+				// Defer global cleanup only for protection whose identity is still unknown.
+				unknownResourceOwner |= vehicle.authorization != null || vehicle.sections.stream()
+						.anyMatch(id -> !vehicle.pendingReleaseSections.containsKey(id));
+				continue;
+			}
 			final String owner = vehicle.request.getRequestId();
 			vehicle.sections.forEach(id -> retainedSections.computeIfAbsent(id, ignored -> new HashSet<>()).add(owner));
 			if (vehicle.authorization != null) {
@@ -266,24 +300,24 @@ public final class RouteRequestManager {
 					block.junctionMovementIds().forEach(id -> retainedJunctions.computeIfAbsent(id, ignored -> new HashSet<>()).add(owner));
 				}
 			}
-			for (final PendingBlockRelease pending : vehicle.pendingReleaseBlocks.values()) {
-				pending.sectionIds().forEach(id -> retainedSections.computeIfAbsent(id, ignored -> new HashSet<>()).add(owner));
-				List.of(pending.occurrenceId(), pending.blockId()).forEach(id -> retainedBlocks.computeIfAbsent(id, ignored -> new HashSet<>()).add(owner));
-				pending.junctionResources().forEach(id -> retainedJunctions.computeIfAbsent(id, ignored -> new HashSet<>()).add(owner));
-			}
 		}
-		SectionStateManager.releaseStaleReservations(simulator, Set.of(), retainedSections, retainedBlocks);
-		JunctionStateManager.releaseStale(simulator, Set.of(), retainedJunctions);
+		if (!unknownResourceOwner) {
+			SectionStateManager.releaseStaleReservations(simulator, Set.of(), retainedSections, retainedBlocks);
+			JunctionStateManager.releaseStale(simulator, Set.of(), retainedJunctions);
+		} else {
+			MtrbrDebugLog.event("MTRBR-STALE-CLEANUP-DEFERRED", "reason=UNKNOWN_LIVE_RESOURCE_OWNER action=FAIL_CLOSED");
+		}
 
 		for (final VehicleState vehicle : state.vehicles.values()) {
 			if (vehicle.missingTicks > 0) {
 				continue;
 			}
+			// Pending interlocking leases are independent of dispatcher management.
+			releasePendingReleaseOccupancy(simulator, vehicle);
 			if (!vehicle.managed) {
 				continue;
 			}
 			if (vehicle.request == null) {
-				releasePendingReleaseOccupancy(simulator, vehicle);
 				continue;
 			}
 			if (!vehicle.path.matchesTopology(simulator)) {
@@ -293,13 +327,11 @@ public final class RouteRequestManager {
 			}
 			auditDirection(simulator, vehicle);
 			if (vehicle.request.getState() == RequestState.REVOKED || vehicle.request.getState() == RequestState.CANCELED || vehicle.request.getState() == RequestState.INVALID) {
-				releasePendingReleaseOccupancy(simulator, vehicle);
 				if (vehicle.pendingReleaseSections.isEmpty() && vehicle.pendingReleaseBlocks.isEmpty() && vehicle.request.getState() != RequestState.RELEASED) {
 					transition(vehicle.request, RequestState.RELEASED, "Pending resources cleared");
 				}
 				continue;
 			}
-			releasePendingReleaseOccupancy(simulator, vehicle);
 			updateTurnbackHandoffTimeout(simulator, vehicle);
 			if (vehicle.authorization != null) {
 				releaseAuthorizationPastHead(simulator, vehicle);
@@ -453,6 +485,26 @@ public final class RouteRequestManager {
 		publishAuthorizations(simulator, state);
 	}
 
+	/** Called after SavedData receives mappings derived from observed immutable paths. */
+	public static void notifyProtectionMappingsChanged(String dimension) {
+		if (dimension != null && !dimension.isBlank()) PENDING_MAPPING_RETRIES.add(dimension);
+	}
+
+	private static void processPendingMappingRetries(Simulator simulator, State state) {
+		if (!PENDING_MAPPING_RETRIES.remove(simulator.dimension)) return;
+		for (final VehicleState vehicle : state.vehicles.values()) {
+			if (vehicle.request == null || vehicle.path == null || vehicle.path.isEmpty()) continue;
+			if (vehicle.request.getState() != RequestState.DENIED && vehicle.request.getState() != RequestState.WAITING
+					&& vehicle.request.getState() != RequestState.CHECKING) continue;
+			vehicle.lastCheckedStateRevision = -1;
+			vehicle.lastCheckedTick = -20;
+			transition(vehicle.request, RequestState.CHECKING, "Protection occurrence mappings changed");
+			MtrbrDebugLog.event("MTRBR-BLOCK-DEFINITION-RETRY-QUEUED", "vehicle=" + vehicle.vehicle.getId()
+					+ " request=" + vehicle.request.getRequestId() + " pathFingerprint=" + vehicle.path.getFingerprint()
+					+ " action=RECHECK_FCFS");
+		}
+	}
+
 	/** Enqueues a confirmed native MTR removal; resource cleanup is deferred to the simulator tick tail. */
 	public static void onMtrVehicleRemoved(Vehicle vehicle, String reason) {
 		if (vehicle == null) return;
@@ -484,6 +536,44 @@ public final class RouteRequestManager {
 		}
 	}
 
+	/**
+	 * Explicit operator recovery for a vehicle retained after disappearing without
+	 * an MTR lifecycle confirmation. Normal MTR removal remains unchanged.
+	 */
+	public static boolean confirmQuarantinedVehicleRemoval(Simulator simulator, long vehicleId) {
+		final State state = STATES.get(simulator);
+		final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
+		if (vehicle == null || vehicle.missingTicks < MISSING_TICK_GRACE) return false;
+		return removeVehicle(simulator, state, vehicle, vehicleId, "OPERATOR_CONFIRMED_QUARANTINE");
+	}
+
+	/** Explicit operator removal for a vehicle intentionally quarantined from WebUI. */
+	public static boolean forceRemoveVehicle(Simulator simulator, long vehicleId) {
+		final State state = STATES.get(simulator);
+		final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
+		if (vehicle == null) return false;
+		return removeVehicle(simulator, state, vehicle, vehicleId, "OPERATOR_CONFIRMED_MANUAL_REMOVAL");
+	}
+
+	private static boolean removeVehicle(Simulator simulator, State state, VehicleState vehicle, long vehicleId, String reason) {
+		if (vehicle.request != null && vehicle.request.getState() != RequestState.RELEASED) {
+			invalidateAuthorization(simulator, vehicle, ReleaseReason.CANCELED, RequestState.CANCELED);
+		}
+		releaseAll(simulator, vehicle);
+		clearOneShotOverride(simulator, vehicle, reason);
+		if (vehicle.vehicle != null) {
+			PathSnapshot.clear(vehicle.vehicle);
+			simulator.sidings.forEach(siding -> ((SidingAccess) (Object) siding).mtrbr$getVehicles().remove(vehicle.vehicle));
+		}
+		state.vehicles.remove(vehicleId);
+		SectionStateManager.removeVehicleOccupancy(vehicleId, reason);
+		CapacityLeaseManager.releaseVehicle(vehicleId, reason);
+		MovementGate.clear(vehicleId);
+		releaseVehicleCode(vehicleId);
+		MtrbrDebugLog.event("MTRBR-VEHICLE-QUARANTINE-CLEANUP", "vehicle=" + vehicleId + " reason=" + reason + " action=CLEANED");
+		return true;
+	}
+
 	private static boolean needsAuthorizationCompetition(VehicleState vehicle) {
 		if (vehicle.request == null) return false;
 		final RequestState requestState = vehicle.request.getState();
@@ -496,18 +586,72 @@ public final class RouteRequestManager {
 				|| vehicle.authorizationEndDistance < vehicle.authorizationLookaheadEndDistance - 1.0E-6;
 	}
 
+	private static void resetRouteCycle(Simulator simulator, VehicleState vehicle) {
+		// A new timetable cycle is not proof that the train has cleared the interlocking.
+		invalidateAuthorization(simulator, vehicle, ReleaseReason.INVALID, RequestState.INVALID);
+		vehicle.turnbackIntent = null;
+		vehicle.traversalContext = null;
+		vehicle.lastValidActivity = null;
+		vehicle.lastSafeBoundary = vehicle.head;
+		clearFixedUnauthorisedGateBoundary(vehicle);
+		vehicle.activityAuthorization = null;
+		vehicle.authorizationEndDistance = Double.NaN;
+		vehicle.controlFaceId = "";
+		vehicle.controlDistance = 0;
+		vehicle.endDistance = 0;
+		vehicle.authorizationLookaheadEndDistance = 0;
+	}
+
+	private static boolean hasRetainedControl(VehicleState vehicle) {
+		return vehicle.managed || vehicle.request != null || vehicle.authorization != null
+				|| !vehicle.pendingReleaseSections.isEmpty() || !vehicle.pendingReleaseBlocks.isEmpty();
+	}
+
+	/** A proven current Block, not a guessed stopping distance or an invented signal. */
+	private static PathSnapshot.FaceTraversal containingBlockEntry(PathSnapshot path, List<PathSnapshot.FaceTraversal> faces, double head) {
+		return faces.stream().filter(face -> face.distance() <= head + 1.0E-6)
+				.filter(face -> path.getNextProtectionBoundary(face, faces).distance() > head + 1.0E-6)
+				.max(Comparator.comparingDouble(PathSnapshot.FaceTraversal::distance)).orElse(null);
+	}
+
+	private static void retainPendingOwners(VehicleState vehicle, Map<String, Set<String>> sections,
+			Map<String, Set<String>> blocks, Map<String, Set<String>> junctions) {
+		vehicle.pendingReleaseSections.forEach((id, pending) -> sections.computeIfAbsent(id, ignored -> new HashSet<>()).add(pending.owner()));
+		for (final PendingBlockRelease pending : vehicle.pendingReleaseBlocks.values()) {
+			pending.sectionIds().forEach(id -> sections.computeIfAbsent(id, ignored -> new HashSet<>()).add(pending.owner()));
+			List.of(pending.occurrenceId(), pending.blockId()).forEach(id -> blocks.computeIfAbsent(id, ignored -> new HashSet<>()).add(pending.owner()));
+			pending.junctionResources().forEach(id -> junctions.computeIfAbsent(id, ignored -> new HashSet<>()).add(pending.owner()));
+		}
+	}
+
+	/** All calls run on the simulator thread before the next arbitration pass. No unlock/relock gap. */
+	private static void adoptRetainedResources(Simulator simulator, VehicleState vehicle, RouteRequest previous, RouteRequest next) {
+		if (previous == null) return;
+		if (previous.getVehicleId() != next.getVehicleId()) throw new IllegalArgumentException("Resource handover across trains");
+		final String from = previous.getRequestId(), to = next.getRequestId();
+		SectionStateManager.transferRequestOwner(simulator, from, to);
+		JunctionStateManager.transferRequestOwner(simulator, from, to, next.getVehicleId());
+		CapacityLeaseManager.transferRequestOwner(simulator, from, to, next.getVehicleId());
+		vehicle.pendingReleaseSections.replaceAll((id, pending) -> pending.owner().equals(from)
+				? new PendingSectionRelease(to, pending.reason()) : pending);
+		vehicle.pendingReleaseBlocks.replaceAll((id, pending) -> pending.owner().equals(from)
+				? new PendingBlockRelease(to, pending.occurrenceId(), pending.blockId(), pending.startDistance(), pending.endDistance(),
+						pending.sectionIds(), pending.junctionResources(), pending.entryFaceKey()) : pending);
+		MtrbrDebugLog.event("MTRBR-RESOURCE-HANDOVER", "vehicle=" + next.getVehicleId() + " oldOwner=" + from + " newOwner=" + to);
+	}
+
 	private static ControlRange findControlRange(Simulator simulator, VehicleState vehicle) {
 		final PathSnapshot path = vehicle.path;
 		final double head = vehicle.head;
 		final TurnbackPhaseFence fence = turnbackPhaseFence(simulator, vehicle, head, "CONTROL_RANGE");
-		final List<ControlPoint> ahead = phaseFaces(simulator, vehicle, fence).stream()
+		final List<PathSnapshot.FaceTraversal> faces = phaseFaces(simulator, vehicle, fence);
+		final PathSnapshot.FaceTraversal containing = hasRetainedControl(vehicle) ? containingBlockEntry(path, faces, head) : null;
+		final List<ControlPoint> ahead = faces.stream()
 				.map(ControlPoint::new)
 				.filter(point -> point.traversal().distance() > head)
 				.toList();
-		if (ahead.isEmpty()) {
-			return null;
-		}
-		final double controlDistance = ahead.get(0).traversal().distance();
+		if (ahead.isEmpty() && containing == null) return null;
+		final double controlDistance = containing == null ? ahead.get(0).traversal().distance() : head;
 		final PathSnapshot.TurnbackWindow turnback = path.getNextTurnbackWindow(controlDistance);
 		final double stopBoundary = turnback.stopDistance();
 		final double turnbackBoundary = fence.fenceDistance();
@@ -521,7 +665,7 @@ public final class RouteRequestManager {
 				.filter(point -> point.traversal().distance() >= controlDistance && point.traversal().distance() <= effectiveLookaheadEnd)
 				.map(point -> faceTraversalKey(point.traversal()))
 				.toList();
-		return new ControlRange(ahead.get(0).traversal().faceId(), controlDistance, effectiveLookaheadEnd, path.getTotalDistance(), 0, signalFaceIds);
+		return new ControlRange(containing == null ? ahead.get(0).traversal().faceId() : containing.faceId(), controlDistance, effectiveLookaheadEnd, path.getTotalDistance(), 0, signalFaceIds);
 	}
 
 	private static void ensureTraversalContext(VehicleState vehicle) {
@@ -699,23 +843,26 @@ public final class RouteRequestManager {
 			if (isBlockPhysicallyOccupied(vehicle, block)) pendingSections.addAll(block.sectionIds());
 		}
 		pendingSections.addAll(vehicle.sections);
+		vehicle.pendingReleaseBlocks.values().forEach(block -> pendingSections.addAll(block.sectionIds()));
 		final Set<String> immediateSections = new HashSet<>(vehicle.authorization.getSectionIds());
 		immediateSections.removeAll(pendingSections);
 		SectionStateManager.releaseSections(simulator, immediateSections, requestId);
 		for (final String sectionId : pendingSections) {
-			vehicle.pendingReleaseSections.put(sectionId, ReleaseReason.TURNBACK);
+			vehicle.pendingReleaseSections.put(sectionId, new PendingSectionRelease(requestId, ReleaseReason.TURNBACK));
 		}
+		final List<String> clearedBlockIds = new ArrayList<>();
 		final List<String> clearedJunctionResources = new ArrayList<>();
 		for (final Authorization.BlockAuthorization block : vehicle.authorization.getBlockAuthorizations()) {
 			if (isBlockPhysicallyOccupied(vehicle, block)) {
 				registerPendingRelease(simulator, vehicle, block, ReleaseReason.TURNBACK);
 			} else {
-				SectionStateManager.releaseBlocks(simulator, blockLockIds(List.of(block)), requestId);
+				clearedBlockIds.addAll(blockLockIds(List.of(block)));
 				clearedJunctionResources.addAll(block.junctionMovementIds());
-				logTurnbackHandoff(vehicle, PendingBlockRelease.from(simulator, block), "RELEASE_NOW", "NO_PHYSICAL_SECTION_INTERSECTION");
+				logTurnbackHandoff(vehicle, PendingBlockRelease.from(vehicle.request.getRequestId(), block), "RELEASE_NOW", "NO_PHYSICAL_SECTION_INTERSECTION");
 			}
 		}
-		JunctionStateManager.release(simulator, clearedJunctionResources, requestId);
+		SectionStateManager.releaseBlocks(simulator, releasableBlockLockIds(clearedBlockIds, List.of(), vehicle.pendingReleaseBlocks.values()), requestId);
+		JunctionStateManager.release(simulator, releasableJunctionResources(clearedJunctionResources, List.of(), vehicle.pendingReleaseBlocks.values()), requestId);
 		vehicle.authorization = null;
 		vehicle.activityAuthorization = null;
 		vehicle.authorizationRetryPending = true;
@@ -736,12 +883,15 @@ public final class RouteRequestManager {
 		final TurnbackPhaseFence fence = turnbackPhaseFence(simulator, vehicle, startDistance, "AUTHORIZATION_PREFIX");
 		final List<PathSnapshot.FaceTraversal> faces = phaseFaces(simulator, vehicle, fence);
 		final SignalBlockSavedData.Snapshot savedBlocks = SignalBlockSavedData.getSnapshot(simulator.dimension);
+		final PathSnapshot.FaceTraversal containing = containingBlockEntry(vehicle.path, faces, startDistance);
 		for (final PathSnapshot.FaceTraversal face : faces) {
 			// Continue from the current head, but still accept the entry face of the
 			// Block the head has just crossed in this simulation tick. Without this
 			// tolerance, a head at 228.921 skips an entry face at 228.913 while the
 			// next face equals the window end, yielding a false "no next block".
-			if (face.distance() < startDistance - BLOCK_ENTRY_FACE_TOLERANCE || face.distance() >= endDistance) continue;
+			if (face.distance() >= endDistance) continue;
+			if (face.distance() < startDistance - BLOCK_ENTRY_FACE_TOLERANCE
+					&& (containing == null || !face.key().sameIdentity(containing.key()))) continue;
 			logRouteProjection(simulator, vehicle, faces, savedBlocks, face);
 			final RouteProjection projection = RouteProjection.build(simulator, vehicle.path, faces, face, savedBlocks,
 					SectionStateManager.getTopologyRevision(simulator));
@@ -765,22 +915,22 @@ public final class RouteRequestManager {
 			final List<PathSnapshot.FaceTraversalKey> projectedFaceKeys = candidateFaceKeys(vehicle.path, faces, candidateTraversals, face, candidateEnd);
 			final List<PathSnapshot.FaceTraversalKey> boundaryFaceKeys = faces.stream()
 					.filter(item -> candidateTraversals.stream().anyMatch(traversal -> traversal.index() == item.pathTraversalIndex()))
-					.filter(item -> item.distance() >= face.distance() - 1.0E-6 && item.distance() <= candidateEnd + 1.0E-6)
+					.filter(item -> item.distance() >= face.distance() && item.distance() <= candidateEnd)
 					.map(PathSnapshot.FaceTraversal::key).toList();
 			if (projectedFaceKeys.isEmpty()) {
-				// The entry Face is the authoritative identity for this saved Block.
-				// A traversal-index projection gap is diagnostic, but must not deny
-				// the first safe Block and strand a vehicle before departure.
 				logAuthorizationExtendFail(vehicle, startDistance, endDistance, projection.blockDefinitionId(), "key mismatch (entry-face projection)");
 				MtrbrDebugLog.event("MTRBR-MAPPING-DIAGNOSTIC", "vehicle=" + vehicle.vehicle.getId()
 						+ " request=" + vehicle.request.getRequestId()
 						+ " classification=FACE_KEY_PROJECTION_MISMATCH"
 						+ " faceKey=" + face.key() + " blockDefinition=" + projection.blockDefinitionId()
-						+ " pathFingerprint=" + projection.pathFingerprint());
+						+ " pathFingerprint=" + projection.pathFingerprint() + " action=WAIT_MAPPING");
+				break;
 			}
-			final List<PathSnapshot.FaceTraversalKey> effectiveFaceKeys = combineFaceTraversalKeys(
-					projectedFaceKeys.isEmpty() ? List.of(face.key()) : projectedFaceKeys, boundaryFaceKeys);
+			final List<PathSnapshot.FaceTraversalKey> effectiveFaceKeys = combineFaceTraversalKeys(projectedFaceKeys, boundaryFaceKeys);
 			final List<String> railIds = savedBlocks.getRailIds(projection.blockDefinitionId());
+			// A stop within a fixed Block still protects that Block's full interlocking
+			// resources. The shared definition ends before the reverse occurrence,
+			// so it cannot borrow the departure leg's junction movements.
 			final Authorization.BlockAuthorization candidate = new Authorization.BlockAuthorization(projection.blockDefinitionId(),
 					candidateTraversals.stream().mapToInt(PathSnapshot.PathTraversal::index).min().orElse(-1),
 					candidateTraversals.stream().mapToDouble(PathSnapshot.PathTraversal::startDistance).min().orElse(face.distance()),
@@ -869,6 +1019,7 @@ public final class RouteRequestManager {
 				+ projection.boundaryIdentity() + "|" + projection.blockDefinitionId() + "|" + projection.result() + "|" + oldSavedProjection;
 		if (!vehicle.routeProjectionAuditSignatures.add(signature)) return;
 		MtrbrDebugLog.event("MTRBR-ROUTE-PROJECTION", "vehicle=" + vehicle.vehicle.getId()
+				+ " vehicleCode=" + getVehicleCode(vehicle.vehicle.getId()) + " topologyRevision=" + projection.topologyRevision()
 				+ " request=" + vehicle.request.getRequestId()
 				+ " pathFingerprint=" + projection.pathFingerprint()
 				+ " entryFace=" + projection.entryFaceKey() + "@" + fmt(projection.entryFaceDistance())
@@ -915,6 +1066,12 @@ public final class RouteRequestManager {
 		if (!validateAuthorizationResources(simulator, vehicle, clearance, blockLockIds, junctionResources, zoneIds)) {
 			return false;
 		}
+		final List<String> newBlocks = SectionStateManager.unownedBlocks(simulator, blockLockIds, requestId);
+		final Map<String, SectionStateManager.SectionSnapshot> before = SectionStateManager.getSections(simulator, clearance.sectionIds());
+		final List<String> newSections = clearance.sectionIds().stream().filter(id -> !before.containsKey(id)
+				|| (!before.get(id).reservedBy.contains(requestId) && !before.get(id).lockedBy.contains(requestId))).toList();
+		final List<String> newJunctions = JunctionStateManager.unownedResources(simulator, junctionResources, requestId);
+		final List<String> newZones = CapacityLeaseManager.unownedZones(simulator, zoneIds, requestId);
 		boolean blocksReserved = false;
 		boolean sectionsReserved = false;
 		boolean zonesReserved = false;
@@ -934,12 +1091,12 @@ public final class RouteRequestManager {
 			completed = true;
 			return true;
 		} finally {
-			// A failed reservation/lock must never leave a partial route behind.
+			// Roll back only this attempt, never a previous authorization or pending lease.
 			if (!completed) {
-				JunctionStateManager.release(simulator, junctionResources, requestId);
-				if (sectionsReserved) SectionStateManager.releaseSections(simulator, clearance.sectionIds(), requestId);
-				if (blocksReserved) SectionStateManager.releaseBlocks(simulator, blockLockIds, requestId);
-				if (zonesReserved) CapacityLeaseManager.releaseReservedZones(simulator, zoneIds, requestId);
+				JunctionStateManager.release(simulator, newJunctions, requestId);
+				if (sectionsReserved) SectionStateManager.releaseSections(simulator, newSections, requestId);
+				if (blocksReserved) SectionStateManager.releaseBlocks(simulator, newBlocks, requestId);
+				if (zonesReserved) CapacityLeaseManager.releaseReservedZones(simulator, newZones, requestId);
 			}
 		}
 	}
@@ -996,9 +1153,7 @@ public final class RouteRequestManager {
 	private static List<String> blockLockIds(List<Authorization.BlockAuthorization> blocks) {
 		final java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
 		for (final Authorization.BlockAuthorization block : blocks) {
-			if (block.completeSavedBlock()) {
-				ids.add(block.blockId());
-			}
+			ids.add(block.blockId());
 			ids.add(block.occurrenceId());
 		}
 		return List.copyOf(ids);
@@ -1046,8 +1201,16 @@ public final class RouteRequestManager {
 			return null;
 		}
 		final boolean completeSavedBlock = boundary.distance() <= requestedEnd + 1.0E-6;
-		final List<PathSnapshot.FaceTraversalKey> faceKeys = combineFaceTraversalKeys(List.of(entry.key()),
-				candidateFaceKeys(vehicle.path, faces, traversals, entry, continuationEnd));
+		final List<PathSnapshot.FaceTraversalKey> faceKeys = candidateFaceKeys(vehicle.path, faces, traversals, entry, continuationEnd);
+		if (faceKeys.isEmpty()) {
+			logAuthorizationExtendFail(vehicle, vehicle.authorizationEndDistance, requestedEnd, incomplete.blockId(), "key mismatch (entry-face projection)");
+			MtrbrDebugLog.event("MTRBR-MAPPING-DIAGNOSTIC", "vehicle=" + vehicle.vehicle.getId()
+					+ " request=" + vehicle.request.getRequestId()
+					+ " classification=FACE_KEY_PROJECTION_MISMATCH"
+					+ " faceKey=" + entry.key() + " blockDefinition=" + incomplete.blockId()
+					+ " pathFingerprint=" + incomplete.pathFingerprint() + " action=WAIT_MAPPING");
+			return null;
+		}
 		final Authorization.BlockAuthorization candidate = new Authorization.BlockAuthorization(incomplete.blockId(),
 				traversals.get(0).index(), vehicle.head, continuationEnd, vehicle.path.getSectionIds(traversals), traversals,
 				faceKeys, completeSavedBlock, incomplete.savedBlockBoundaryId(), boundary.distance(), entry.key(), incomplete.boundaryFaceTraversalKey(),
@@ -1240,27 +1403,28 @@ public final class RouteRequestManager {
 				.filter(block -> block.startDistance() >= boundary - 1.0E-6)
 				.toList();
 		final List<Authorization.BlockAuthorization> cleared = removed.stream()
-				.filter(block -> vehicle.tail >= block.endDistance() - 1.0E-6)
+				.filter(block -> !isBlockPhysicallyOccupied(vehicle, block))
 				.toList();
 		final List<Authorization.BlockAuthorization> pending = removed.stream()
-				.filter(block -> vehicle.tail < block.endDistance() - 1.0E-6)
+				.filter(block -> isBlockPhysicallyOccupied(vehicle, block))
 				.toList();
 		final String requestId = vehicle.request.getRequestId();
-		SectionStateManager.releaseBlocks(simulator, blockLockIds(cleared), requestId);
 		for (final Authorization.BlockAuthorization block : pending) {
 			registerPendingRelease(simulator, vehicle, block, ReleaseReason.INVALID);
 		}
+		SectionStateManager.releaseBlocks(simulator, releasableBlockLockIds(blockLockIds(cleared), retained, vehicle.pendingReleaseBlocks.values()), requestId);
 		final Set<String> retainedSections = new HashSet<>();
 		for (final Authorization.BlockAuthorization block : retained) retainedSections.addAll(block.sectionIds());
 		for (final Authorization.BlockAuthorization block : pending) retainedSections.addAll(block.sectionIds());
 		retainedSections.addAll(vehicle.sections);
+		vehicle.pendingReleaseBlocks.values().forEach(block -> retainedSections.addAll(block.sectionIds()));
 		final Set<String> removedSections = new HashSet<>();
 		for (final Authorization.BlockAuthorization block : removed) removedSections.addAll(block.sectionIds());
 		removedSections.removeAll(retainedSections);
 		SectionStateManager.releaseSections(simulator, removedSections, requestId);
 		final List<String> removedJunctionResources = cleared.stream()
 				.flatMap(block -> block.junctionMovementIds().stream()).toList();
-		JunctionStateManager.release(simulator, removedJunctionResources, requestId);
+		JunctionStateManager.release(simulator, releasableJunctionResources(removedJunctionResources, retained, vehicle.pendingReleaseBlocks.values()), requestId);
 		vehicle.authorization = retained.isEmpty() ? null : createAuthorization(simulator, STATES.get(simulator), vehicle, retained);
 		if (vehicle.authorization == null) {
 			vehicle.authorizationRetryPending = true;
@@ -1632,24 +1796,25 @@ public final class RouteRequestManager {
 		if (vehicle.authorization == null || vehicle.request == null) return;
 		final double epsilon = 1.0E-6;
 		final List<Authorization.BlockAuthorization> cleared = vehicle.authorization.getBlockAuthorizations().stream()
-				.filter(block -> vehicle.tail >= block.endDistance() - epsilon).toList();
+				.filter(block -> vehicle.tail >= block.endDistance() - epsilon && !isBlockPhysicallyOccupied(vehicle, block)).toList();
 		if (cleared.isEmpty()) return;
 		final List<Authorization.BlockAuthorization> retained = vehicle.authorization.getBlockAuthorizations().stream()
-				.filter(block -> vehicle.tail < block.endDistance() - epsilon).toList();
+				.filter(block -> !cleared.contains(block)).toList();
 		final String requestId = vehicle.request.getRequestId();
 		final Set<String> retainedSections = retained.stream().flatMap(block -> block.sectionIds().stream()).collect(java.util.stream.Collectors.toSet());
 		final Set<String> clearedSections = cleared.stream().flatMap(block -> block.sectionIds().stream()).collect(java.util.stream.Collectors.toSet());
 		clearedSections.removeAll(retainedSections);
 		clearedSections.removeAll(vehicle.sections);
+		vehicle.pendingReleaseBlocks.values().forEach(pending -> clearedSections.removeAll(pending.sectionIds()));
 		SectionStateManager.releaseSections(simulator, clearedSections, requestId);
-		SectionStateManager.releaseBlocks(simulator, blockLockIds(cleared), requestId);
+		SectionStateManager.releaseBlocks(simulator, releasableBlockLockIds(blockLockIds(cleared), retained, vehicle.pendingReleaseBlocks.values()), requestId);
 		for (final Authorization.BlockAuthorization block : cleared) {
 			MtrbrDebugLog.event("MTRBR-RESOURCE-RELEASE", "block=" + block.blockId() + " section=" + block.sectionIds()
 					+ " tailDistance=" + fmt(vehicle.tail) + " request=" + requestId + " reason=TAIL_PASSED_BLOCK_END");
 		}
 		final List<String> clearedJunctionResources = cleared.stream()
 				.flatMap(block -> block.junctionMovementIds().stream()).toList();
-		JunctionStateManager.release(simulator, clearedJunctionResources, requestId);
+		JunctionStateManager.release(simulator, releasableJunctionResources(clearedJunctionResources, retained, vehicle.pendingReleaseBlocks.values()), requestId);
 		MtrbrDebugLog.event("MTRBR-AUTH-STALE", "vehicle=" + vehicle.vehicle.getId() + " request=" + requestId
 				+ " headDistance=" + fmt(vehicle.head) + " clearedBlocks=" + cleared.stream().map(Authorization.BlockAuthorization::blockId).toList()
 				+ " clearedSections=" + clearedSections + " reason=TAIL_PASSED_BLOCK_END");
@@ -1670,13 +1835,15 @@ public final class RouteRequestManager {
 		if (vehicle.request.getState() == RequestState.AUTHORIZED && vehicle.head >= vehicle.controlDistance) {
 			transition(vehicle.request, RequestState.ACTIVE, "Entered authorized route");
 		}
-		if ((vehicle.request.getState() == RequestState.AUTHORIZED || vehicle.request.getState() == RequestState.ACTIVE) && vehicle.tail >= vehicle.endDistance) {
+		final boolean routeCleared = vehicle.tail >= vehicle.endDistance
+				&& (vehicle.authorization == null || vehicle.authorization.getBlockAuthorizations().stream()
+						.noneMatch(block -> isBlockPhysicallyOccupied(vehicle, block)))
+				&& vehicle.pendingReleaseBlocks.isEmpty() && vehicle.pendingReleaseSections.isEmpty();
+		if ((vehicle.request.getState() == RequestState.AUTHORIZED || vehicle.request.getState() == RequestState.ACTIVE) && routeCleared) {
 			transition(vehicle.request, RequestState.PASSED, "Vehicle tail passed complete Request end");
 		}
-		// releaseAuthorizationPastHead owns all Block/Section/Junction release.
-		// Keeping that lifecycle in one place prevents a Section from being dropped
-		// when its parent Block is still locked by the vehicle tail.
-		if (vehicle.tail >= vehicle.endDistance) {
+		// Request completion must obey the same physical-clearance test as Block release.
+		if (routeCleared) {
 			release(simulator, vehicle);
 			transition(vehicle.request, RequestState.RELEASED, "Vehicle tail cleared route");
 		}
@@ -1711,20 +1878,23 @@ public final class RouteRequestManager {
 				if (isBlockPhysicallyOccupied(vehicle, block)) pendingSections.addAll(block.sectionIds());
 			}
 			pendingSections.addAll(vehicle.sections);
+			vehicle.pendingReleaseBlocks.values().forEach(block -> pendingSections.addAll(block.sectionIds()));
 			final Set<String> immediateSections = new HashSet<>(authorization.getSectionIds());
 			immediateSections.removeAll(pendingSections);
 			SectionStateManager.releaseSections(simulator, immediateSections, requestId);
+			final List<String> clearedBlockIds = new ArrayList<>();
 			final List<String> clearedJunctionResources = new ArrayList<>();
 			for (final Authorization.BlockAuthorization block : authorization.getBlockAuthorizations()) {
 				if (isBlockPhysicallyOccupied(vehicle, block)) {
 					registerPendingRelease(simulator, vehicle, block, reason);
 				} else {
-					SectionStateManager.releaseBlocks(simulator, blockLockIds(List.of(block)), requestId);
+					clearedBlockIds.addAll(blockLockIds(List.of(block)));
 					clearedJunctionResources.addAll(block.junctionMovementIds());
 				}
 			}
-			for (final String sectionId : pendingSections) vehicle.pendingReleaseSections.put(sectionId, reason);
-			JunctionStateManager.release(simulator, clearedJunctionResources, requestId);
+			for (final String sectionId : pendingSections) vehicle.pendingReleaseSections.put(sectionId, new PendingSectionRelease(vehicle.request.getRequestId(), reason));
+			SectionStateManager.releaseBlocks(simulator, releasableBlockLockIds(clearedBlockIds, List.of(), vehicle.pendingReleaseBlocks.values()), requestId);
+			JunctionStateManager.release(simulator, releasableJunctionResources(clearedJunctionResources, List.of(), vehicle.pendingReleaseBlocks.values()), requestId);
 			MtrbrDebugLog.event("MTRBR-RESOURCE-PENDING-RELEASE", "vehicleId=" + (vehicle.vehicle == null ? "<none>" : vehicle.vehicle.getId())
 					+ " requestId=" + requestId + " authorizationId=" + authorization.getAuthorizationId()
 					+ " reason=" + reason + " sections=" + vehicle.pendingReleaseSections + " blocks=" + vehicle.pendingReleaseBlocks);
@@ -1747,12 +1917,11 @@ public final class RouteRequestManager {
 
 	private static void releaseAll(Simulator simulator, VehicleState vehicle) {
 		release(simulator, vehicle);
-		final String requestId = vehicle.request == null ? "" : vehicle.request.getRequestId();
-		SectionStateManager.releaseSections(simulator, vehicle.pendingReleaseSections.keySet(), requestId);
+		vehicle.pendingReleaseSections.forEach((id, pending) -> SectionStateManager.releaseSections(simulator, List.of(id), pending.owner()));
 		for (final Map.Entry<String, PendingBlockRelease> entry : vehicle.pendingReleaseBlocks.entrySet()) {
 			final PendingBlockRelease pending = entry.getValue();
-			SectionStateManager.releaseBlocks(simulator, List.of(entry.getKey(), pending.blockId()), requestId);
-			JunctionStateManager.release(simulator, pending.junctionResources(), requestId);
+			SectionStateManager.releaseBlocks(simulator, List.of(entry.getKey(), pending.blockId()), pending.owner());
+			JunctionStateManager.release(simulator, pending.junctionResources(), pending.owner());
 		}
 		vehicle.pendingReleaseSections.clear();
 		vehicle.pendingReleaseBlocks.clear();
@@ -1760,10 +1929,10 @@ public final class RouteRequestManager {
 
 	private static void registerPendingRelease(Simulator simulator, VehicleState vehicle,
 			Authorization.BlockAuthorization block, ReleaseReason reason) {
-		final PendingBlockRelease pending = PendingBlockRelease.from(simulator, block);
+		final PendingBlockRelease pending = PendingBlockRelease.from(vehicle.request.getRequestId(), block);
 		vehicle.pendingReleaseBlocks.put(block.occurrenceId(), pending);
 		for (final String sectionId : block.sectionIds()) {
-			vehicle.pendingReleaseSections.put(sectionId, reason);
+			vehicle.pendingReleaseSections.put(sectionId, new PendingSectionRelease(vehicle.request.getRequestId(), reason));
 		}
 		logTurnbackHandoff(vehicle, pending, "RETAIN_PENDING", "PHYSICAL_SECTION_INTERSECTION");
 		MtrbrDebugLog.event("MTRBR-RESOURCE-RELEASE", "vehicle=" + vehicle.vehicle.getId()
@@ -1773,7 +1942,6 @@ public final class RouteRequestManager {
 
 	/** Releases a pending Block, its Sections and its Junction resources as one tail-cleared unit. */
 	private static void releasePendingReleaseOccupancy(Simulator simulator, VehicleState vehicle) {
-		final String requestId = vehicle.request == null ? "" : vehicle.request.getRequestId();
 		final Set<String> releasedBlocks = new HashSet<>();
 		for (final Map.Entry<String, PendingBlockRelease> entry : vehicle.pendingReleaseBlocks.entrySet()) {
 			if (!isBlockPhysicallyOccupied(vehicle, entry.getValue())) releasedBlocks.add(entry.getKey());
@@ -1781,17 +1949,25 @@ public final class RouteRequestManager {
 		if (!releasedBlocks.isEmpty()) {
 			for (final String occurrenceId : releasedBlocks) {
 				final PendingBlockRelease pending = vehicle.pendingReleaseBlocks.get(occurrenceId);
-				SectionStateManager.releaseBlocks(simulator, List.of(occurrenceId, pending.blockId()), requestId);
-				JunctionStateManager.release(simulator, pending.junctionResources(), requestId);
+				SectionStateManager.releaseBlocks(simulator, releasableBlockLockIds(List.of(occurrenceId, pending.blockId()),
+						vehicle.authorization == null ? List.of() : vehicle.authorization.getBlockAuthorizations(),
+						vehicle.pendingReleaseBlocks.values().stream().filter(item -> item != pending).toList()), pending.owner());
+				final Set<String> retainedJunctionResources = new HashSet<>();
+				if (vehicle.authorization != null) vehicle.authorization.getBlockAuthorizations().forEach(block -> retainedJunctionResources.addAll(block.junctionMovementIds()));
+				vehicle.pendingReleaseBlocks.entrySet().stream().filter(entry -> !entry.getKey().equals(occurrenceId))
+						.forEach(entry -> retainedJunctionResources.addAll(entry.getValue().junctionResources()));
+				JunctionStateManager.release(simulator, pending.junctionResources().stream()
+						.filter(resource -> !retainedJunctionResources.contains(resource)).toList(), pending.owner());
 				logTurnbackHandoff(vehicle, pending, "RELEASE_NOW", "NO_PHYSICAL_SECTION_INTERSECTION");
 				MtrbrDebugLog.event("MTRBR-RESOURCE-RELEASE", "vehicle=" + vehicle.vehicle.getId()
 						+ " resource=block:" + pending.blockId()
 						+ " tailDistance=" + fmt(vehicle.tail)
 						+ " endDistance=" + fmt(pending.endDistance()) + " released=true reason=NO_PHYSICAL_SECTION_INTERSECTION");
 				MtrbrDebugLog.event("MTRBR-RESOURCE-RELEASE", "vehicle=" + vehicle.vehicle.getId()
-						+ " resource=junction:" + pending.junctionResources() + " owner=" + requestId + " released=true reason=BLOCK_PHYSICALLY_CLEARED");
+						+ " resource=junction:" + pending.junctionResources() + " owner=" + pending.owner() + " released=true reason=BLOCK_PHYSICALLY_CLEARED");
+				// Drop this reference now so the final cleared occurrence releases shared keys.
+				vehicle.pendingReleaseBlocks.remove(occurrenceId);
 			}
-			releasedBlocks.forEach(vehicle.pendingReleaseBlocks::remove);
 		}
 		final Set<String> activeSections = vehicle.authorization == null ? Set.of() : new HashSet<>(vehicle.authorization.getSectionIds());
 		final Set<String> protectedSections = vehicle.pendingReleaseBlocks.values().stream()
@@ -1802,7 +1978,9 @@ public final class RouteRequestManager {
 		releasedSections.removeAll(activeSections);
 		releasedSections.removeAll(protectedSections);
 		if (!releasedSections.isEmpty()) {
-			SectionStateManager.releaseSections(simulator, releasedSections, requestId);
+			for (final String sectionId : releasedSections) {
+				SectionStateManager.releaseSections(simulator, List.of(sectionId), vehicle.pendingReleaseSections.get(sectionId).owner());
+			}
 			for (final String sectionId : releasedSections) {
 				vehicle.pendingReleaseSections.remove(sectionId);
 				MtrbrDebugLog.event("MTRBR-RESOURCE-RELEASE", "vehicle=" + vehicle.vehicle.getId()
@@ -1810,6 +1988,21 @@ public final class RouteRequestManager {
 						+ " endDistance=<cleared-block> released=true");
 			}
 		}
+	}
+
+	private static List<String> releasableBlockLockIds(List<String> released, List<Authorization.BlockAuthorization> retained,
+			java.util.Collection<PendingBlockRelease> pending) {
+		final Set<String> stillHeld = new HashSet<>(blockLockIds(retained));
+		pending.forEach(block -> { stillHeld.add(block.blockId()); stillHeld.add(block.occurrenceId()); });
+		return released.stream().filter(id -> !stillHeld.contains(id)).distinct().toList();
+	}
+
+	private static List<String> releasableJunctionResources(List<String> released,
+			List<Authorization.BlockAuthorization> retained, java.util.Collection<PendingBlockRelease> pending) {
+		final Set<String> stillHeld = new HashSet<>();
+		retained.forEach(block -> stillHeld.addAll(block.junctionMovementIds()));
+		pending.forEach(block -> stillHeld.addAll(block.junctionResources()));
+		return released.stream().filter(resource -> !stillHeld.contains(resource)).distinct().toList();
 	}
 
 	/**
@@ -1832,7 +2025,7 @@ public final class RouteRequestManager {
 	private static void logTurnbackHandoff(VehicleState vehicle, PendingBlockRelease pending, String action, String reason) {
 		final String requestId = vehicle.request == null ? "<none>" : vehicle.request.getRequestId();
 		MtrbrDebugLog.event("MTRBR-TURNBACK-HANDOFF", "vehicle=" + vehicle.vehicle.getId()
-				+ " request=" + requestId + " block=" + pending.blockId() + " occurrence=" + pending.occurrenceId()
+				+ " request=" + requestId + " owner=" + pending.owner() + " block=" + pending.blockId() + " occurrence=" + pending.occurrenceId()
 				+ " trainRange=" + fmt(vehicle.tail) + ".." + fmt(vehicle.head)
 				+ " blockRange=" + fmt(pending.startDistance()) + ".." + fmt(pending.endDistance())
 				+ " path=" + vehicle.path.getFingerprint() + " reversed=" + vehicle.vehicle.getReversed()
@@ -2119,6 +2312,7 @@ public final class RouteRequestManager {
 			final State state = STATES.get(simulator);
 			final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
 			if (vehicle == null || vehicle.request == null) {
+				MtrbrDebugLog.event("DISPATCH", "approve vehicle=" + vehicleId + " accepted=false reason=REQUEST_NOT_READY");
 				return;
 			}
 			if (vehicle.authorization == null) {
@@ -2140,6 +2334,8 @@ public final class RouteRequestManager {
 				vehicle.lastCheckedStateRevision = -1;
 				vehicle.lastCheckedTick = -20;
 				state.audit.add("tick=" + SectionStateManager.getCurrentTick() + " dispatcher-revoke vehicle=" + vehicleId);
+			} else {
+				MtrbrDebugLog.event("DISPATCH", "revoke vehicle=" + vehicleId + " accepted=false reason=REQUEST_NOT_READY");
 			}
 		});
 	}
@@ -2159,6 +2355,12 @@ public final class RouteRequestManager {
 				vehicle.overrideState = OverrideState.ONE_SHOT;
 				MtrbrDebugLog.event("OVERRIDE", "vehicle=" + vehicleId + " request=" + vehicle.request.getRequestId() + " face=" + target.key() + " boundary=" + target.distance());
 				state.audit.add("tick=" + SectionStateManager.getCurrentTick() + " dispatcher-override vehicle=" + vehicleId + " until=" + vehicle.overrideEndDistance);
+			} else {
+				final String reason = vehicle == null || vehicle.request == null ? "REQUEST_NOT_READY"
+						: vehicle.path == null || vehicle.path.isEmpty() ? "PATH_EMPTY"
+						: vehicle.authorization != null ? "ALREADY_AUTHORIZED"
+						: target == null ? "NO_RED_FACE" : "INVALID_TARGET";
+				MtrbrDebugLog.event("OVERRIDE", "vehicle=" + vehicleId + " accepted=false reason=" + reason);
 			}
 		});
 	}
@@ -2376,13 +2578,11 @@ public final class RouteRequestManager {
 			final List<PathSnapshot.FaceTraversal> faces = snapshot.path().getFaceTraversals(simulator.dimension, topology).stream()
 					.filter(PathSnapshot::isDirectionMatched).toList();
 			for (final PathSnapshot.FaceTraversal first : faces) {
-				final PathSnapshot.ProtectionBoundary boundary = snapshot.path().getNextProtectionBoundary(first, faces);
+				final RouteProjection.Definition definition = RouteProjection.define(simulator, snapshot.path(), faces, first);
+				final PathSnapshot.ProtectionBoundary boundary = definition.boundary();
 				if (boundary.distance() <= first.distance() + 1.0E-6) continue;
-				final List<PathSnapshot.PathTraversal> traversals = snapshot.path().getTraversalsBetween(first.distance(), boundary.distance());
-				final List<String> junctions = JunctionStateManager.resourcesFor(simulator, traversals);
-				final String blockId = RouteProjection.blockDefinitionId(first, boundary, traversals, junctions);
-				final List<String> rails = traversals.stream()
-						.map(PathSnapshot.PathTraversal::sectionId).filter(id -> !id.isBlank()).distinct().toList();
+				final String blockId = definition.blockDefinitionId();
+				final List<String> rails = definition.sectionIds();
 				if (rails.isEmpty()) continue;
 				final GeneratedProtection candidate = new GeneratedProtection(blockId, rails, boundary.id());
 				final GeneratedProtection previous = result.get(first.faceId());
@@ -2409,19 +2609,17 @@ public final class RouteRequestManager {
 			final List<PathSnapshot.FaceTraversal> faces = snapshot.path().getFaceTraversals(simulator.dimension, topology).stream()
 					.filter(PathSnapshot::isDirectionMatched).toList();
 			for (final PathSnapshot.FaceTraversal first : faces) {
-				final PathSnapshot.ProtectionBoundary boundary = snapshot.path().getNextProtectionBoundary(first, faces);
+				final RouteProjection.Definition definition = RouteProjection.define(simulator, snapshot.path(), faces, first);
+				final PathSnapshot.ProtectionBoundary boundary = definition.boundary();
 				if (boundary.distance() <= first.distance() + 1.0E-6) continue;
-				final List<PathSnapshot.PathTraversal> traversals = snapshot.path().getTraversalsBetween(first.distance(), boundary.distance());
-				final List<String> junctions = JunctionStateManager.resourcesFor(simulator, traversals);
-				final String blockId = RouteProjection.blockDefinitionId(first, boundary, traversals, junctions);
-				final List<String> rails = traversals.stream()
-						.map(PathSnapshot.PathTraversal::sectionId).filter(id -> !id.isBlank()).distinct().toList();
+				final String blockId = definition.blockDefinitionId();
+				final List<String> rails = definition.sectionIds();
 				if (rails.isEmpty()) continue;
 				final String occurrenceKey = SignalBlockSavedData.occurrenceKey(snapshot.path().getFingerprint(), first.key());
 				MtrbrDebugLog.event("MTRBR-OCCURRENCE-BLOCK-GENERATED", "pathFingerprint=" + snapshot.path().getFingerprint()
 						+ " occurrenceFaceKey=" + first.key() + " entryFace=" + first.key()
-						+ " boundaryFace=" + boundary.id() + " traversalIdentity=" + traversals
-						+ " junctionMovementIds=" + junctions + " blockDefinitionId=" + blockId
+						+ " boundaryFace=" + boundary.id() + " traversalIdentity=" + definition.traversals()
+						+ " junctionMovementIds=" + definition.junctionMovementIds() + " blockDefinitionId=" + blockId
 						+ " lookupKey=" + occurrenceKey);
 				result.putIfAbsent(occurrenceKey, new GeneratedProtection(blockId, rails, boundary.id()));
 			}
@@ -2460,6 +2658,7 @@ public final class RouteRequestManager {
 			}
 			if (!CODE_TO_VEHICLE.containsKey(code.toString())) {
 				CODE_TO_VEHICLE.put(code.toString(), ignoredVehicleId);
+				MtrbrDebugLog.event("MTRBR-VEHICLE-CODE", "vehicle=" + ignoredVehicleId + " vehicleCode=" + code);
 				return code.toString();
 			}
 		}
@@ -2478,13 +2677,10 @@ public final class RouteRequestManager {
 
 	/** Clears all request/authorization state when the server stops. */
 	public static void resetAll() {
-		for (final Map.Entry<Simulator, State> entry : STATES.entrySet()) {
-			for (final VehicleState vehicle : entry.getValue().vehicles.values()) {
-				invalidateAuthorization(entry.getKey(), vehicle, ReleaseReason.SERVER_STOP, RequestState.CANCELED);
-				releaseAll(entry.getKey(), vehicle);
-				clearOneShotOverride(entry.getKey(), vehicle, "server stop");
-			}
-		}
+		// Server shutdown is not a business cancellation.  Request/authorization
+		// state is runtime-owned and must not be transitioned while the server is
+		// tearing down; in particular INVALID -> CANCELED is illegal.  MTR will
+		// re-observe vehicles and paths on the next server start.
 		STATES.clear();
 		AUTHORIZATION_SNAPSHOTS = Map.of();
 		VEHICLE_SNAPSHOTS = Map.of();
@@ -2838,10 +3034,8 @@ public final class RouteRequestManager {
 		final Set<Integer> indexes = traversals.stream().map(PathSnapshot.PathTraversal::index).collect(java.util.stream.Collectors.toSet());
 		final java.util.LinkedHashSet<PathSnapshot.FaceTraversalKey> keys = faces.stream().filter(PathSnapshot::isDirectionMatched)
 				.filter(face -> indexes.contains(face.pathTraversalIndex()))
-				.filter(face -> face.distance() >= startDistance - 1.0E-6 && face.distance() < endDistance + 1.0E-6)
-				.filter(face -> Math.abs(face.distance() - startDistance) <= 1.0E-6 || face.distance() < endDistance - 1.0E-6)
+				.filter(face -> face.distance() >= startDistance && face.distance() < endDistance)
 				.map(PathSnapshot.FaceTraversal::key).collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
-		keys.add(entryFace.key());
 		return List.copyOf(keys);
 	}
 
@@ -3004,6 +3198,7 @@ public final class RouteRequestManager {
 		private final Set<String> routeProjectionAuditSignatures = new HashSet<>();
 		private long generation;
 		private boolean observed;
+		private boolean pathEmpty;
 		private int missingTicks;
 		private boolean missingUnconfirmedLogged;
 		private double lastObservedHead = Double.NaN;
@@ -3015,7 +3210,7 @@ public final class RouteRequestManager {
 		private OverridePermit overridePermit;
 		private OverrideState overrideState = OverrideState.NONE;
 		private double overrideEndDistance = Double.NaN;
-		private final Map<String, ReleaseReason> pendingReleaseSections = new HashMap<>();
+		private final Map<String, PendingSectionRelease> pendingReleaseSections = new HashMap<>();
 		private final Map<String, PendingBlockRelease> pendingReleaseBlocks = new HashMap<>();
 		private long lastCheckedStateRevision = -1;
 		private long lastCheckedTick = -20;
@@ -3055,15 +3250,17 @@ public final class RouteRequestManager {
 	}
 
 	/** Runtime projection retained after an old-direction authorization is replaced. */
-	private record PendingBlockRelease(String occurrenceId, String blockId, double startDistance, double endDistance,
+	private record PendingSectionRelease(String owner, ReleaseReason reason) { }
+
+	private record PendingBlockRelease(String owner, String occurrenceId, String blockId, double startDistance, double endDistance,
 			List<String> sectionIds, List<String> junctionResources, PathSnapshot.FaceTraversalKey entryFaceKey) {
 		private PendingBlockRelease {
 			sectionIds = List.copyOf(sectionIds);
 			junctionResources = List.copyOf(junctionResources);
 		}
 
-		private static PendingBlockRelease from(Simulator simulator, Authorization.BlockAuthorization block) {
-			return new PendingBlockRelease(block.occurrenceId(), block.blockId(), block.startDistance(), block.endDistance(),
+		private static PendingBlockRelease from(String owner, Authorization.BlockAuthorization block) {
+			return new PendingBlockRelease(owner, block.occurrenceId(), block.blockId(), block.startDistance(), block.endDistance(),
 					block.sectionIds(), block.junctionMovementIds(), block.entryFaceTraversalKey());
 		}
 	}

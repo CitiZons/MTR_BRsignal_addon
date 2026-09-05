@@ -12,6 +12,8 @@ import java.util.IdentityHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -20,6 +22,8 @@ import java.security.NoSuchAlgorithmException;
 public final class PathSnapshot {
 	private final List<PathSection> sections;
 	private final List<PathTraversal> traversals;
+	private final List<ReverseOccurrence> reverseOccurrences;
+	private final Set<Integer> diagnosedStops = new HashSet<>();
 	private final String fingerprint;
 	private final Map<Simulator, TopologyMatch> topologyMatches = Collections.synchronizedMap(new IdentityHashMap<>());
 	private final Map<String, FaceTraversalPoints> faceTraversalPoints = new HashMap<>();
@@ -33,6 +37,18 @@ public final class PathSnapshot {
 			pathTraversals.add(new PathTraversal(index, section.sectionId(), section.startDistance(), section.endDistance(), section.startNode(), section.endNode(), section.travelAngle(), section.reversePositions(), section.isPlatform(), section.isSiding(), section.stopIndex(), section.canTurnBack()));
 		}
 		this.traversals = List.copyOf(pathTraversals);
+		final List<ReverseOccurrence> reversals = new ArrayList<>();
+		for (int index = 1; index < traversals.size(); index++) {
+			final PathTraversal before = traversals.get(index - 1);
+			final PathTraversal after = traversals.get(index);
+			// Mirror MTR PathData.isOppositeRail(): actual endpoint reversal,
+			// not rail capability or a large change of heading through a curve.
+			if (!before.startNode().equals(before.endNode())
+					&& before.startNode().equals(after.endNode()) && before.endNode().equals(after.startNode())) {
+				reversals.add(new ReverseOccurrence(index - 1, index));
+			}
+		}
+		this.reverseOccurrences = List.copyOf(reversals);
 		this.fingerprint = fingerprint;
 	}
 
@@ -221,9 +237,13 @@ public final class PathSnapshot {
 
 	private int pathIndexAtDistance(double distance) {
 		for (PathTraversal traversal : traversals) {
-			if (distance >= traversal.startDistance() - 1e-6 && distance <= traversal.endDistance() + 1e-6) return traversal.index();
+			// A shared endpoint belongs to the traversal leaving the node. Interior
+			// positions remain strictly inside one traversal, with no epsilon overlap.
+			if (distance == traversal.startDistance()
+					|| distance > traversal.startDistance() && distance < traversal.endDistance()) return traversal.index();
 		}
-		return -1;
+		return !traversals.isEmpty() && distance == traversals.get(traversals.size() - 1).endDistance()
+				? traversals.get(traversals.size() - 1).index() : -1;
 	}
 
 	/** Projects ordered traversal instances onto physical Section IDs for SectionState. */
@@ -288,86 +308,78 @@ public final class PathSnapshot {
 	 * not additional Sections.
 	 */
 	public ProtectionBoundary getNextProtectionBoundary(FaceTraversal face, List<FaceTraversal> faces) {
-		final TerminalNode terminal = getNextTerminalNode(face.distance());
+		final DirectionSegmentEnd segment = directionSegmentEnd(face.pathTraversalIndex());
 		final FaceTraversal nextFace = faces.stream()
+				.filter(candidate -> candidate.pathTraversalIndex() >= face.pathTraversalIndex())
+				.filter(candidate -> candidate.pathTraversalIndex() <= segment.lastTraversalIndex())
 				.filter(candidate -> candidate.distance() > face.distance() + 1.0E-6)
-				.filter(candidate -> candidate.distance() <= terminal.distance() + 1.0E-6)
+				.filter(candidate -> candidate.distance() <= segment.terminal().distance() + 1.0E-6)
 				.filter(candidate -> circularDifference(candidate.travelAngle(), face.travelAngle()) < 90)
-				.findFirst().orElse(null);
-		return nextFace == null ? ProtectionBoundary.terminal(terminal) : ProtectionBoundary.face(nextFace);
+				.min(java.util.Comparator.comparingDouble(FaceTraversal::distance)).orElse(null);
+		return nextFace == null ? ProtectionBoundary.terminal(segment.terminal()) : ProtectionBoundary.face(nextFace);
 	}
 
-	/** Resolves a persisted protection boundary against this immutable path. */
+	/** Resolves a persisted boundary only in the entry occurrence's directed segment. */
 	public ProtectionBoundary getProtectionBoundary(FaceTraversal face, List<FaceTraversal> faces, String boundaryId) {
 		if (boundaryId == null || boundaryId.isBlank()) return null;
+		final DirectionSegmentEnd segment = directionSegmentEnd(face.pathTraversalIndex());
 		if (boundaryId.startsWith(TerminalNode.PREFIX)) {
-			final TerminalNode terminal = getNextTerminalNode(face.distance());
-			return terminal.id().equals(boundaryId) ? ProtectionBoundary.terminal(terminal) : null;
+			return segment.terminal().id().equals(boundaryId) ? ProtectionBoundary.terminal(segment.terminal()) : null;
 		}
 		return faces.stream()
+				.filter(candidate -> candidate.pathTraversalIndex() >= face.pathTraversalIndex())
+				.filter(candidate -> candidate.pathTraversalIndex() <= segment.lastTraversalIndex())
 				.filter(candidate -> candidate.distance() > face.distance() + 1.0E-6)
-				// A physical face ID can occur again after one or more turnbacks. A
-				// persisted A->B relationship is only valid in this directed terminal
-				// segment, never in a later occurrence of immutablePath.
-				.filter(candidate -> candidate.distance() <= getNextTerminalNode(face.distance()).distance() + 1.0E-6)
+				.filter(candidate -> candidate.distance() <= segment.terminal().distance() + 1.0E-6)
 				.filter(candidate -> candidate.faceId().equals(boundaryId))
 				.filter(candidate -> circularDifference(candidate.travelAngle(), face.travelAngle()) < 90)
-				.findFirst().map(ProtectionBoundary::face).orElse(null);
+				.min(java.util.Comparator.comparingDouble(FaceTraversal::distance)).map(ProtectionBoundary::face).orElse(null);
 	}
 
-	/**
-	 * Finds the next operational terminal. A geometric change of heading is
-	 * common through junctions, so it is a terminal only on MTR's actual
-	 * turnback-capable rail; otherwise the immutable path remains continuous.
-	 */
-	public TerminalNode getNextTerminalNode(double currentDistance) {
-		if (traversals.isEmpty()) return new TerminalNode(TerminalNode.PREFIX + "empty", new BlockPos(0, 0, 0), 0, currentDistance, false);
-		int previous = -1;
-		for (int index = 0; index < traversals.size(); index++) {
-			if (traversals.get(index).endDistance() > currentDistance + 1.0E-6) {
-				previous = index;
-				break;
+	/** Physical direction boundaries depend on immutablePath, never on a dispatcher or vehicle phase. */
+	private DirectionSegmentEnd directionSegmentEnd(int entryTraversalIndex) {
+		for (final ReverseOccurrence reversal : reverseOccurrences) {
+			if (reversal.beforeTraversalIndex() >= entryTraversalIndex) {
+				final PathTraversal before = traversals.get(reversal.beforeTraversalIndex());
+				return new DirectionSegmentEnd(before.index(), terminalNode(before.endNode(), before.travelAngle(), before.endDistance(), true));
 			}
 		}
-		if (previous < 0) previous = traversals.size() - 1;
-		for (int index = previous + 1; index < traversals.size(); index++) {
-			final PathTraversal before = traversals.get(index - 1);
-			final PathTraversal after = traversals.get(index);
-			if (before.canTurnBack() && circularDifference(before.travelAngle(), after.travelAngle()) >= 90) {
-				return terminalNode(before.endNode(), before.travelAngle(), before.endDistance(), true);
-			}
+		if (traversals.isEmpty()) {
+			return new DirectionSegmentEnd(-1, new TerminalNode(TerminalNode.PREFIX + "empty", BlockPos.ZERO, 0, 0, false));
 		}
 		final PathTraversal last = traversals.get(traversals.size() - 1);
-		return terminalNode(last.endNode(), last.travelAngle(), last.endDistance(), false);
+		return new DirectionSegmentEnd(last.index(), terminalNode(last.endNode(), last.travelAngle(), last.endDistance(), false));
+	}
+
+	public TerminalNode getNextTerminalNode(double currentDistance) {
+		if (traversals.isEmpty()) return new TerminalNode(TerminalNode.PREFIX + "empty", BlockPos.ZERO, 0, currentDistance, false);
+		for (final PathTraversal traversal : traversals) {
+			if (traversal.endDistance() > currentDistance + 1.0E-6) return directionSegmentEnd(traversal.index()).terminal();
+		}
+		return directionSegmentEnd(traversals.size() - 1).terminal();
 	}
 
 	/**
-	 * The native MTR turnback rail follows the platform stopping point. It must
-	 * be authorized before the vehicle reaches that point, otherwise MTR cannot
-	 * enter its terminating state and perform the reverse operation. The search
-	 * is bounded by the next scheduled platform stop, so it never borrows the
-	 * ordinary running segment after a turnback.
+	 * Associate the next platform stop with the same proven reverse occurrence
+	 * used for Block boundaries. A native turnback rail may lie beyond the stop;
+	 * its endpoint is not replaced by stopDistance. Ordinary dwell is not reversal.
 	 */
 	public TurnbackWindow getNextTurnbackWindow(double currentDistance) {
 		int stopSectionIndex = -1;
 		for (int index = 0; index < sections.size(); index++) {
 			final PathSection section = sections.get(index);
-			// A stop at or within epsilon of the current head position is already
-			// complete for authorization preview purposes. Re-selecting it would pin
-			// the look-ahead to the current Block end and prevent extension.
+			// The retained TurnbackIntent handles dwell at an already reached stop.
 			if (section.endDistance() > currentDistance + 1.0E-6 && section.isPlatform() && section.dwellTime() > 0) {
 				stopSectionIndex = index;
 				break;
 			}
 		}
 		if (stopSectionIndex < 0) {
+			if (diagnosedStops.add(-1)) MtrbrDebugLog.event("MTRBR-TURNBACK-WINDOW", "pathFingerprint=" + fingerprint
+					+ " stopIndex=-1 requiresTurnback=false reason=NO_FUTURE_DWELL_PLATFORM");
 			return new TurnbackWindow(getTotalDistance(), getTotalDistance(), -1, false);
 		}
 		final PathSection stop = sections.get(stopSectionIndex);
-		// Rail.canTurnBack() only describes physical rail capability. It is not a
-		// service instruction: ordinary platform stops may expose that capability
-		// while this run must continue to the next scheduled stop. A terminal is
-		// identified by the planned reverse traversal below.
 		int limit = traversals.size();
 		for (int index = stopSectionIndex + 1; index < sections.size(); index++) {
 			final PathSection candidate = sections.get(index);
@@ -376,15 +388,30 @@ public final class PathSnapshot {
 				break;
 			}
 		}
-		for (int index = Math.max(stopSectionIndex + 1, 1); index < limit; index++) {
-			final PathTraversal before = traversals.get(index - 1);
-			final PathTraversal after = traversals.get(index);
-			if (circularDifference(before.travelAngle(), after.travelAngle()) >= 90) {
-				return new TurnbackWindow(stop.endDistance(), before.endDistance(), stop.stopIndex(), true);
-			}
+		for (final ReverseOccurrence reversal : reverseOccurrences) {
+			// Include a reversal directly out of the platform even when the return
+			// occurrence is itself marked as the next dwell platform by MTR.
+			if (reversal.beforeTraversalIndex() < stopSectionIndex || reversal.beforeTraversalIndex() >= limit) continue;
+			final PathTraversal before = traversals.get(reversal.beforeTraversalIndex());
+			final PathTraversal after = traversals.get(reversal.afterTraversalIndex());
+			if (diagnosedStops.add(stopSectionIndex)) MtrbrDebugLog.event("MTRBR-TURNBACK-OCCURRENCE", "pathFingerprint=" + fingerprint
+					+ " stopIndex=" + stop.stopIndex() + " stopDistance=" + stop.endDistance()
+					+ " stopTraversalIndex=" + stopSectionIndex
+					+ " reverseBeforeTraversal=" + before.index() + " reverseAfterTraversal=" + after.index()
+					+ " beforeAngle=" + before.travelAngle() + " afterAngle=" + after.travelAngle()
+					+ " endDistance=" + before.endDistance() + " terminal=" + directionSegmentEnd(stopSectionIndex).terminal().id()
+					+ " requiresTurnback=true reason=IMMUTABLE_PATH_OPPOSITE_RAIL");
+			return new TurnbackWindow(stop.endDistance(), before.endDistance(), stop.stopIndex(), true);
 		}
+		if (diagnosedStops.add(stopSectionIndex)) MtrbrDebugLog.event("MTRBR-TURNBACK-OCCURRENCE", "pathFingerprint=" + fingerprint
+				+ " stopIndex=" + stop.stopIndex() + " stopDistance=" + stop.endDistance() + " stopTraversalIndex=" + stopSectionIndex
+				+ " scanLimit=" + limit + " traversalCount=" + traversals.size()
+				+ " requiresTurnback=false reason=NO_REVERSE_OCCURRENCE");
 		return new TurnbackWindow(stop.endDistance(), stop.endDistance(), stop.stopIndex(), false);
 	}
+
+	private record ReverseOccurrence(int beforeTraversalIndex, int afterTraversalIndex) { }
+	private record DirectionSegmentEnd(int lastTraversalIndex, TerminalNode terminal) { }
 
 	/** Returns false when a saved PathData rail is gone or has changed in the current world. */
 	public boolean matchesTopology(Simulator simulator) {

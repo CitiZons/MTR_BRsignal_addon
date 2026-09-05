@@ -133,6 +133,12 @@ public final class CapacityLeaseManager {
 		return true;
 	}
 
+	static List<String> unownedZones(Simulator simulator, List<String> ids, String owner) {
+		final State state = STATES.get(simulator);
+		return ids.stream().filter(id -> state == null || state.zoneLeases.get(id) == null
+				|| !owner.equals(state.zoneLeases.get(id).requestId)).toList();
+	}
+
 	public static boolean reserveZones(Simulator simulator, List<String> zoneIds, String requestId, long vehicleId) {
 		if (!areZonesAvailable(simulator, zoneIds, requestId)) return false;
 		final State state = state(simulator);
@@ -184,6 +190,15 @@ public final class CapacityLeaseManager {
 		final State state = STATES.get(simulator);
 		if (state == null) return;
 		state.zoneLeases.entrySet().removeIf(entry -> requestId.equals(entry.getValue().requestId) && !entry.getValue().entered);
+	}
+
+	/** Preserve entered/locked capacity while the same train receives a new request. */
+	static void transferRequestOwner(Simulator simulator, String previous, String next, long vehicleId) {
+		final State state = STATES.get(simulator);
+		if (state == null) return;
+		for (final ZoneLease lease : state.zoneLeases.values()) {
+			if (lease.vehicleId == vehicleId && previous.equals(lease.requestId)) lease.requestId = next;
+		}
 	}
 
 	public static boolean canCreateSidingVehicle(Siding siding) {
@@ -262,7 +277,7 @@ public final class CapacityLeaseManager {
 	}
 
 	private static final class ZoneLease {
-		private final String requestId;
+		private String requestId;
 		private final long vehicleId;
 		private final List<String> sectionIds;
 		private boolean reserved;

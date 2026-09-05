@@ -6,6 +6,11 @@ Version: `0.1.1`
 
 ## 近期进展
 
+- 修复原生折返识别与占用资源交接，路径刷新时保留未清空的闭塞锁闭。
+- 修复 LINE 路径方向与节点导出，保存前校验连续性；保留节点编辑、持久化和刷新恢复。
+- 新增 `1-2-4`、`1-4-5` 三进路色灯指示器。
+- `build` 自动执行 36 项 LINE、折返和调度生命周期回归测试。
+
 - Web 调度界面采用 Terminus 风格，显示实时 Section 占用和锁闭、站台、信号机、车辆短码、请求抽屉、在线玩家权限状态，以及浏览器内的调度控制。
 - Web 会话使用 `/mtrbr web_token generate`、`list` 与 `revocation` 管理；每个 token 仅绑定一台设备，泄漏或 OP 离线后永久失效，每个 OP 最多持有五个 token。专用服务器使用 `web_public_host` 与 MTR Web server 实际端口生成访问地址。
 - 信号机名称可在 Web UI 中查看和修改；信号机图标可在浏览器中调整显示位置，不会改变游戏内的绑定关系。
@@ -68,6 +73,7 @@ Minecraft Transit Railway（MTR）的英式闭塞信号扩展，Forge 1.20.1。
 /mtrbr revoke_pending <vehicle_code>               # 撤销指定车辆尚未生效的待处理授权
 /mtrbr manual_override <vehicle_code> <true|false> # 开启或关闭指定车辆的人工调度覆盖
 /mtrbr priority <vehicle_code> <value>             # 设置指定车辆的调度优先级数值
+/mtrbr quarantine confirm_removal <vehicle_code>   # 仅在车辆已 quarantine 且确认不会由 MTR 正常移除时，显式清理其锁定资源
 /mtrbr audit                                       # 输出当前进路、闭塞与资源状态的诊断审计
 /mtrbr protection regenerate                       # 按当前信号拓扑重建 SignalFace 到 Block 的保护定义
 /mtrbr web_token generate                          # 生成一个带调度 token 的完整 Web URL（每个 OP 最多 5 个）
@@ -87,7 +93,9 @@ http://localhost:<port>/mtrbr/?token=<token>
 
 每个 token 绑定一个浏览器设备。同一 token 被不同设备访问时，token 永久标记为 `LEAKED`；对应 OP 离线时，所有该 OP 的有效 token 永久标记为 `PLAYER_OFFLINE`。失效后的 Web UI 始终只读，服务器也会拒绝所有调度和信号命名 API。失效 token 仍占用 OP 的五个 token 名额，直到执行 `/mtrbr web_token revocation <number>`。
 
-首次部署或调整信号拓扑后执行 `/mtrbr protection regenerate`，重新生成规范的 `SignalFace -> A->B -> railIds` Block definition；无法确定当前 occurrence 的稳定 definition 时授权明确失败为 `BLOCK_DEFINITION_MISSING`，不会借用旧 terminal、其他 occurrence 或其他 path fingerprint。运行诊断可在 `logs/mtrbr-debug.log` 中查看 `MTRBR-ROUTE-PROJECTION`、`MTRBR-AUTH-*`、`MTRBR-RESOURCE-RELEASE`、`MTR_TURNBACK_*` 和 `MTRBR-DEPARTURE-GUARD`。
+WebUI 的车辆短码与请求抽屉条目可打开删除确认框。必须依次点击 `QUARANTINE`、`DELETE`、`CONFIRM` 才会调用与 `/mtrbr quarantine confirm_removal` 相同的受限清理。最终确认会从 MTR 的 Siding vehicle 集合及 addon 运行态移除车辆；正常运行车辆和未进入 quarantine 的车辆会被服务端拒绝，不会改写 MTR 的正常移除流程。Approve、Revoke、Override 的失败会在 WebUI 状态栏显示服务端拒绝原因。
+
+首次部署或调整信号拓扑后执行 `/mtrbr protection regenerate`，重新生成规范的 `SignalFace -> A->B -> railIds` Block definition；无法确定当前 occurrence 的稳定 definition 时授权明确失败为 `BLOCK_DEFINITION_MISSING`，不会借用旧 terminal、其他 occurrence 或其他 path fingerprint。运行诊断可在 `logs/<启动时间>.log` 中查看 `MTRBR-ROUTE-PROJECTION`、`MTRBR-AUTH-*`、`MTRBR-RESOURCE-RELEASE`、`MTR_TURNBACK_*` 和 `MTRBR-DEPARTURE-GUARD`。
 
 ## 构建与部署
 
@@ -105,14 +113,18 @@ gradlew.bat build
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_regressions.ps1
 ```
 
-Java 编译检查：
+Java 编译检查（需安装 JDK 17，Gradle 使用 Java 17 toolchain）：
 
 ```powershell
-$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-8.0.482.8-hotspot"
 .\gradlew.bat compileJava --no-daemon
 ```
 
-当前源码已通过 `compileJava`；构建输出中的弃用 API 提示不属于信号、闭塞或资源生命周期逻辑。
+`build` 包含 `turnbackRegression` 和 `depotPathRegression`；也可单独运行：
+
+```powershell
+.\gradlew.bat turnbackRegression depotPathRegression
+python tools/check_triple_indicators.py
+```
 
 ## 许可证与第三方声明
 

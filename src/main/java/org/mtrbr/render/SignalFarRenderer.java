@@ -14,6 +14,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import org.mtr.mod.block.BlockSignalBase;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
+import org.mtrbr.block.LedIndicatorBlockEntity;
 
 /**
  * 远距离信号灯渲染：MTR 信号灯是方块实体，受普通方块实体渲染距离/视距限制，
@@ -57,7 +58,8 @@ public final class SignalFarRenderer {
 					// Route indicators are dynamic light-only block entities, so they need
 					// the same far-render handoff as the MTR signal they are bound to.
 					if (!(blockEntity instanceof BlockSignalBase.BlockEntityBase)
-							&& !(blockEntity instanceof ColorLightIndicatorBlockEntity)) {
+							&& !(blockEntity instanceof ColorLightIndicatorBlockEntity)
+							&& !(blockEntity instanceof LedIndicatorBlockEntity)) {
 						continue;
 					}
 					if (blockEntity.getBlockPos().distSqr(center) <= NEAR_RADIUS_SQUARED) {

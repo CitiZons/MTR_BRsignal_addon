@@ -34,6 +34,7 @@ import org.mtrbr.block.LedIndicatorBlockEntity;
 import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.ColorLightIndicatorBlockEntity;
 import org.mtrbr.block.ColorLightRoute;
+import org.mtrbr.block.TripleIndicatorShapes;
 import org.mtrbr.block.DispatcherConsoleBlock;
 import org.mtrbr.block.SignalBracketBlock;
 import org.mtrbr.data.RouteBindingsSavedData;
@@ -79,6 +80,12 @@ public final class MTRBR {
 	public static final RegistryObject<ColorLightIndicatorBlock> COLOR_LIGHT_INDICATOR_4_5_BLOCK = BLOCKS.register("indicator_4-5", () -> new ColorLightIndicatorBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion()));
 	public static final RegistryObject<BlockItem> COLOR_LIGHT_INDICATOR_4_5_ITEM = ITEMS.register("indicator_4-5", () -> new BlockItem(COLOR_LIGHT_INDICATOR_4_5_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<BlockEntityType<ColorLightIndicatorBlockEntity>> COLOR_LIGHT_INDICATOR_4_5_BLOCK_ENTITY = BLOCK_ENTITIES.register("indicator_4-5", () -> BlockEntityType.Builder.of(ColorLightIndicatorBlockEntity::new, COLOR_LIGHT_INDICATOR_4_5_BLOCK.get()).build(null));
+	public static final RegistryObject<ColorLightIndicatorBlock> COLOR_LIGHT_INDICATOR_1_2_4_BLOCK = BLOCKS.register("indicator_1-2-4", () -> new ColorLightIndicatorBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), TripleIndicatorShapes.ROUTES_1_2_4));
+	public static final RegistryObject<BlockItem> COLOR_LIGHT_INDICATOR_1_2_4_ITEM = ITEMS.register("indicator_1-2-4", () -> new BlockItem(COLOR_LIGHT_INDICATOR_1_2_4_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<BlockEntityType<ColorLightIndicatorBlockEntity>> COLOR_LIGHT_INDICATOR_1_2_4_BLOCK_ENTITY = BLOCK_ENTITIES.register("indicator_1-2-4", () -> BlockEntityType.Builder.of(ColorLightIndicatorBlockEntity::new, COLOR_LIGHT_INDICATOR_1_2_4_BLOCK.get()).build(null));
+	public static final RegistryObject<ColorLightIndicatorBlock> COLOR_LIGHT_INDICATOR_1_4_5_BLOCK = BLOCKS.register("indicator_1-4-5", () -> new ColorLightIndicatorBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), TripleIndicatorShapes.ROUTES_1_4_5));
+	public static final RegistryObject<BlockItem> COLOR_LIGHT_INDICATOR_1_4_5_ITEM = ITEMS.register("indicator_1-4-5", () -> new BlockItem(COLOR_LIGHT_INDICATOR_1_4_5_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<BlockEntityType<ColorLightIndicatorBlockEntity>> COLOR_LIGHT_INDICATOR_1_4_5_BLOCK_ENTITY = BLOCK_ENTITIES.register("indicator_1-4-5", () -> BlockEntityType.Builder.of(ColorLightIndicatorBlockEntity::new, COLOR_LIGHT_INDICATOR_1_4_5_BLOCK.get()).build(null));
 	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_BLOCK = BLOCKS.register("signal_bracket", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion()));
 	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_ITEM = ITEMS.register("signal_bracket", () -> new BlockItem(SIGNAL_BRACKET_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<DispatcherConsoleBlock> DISPATCHER_CONSOLE_BLOCK = BLOCKS.register("dispatcher_console", () -> new DispatcherConsoleBlock(BlockBehaviour.Properties.of().strength(2.0F)));
@@ -99,6 +106,8 @@ public final class MTRBR {
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_4_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_4_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_4_5_ITEM.get()));
+				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_2_4_ITEM.get()));
+				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_4_5_ITEM.get()));
 				output.accept(new ItemStack(SIGNAL_BRACKET_ITEM.get()));
 			})
 			.build());

@@ -94,7 +94,8 @@ public final class Authorization {
 			PathSnapshot.FaceTraversalKey entryFaceTraversalKey, PathSnapshot.FaceTraversalKey boundaryFaceTraversalKey,
 			String pathFingerprint, List<String> savedBlockRailIds, List<String> junctionMovementIds) {
 		public BlockAuthorization {
-			sectionIds = List.copyOf(sectionIds);
+			// Movement traversals/endDistance may be a prefix; protection covers the fixed Block.
+			sectionIds = List.copyOf(savedBlockRailIds);
 			traversals = List.copyOf(traversals);
 			faceTraversalKeys = List.copyOf(faceTraversalKeys);
 			savedBlockRailIds = List.copyOf(savedBlockRailIds);

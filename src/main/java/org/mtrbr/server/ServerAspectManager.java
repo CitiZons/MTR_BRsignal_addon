@@ -75,6 +75,7 @@ public final class ServerAspectManager {
 		final int repairedOccurrences = signalBlocks.addGeneratedOccurrenceBlocks(RouteRequestManager.getGeneratedOccurrenceProtectionBlocks(simulator, topology));
 		if (repairedBlocks > 0 || repairedOccurrences > 0) {
 			signalBlocks = SignalBlockSavedData.get(level);
+			RouteRequestManager.notifyProtectionMappingsChanged(dimension);
 			MtrbrDebugLog.event("MTRBR-BLOCK-RECOVERY", "dimension=" + dimension + " addedMissingMappings=" + repairedBlocks
 					+ " addedOccurrenceMappings=" + repairedOccurrences);
 		}

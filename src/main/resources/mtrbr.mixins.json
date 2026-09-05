@@ -12,6 +12,7 @@
     "VehicleAccess",
     "VehicleNativeAccess",
     "VehicleExtraDataAccess",
+	"DepotManualPathMixin",
     "SidingAccess",
 	"SidingLifecycleMixin",
     "ServerSignalAspectMixin"

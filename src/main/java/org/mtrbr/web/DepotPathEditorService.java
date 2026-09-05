@@ -2,6 +2,7 @@ package org.mtrbr.web;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.mtr.core.data.Depot;
 import org.mtr.core.data.PathData;
 import org.mtr.core.data.Position;
@@ -15,8 +16,10 @@ import org.mtr.libraries.com.google.gson.JsonObject;
 import org.mtr.libraries.it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.mtrbr.server.SectionStateManager;
 import org.mtrbr.server.MtrbrDebugLog;
+import org.mtrbr.data.ManualDepotPathSavedData;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,12 +27,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /** Rebuilds a Depot path from an ordered draft of real MTR rail-graph nodes. */
 public final class DepotPathEditorService {
 	private static final int MAX_VISITED_NODES = 16_384;
+	private static final Set<Simulator> RESTORED_SIMULATORS = Collections.newSetFromMap(new WeakHashMap<>());
 
 	private DepotPathEditorService() {
 	}
@@ -40,7 +45,9 @@ public final class DepotPathEditorService {
 		final String actor = WebSessionManager.operator(server, token);
 		final Simulator simulator = simulator(server, request);
 		if (simulator == null) return loggedPathResult("WEB-PATH-SAVE", actor, request, failure("DIMENSION_NOT_FOUND"));
-		return loggedPathResult("WEB-PATH-SAVE", actor, request, onSimulationThread(simulator, () -> saveNodes(simulator, request)));
+		final ServerLevel level = level(server, request);
+		if (level == null) return loggedPathResult("WEB-PATH-SAVE", actor, request, failure("DIMENSION_NOT_FOUND"));
+		return loggedPathResult("WEB-PATH-SAVE", actor, request, onSimulationThread(simulator, () -> saveNodes(simulator, level, request)));
 	}
 
 	public static JsonObject previewNodes(MinecraftServer server, String token, String deviceId, JsonObject request) {
@@ -52,33 +59,19 @@ public final class DepotPathEditorService {
 		return loggedPathResult("WEB-PATH-PREVIEW", actor, request, onSimulationThread(simulator, () -> previewNodes(simulator, request)));
 	}
 
-	private static JsonObject saveNodes(Simulator simulator, JsonObject request) {
+	private static JsonObject saveNodes(Simulator simulator, ServerLevel level, JsonObject request) {
 		final PreparedEdit prepared = prepare(simulator, request);
 		if (prepared.failure() != null) return prepared.failure();
 		final Depot depot = prepared.depot();
 		final SolveResult solved = solve(prepared.graph(), prepared.nodes());
 		if (solved.failure() != null) return solved.failure();
+		final JsonObject directedFailure = directedContinuityFailure(solved.edges());
+		if (directedFailure != null) return directedFailure;
 
-		final ObjectArrayList<PathData> originalPath = new ObjectArrayList<>();
-		for (final PathData segment : depot.getPath()) originalPath.add(new PathData(segment, segment.getStartDistance(), segment.getEndDistance()));
-		final ObjectArrayList<PathData> rebuilt = new ObjectArrayList<>();
-		for (final DirectedRail edge : solved.edges()) rebuilt.add(pathData(edge, depot.getPath()));
-
-		if (!continuous(rebuilt)) return failure("PATH_DISCONNECTED");
-		SidingPathFinder.generatePathDataDistances(rebuilt, 0);
-		try {
-			depot.getPath().clear();
-			depot.getPath().addAll(rebuilt);
-			depot.writePathCache();
-			depot.generatePlatformDirectionsAndWriteDeparturesToSidings();
-			depot.updateGenerationStatus(simulator.getCurrentMillis(), Depot.GeneratedStatus.SUCCESSFUL, 0, 0);
-			simulator.save();
-		} catch (RuntimeException exception) {
-			depot.getPath().clear();
-			depot.getPath().addAll(originalPath);
-			depot.writePathCache();
-			return failure("PATH_SAVE_FAILED");
-		}
+		if (!applySolvedPath(simulator, depot, solved.edges())) return failure("PATH_SAVE_FAILED");
+		ManualDepotPathSavedData.get(level).setNodes(depot.getId(), prepared.nodes());
+		ManualDepotPathSavedData.get(level).setSections(depot.getId(), solved.edges().stream().map(edge -> edge.rail().getHexId()).toList());
+		simulator.save();
 
 		final JsonObject result = success();
 		result.addProperty("fingerprint", fingerprint(depot));
@@ -87,11 +80,95 @@ public final class DepotPathEditorService {
 		return result;
 	}
 
+	/**
+	 * Invoked after MTR has reconstructed the platform sequence, but before it
+	 * starts rebuilding siding-to-main-route paths. This keeps MTR's platform
+	 * metadata while making its generated vehicles use the editor route.
+	 */
+	public static boolean restorePersistedPath(Depot depot, String source) {
+		final Simulator simulator = simulator(depot);
+		if (simulator == null) return false;
+		final ServerLevel level = level(simulator);
+		if (level == null) return false;
+		return restorePersistedPath(simulator, level, depot, source);
+	}
+
+	/** Restores manual overlays once after a Simulator becomes available post-load. */
+	public static void restorePersistedPaths(Simulator simulator) {
+		final ServerLevel level = level(simulator);
+		if (level == null) return;
+		synchronized (RESTORED_SIMULATORS) {
+			if (!RESTORED_SIMULATORS.add(simulator)) return;
+		}
+		for (final Depot depot : simulator.depots) restorePersistedPath(simulator, level, depot, "SIMULATOR_LOAD");
+	}
+
+	private static boolean restorePersistedPath(Simulator simulator, ServerLevel level, Depot depot, String source) {
+		return restorePersistedNodes(simulator, depot, ManualDepotPathSavedData.get(level).getNodes(depot.getId()), source);
+	}
+
+	private static boolean restorePersistedNodes(Simulator simulator, Depot depot, List<Position> nodes, String source) {
+		// No overlay means MTR retains sole ownership of the native generated path.
+		if (nodes.size() < 2) return false;
+		final SolveResult solved = solve(graph(simulator, depot.getPath()), nodes);
+		if (solved.failure() != null || directedContinuityFailure(solved.edges()) != null) {
+			MtrbrDebugLog.event("MANUAL-DEPOT-PATH", "source=" + source + " depot=" + Long.toUnsignedString(depot.getId(), 16) + " result=REJECTED");
+			return false;
+		}
+		final boolean applied = applySolvedPath(simulator, depot, solved.edges());
+		MtrbrDebugLog.event("MANUAL-DEPOT-PATH", "source=" + source + " depot=" + Long.toUnsignedString(depot.getId(), 16) + " result=" + (applied ? "APPLIED" : "FAILED") + " nodes=" + nodes.size());
+		return applied;
+	}
+
+	private static boolean applySolvedPath(Simulator simulator, Depot depot, List<DirectedRail> edges) {
+		final ObjectArrayList<PathData> originalPath = new ObjectArrayList<>();
+		for (final PathData segment : depot.getPath()) originalPath.add(new PathData(segment, segment.getStartDistance(), segment.getEndDistance()));
+		final ObjectArrayList<PathData> rebuilt;
+		try {
+			rebuilt = rebuildPath(depot.getPath(), edges);
+		} catch (RuntimeException exception) {
+			return false;
+		}
+		if (rebuilt == null) return false;
+		try {
+			depot.getPath().clear();
+			depot.getPath().addAll(rebuilt);
+			depot.writePathCache();
+			depot.updateGenerationStatus(simulator.getCurrentMillis(), Depot.GeneratedStatus.SUCCESSFUL, 0, 0);
+			return true;
+		} catch (RuntimeException exception) {
+			depot.getPath().clear();
+			depot.getPath().addAll(originalPath);
+			depot.writePathCache();
+			return false;
+		}
+	}
+
+	/** Validate the actual MTR representation before any path/cache/status is replaced. */
+	private static ObjectArrayList<PathData> rebuildPath(List<PathData> original, List<DirectedRail> edges) {
+		if (directedContinuityFailure(edges) != null) return null;
+		final ObjectArrayList<PathData> rebuilt = new ObjectArrayList<>();
+		for (final DirectedRail edge : edges) rebuilt.add(pathData(edge, original));
+		SidingPathFinder.generatePathDataDistances(rebuilt, 0);
+		return matchesDirectedPath(rebuilt, edges) ? rebuilt : null;
+	}
+
+	private static boolean matchesDirectedPath(List<PathData> path, List<DirectedRail> edges) {
+		if (path.size() != edges.size() || !continuous(path)) return false;
+		for (int index = 0; index < path.size(); index++) {
+			final PathData segment = path.get(index);
+			final DirectedRail edge = edges.get(index);
+			if (segment.getRail() != edge.rail() || !travelStart(segment).equals(edge.start()) || !travelEnd(segment).equals(edge.end())) return false;
+		}
+		return true;
+	}
+
 	private static JsonObject previewNodes(Simulator simulator, JsonObject request) {
 		final PreparedEdit prepared = prepare(simulator, request);
 		if (prepared.failure() != null) return prepared.failure();
 		final SolveResult solved = solve(prepared.graph(), prepared.nodes());
 		if (solved.failure() != null) return solved.failure();
+		if (rebuildPath(prepared.depot().getPath(), solved.edges()) == null) return failure("PATH_DISCONNECTED");
 		final JsonObject result = success();
 		result.addProperty("segmentCount", solved.edges().size());
 		return result;
@@ -111,7 +188,7 @@ public final class DepotPathEditorService {
 			graphNodes.add(edge.start());
 			graphNodes.add(edge.end());
 		}
-		if (!graphNodes.containsAll(nodes)) return PreparedEdit.failure(failure("NODE_NOT_FOUND"));
+		if (!graphNodes.containsAll(nodes)) return PreparedEdit.failure(failure("SECTION_NOT_FOUND"));
 		return new PreparedEdit(depot, nodes, graph, null);
 	}
 
@@ -119,21 +196,21 @@ public final class DepotPathEditorService {
 	private static SolveResult solve(List<DirectedRail> graph, List<Position> nodes) {
 		final Map<Position, List<DirectedRail>> outgoing = new HashMap<>();
 		for (final DirectedRail edge : graph) outgoing.computeIfAbsent(edge.start(), ignored -> new ArrayList<>()).add(edge);
-		final Map<Angle, PlannedRoute> states = new HashMap<>();
-		states.put(null, new PlannedRoute(null, 0, List.of()));
+		final Map<RouteState, PlannedRoute> states = new HashMap<>();
+		states.put(new RouteState(null, null), new PlannedRoute(null, null, 0, List.of()));
 		for (int index = 1; index < nodes.size(); index++) {
 			final Position start = nodes.get(index - 1);
 			final Position end = nodes.get(index);
 			if (start.equals(end)) return SolveResult.failure(pathFailure("REPEATED_NODE", index - 1, index, start, end));
-			final Map<Angle, PlannedRoute> nextStates = new HashMap<>();
+			final Map<RouteState, PlannedRoute> nextStates = new HashMap<>();
 			for (final PlannedRoute state : states.values()) {
 				for (final Leg leg : findLegs(outgoing, start, state.arrivalFacing(), end)) {
 					final PlannedRoute candidate = state.extend(leg);
-					final PlannedRoute previous = nextStates.get(candidate.arrivalFacing());
-					if (previous == null || candidate.cost() < previous.cost()) nextStates.put(candidate.arrivalFacing(), candidate);
+					final PlannedRoute previous = nextStates.get(new RouteState(candidate.arrivalSectionId(), candidate.arrivalFacing()));
+					if (previous == null || candidate.cost() < previous.cost()) nextStates.put(new RouteState(candidate.arrivalSectionId(), candidate.arrivalFacing()), candidate);
 				}
 			}
-			if (nextStates.isEmpty()) return SolveResult.failure(pathFailure("NO_PATH_BETWEEN_NODES", index - 1, index, start, end));
+			if (nextStates.isEmpty()) return SolveResult.failure(pathFailure("SECTION_CHAIN_DISCONNECTED", index - 1, index, start, end));
 			states.clear();
 			states.putAll(nextStates);
 		}
@@ -143,24 +220,27 @@ public final class DepotPathEditorService {
 	private static List<Leg> findLegs(Map<Position, List<DirectedRail>> outgoing, Position start, Angle startFacing, Position end) {
 		final PriorityQueue<SearchNode> queue = new PriorityQueue<>(Comparator.comparingDouble(SearchNode::cost));
 		final Map<StateKey, SearchNode> visited = new HashMap<>();
-		final Map<Angle, SearchNode> arrivals = new HashMap<>();
+		final Map<RouteState, SearchNode> arrivals = new HashMap<>();
 		final SearchNode root = new SearchNode(start, startFacing, 0, null, null);
 		queue.add(root);
-		visited.put(new StateKey(start, startFacing), root);
+		visited.put(new StateKey(start, "", startFacing), root);
 		while (!queue.isEmpty() && visited.size() <= MAX_VISITED_NODES) {
 			final SearchNode current = queue.remove();
-			if (visited.get(new StateKey(current.position(), current.facing())) != current) continue;
+			if (visited.get(new StateKey(current.position(), current.edge() == null ? "" : current.edge().sectionId(), current.facing())) != current) continue;
 			if (current.edge() != null && current.position().equals(end)) {
-				arrivals.putIfAbsent(current.facing(), current);
+				arrivals.putIfAbsent(new RouteState(current.edge().sectionId(), current.facing()), current);
 				continue;
 			}
 			for (final DirectedRail edge : outgoing.getOrDefault(current.position(), List.of())) {
 				if (!edge.existingPathEdge() && edge.rail().getSpeedLimitMetersPerMillisecond(edge.start()) <= 0) continue;
 				final Angle railFacing = edge.rail().getStartAngle(edge.start());
-				if (current.facing() != null && current.facing() != railFacing && !edge.rail().canTurnBack()) continue;
+				// A heading change across two different rails is a normal junction turn.
+				// canTurnBack only constrains reversing on the same rail.
+				if (current.facing() != null && current.facing() != railFacing
+						&& current.edge() != null && current.edge().rail() == edge.rail() && !edge.rail().canTurnBack()) continue;
 				final Angle nextFacing = edge.rail().getStartAngle(edge.end()).getOpposite();
 				final SearchNode next = new SearchNode(edge.end(), nextFacing, current.cost() + edge.rail().railMath.getLength(), current, edge);
-				final StateKey key = new StateKey(next.position(), next.facing());
+				final StateKey key = new StateKey(next.position(), next.edge().sectionId(), next.facing());
 				final SearchNode previous = visited.get(key);
 				if (previous == null || next.cost() < previous.cost()) {
 					visited.put(key, next);
@@ -169,7 +249,7 @@ public final class DepotPathEditorService {
 			}
 		}
 		final List<Leg> result = new ArrayList<>();
-		for (final SearchNode arrival : arrivals.values()) result.add(new Leg(arrival.facing(), arrival.cost(), reconstruct(arrival)));
+		for (final SearchNode arrival : arrivals.values()) result.add(new Leg(arrival.edge().sectionId(), arrival.facing(), arrival.cost(), reconstruct(arrival)));
 		return result;
 	}
 
@@ -180,37 +260,62 @@ public final class DepotPathEditorService {
 		return result;
 	}
 
-	private static List<DirectedRail> graph(Simulator simulator, List<PathData> existingPath) {
+	private static List<DirectedRail> graph(Simulator simulator, List<PathData> ignoredExistingPath) {
 		final List<DirectedRail> result = new ArrayList<>();
+		final Set<String> seen = new HashSet<>();
 		for (final Map.Entry<Position, ? extends Map<Position, Rail>> entry : simulator.positionsToRail.entrySet()) {
-			for (final Map.Entry<Position, Rail> connection : entry.getValue().entrySet()) result.add(new DirectedRail(entry.getKey(), connection.getKey(), connection.getValue(), false));
+			for (final Map.Entry<Position, Rail> connection : entry.getValue().entrySet()) {
+				final DirectedRail edge = new DirectedRail(entry.getKey(), connection.getKey(), connection.getValue(), false);
+				if (seen.add(edgeKey(edge))) result.add(edge);
+			}
 		}
-		// The live graph cache can omit an already-generated depot edge while it is
-		// being refreshed. Keep those MTR-accepted directed edges available to the
-		// editor solver so unchanged route portions stay traversable.
-		for (final PathData segment : existingPath) result.add(new DirectedRail(segment.getOrderedPosition1(), segment.getOrderedPosition2(), segment.getRail(), true));
 		return result;
+	}
+
+	private static String edgeKey(DirectedRail edge) {
+		return edge.rail().getHexId() + ":" + edge.start().getX() + "," + edge.start().getY() + "," + edge.start().getZ() + "->" + edge.end().getX() + "," + edge.end().getY() + "," + edge.end().getZ();
 	}
 
 	private static PathData pathData(DirectedRail edge, List<PathData> original) {
 		for (final PathData segment : original) {
-			if (segment.getRail() == edge.rail() && segment.getOrderedPosition1().equals(edge.start()) && segment.getOrderedPosition2().equals(edge.end())) return new PathData(segment, segment.getStartDistance(), segment.getEndDistance());
+			if (segment.getRail() == edge.rail() && travelStart(segment).equals(edge.start()) && travelEnd(segment).equals(edge.end())) return new PathData(segment, segment.getStartDistance(), segment.getEndDistance());
 		}
 		for (final PathData segment : original) {
 			if (segment.getRail() == edge.rail()) {
-				return new PathData(edge.rail(), segment.getSavedRailBaseId(), segment.getDwellTime(), segment.getStopIndex(), 0, 0, edge.start(), edge.rail().getStartAngle(edge.start()), edge.end(), edge.rail().getStartAngle(edge.end()).getOpposite());
+				return directedPathData(edge, segment.getSavedRailBaseId(), segment.getDwellTime(), segment.getStopIndex());
 			}
 		}
-		return new PathData(edge.rail(), 0, 0, -1, 0, 0, edge.start(), edge.rail().getStartAngle(edge.start()), edge.end(), edge.rail().getStartAngle(edge.end()).getOpposite());
+		return directedPathData(edge, 0, 0, -1);
+	}
+
+	private static PathData directedPathData(DirectedRail edge, long savedRailBaseId, long dwellTime, int stopIndex) {
+		// MTR derives reversePositions and endpoint angles from the directed endpoints.
+		// Sorting them here erases reverse travel and duplicates inbound platform legs.
+		return new PathData(edge.rail(), savedRailBaseId, dwellTime, stopIndex, edge.start(), edge.end());
+	}
+
+	private static Position travelStart(PathData segment) {
+		return segment.reversePositions ? segment.getOrderedPosition2() : segment.getOrderedPosition1();
+	}
+
+	private static Position travelEnd(PathData segment) {
+		return segment.reversePositions ? segment.getOrderedPosition1() : segment.getOrderedPosition2();
 	}
 
 	private static boolean continuous(List<PathData> path) {
 		for (int index = 1; index < path.size(); index++) {
-			final Position previous = path.get(index - 1).getOrderedPosition2();
-			final Position next = path.get(index).getOrderedPosition1();
-			if (Math.abs(previous.getX() - next.getX()) > 0.1 || Math.abs(previous.getY() - next.getY()) > 0.1 || Math.abs(previous.getZ() - next.getZ()) > 0.1) return false;
+			if (!travelEnd(path.get(index - 1)).equals(travelStart(path.get(index)))) return false;
 		}
 		return !path.isEmpty();
+	}
+
+	private static JsonObject directedContinuityFailure(List<DirectedRail> edges) {
+		for (int index = 1; index < edges.size(); index++) {
+			final Position previous = edges.get(index - 1).end();
+			final Position next = edges.get(index).start();
+			if (!previous.equals(next)) return pathFailure("PATH_DISCONNECTED", index - 1, index, previous, next);
+		}
+		return edges.isEmpty() ? failure("PATH_DISCONNECTED") : null;
 	}
 
 	/**
@@ -241,9 +346,9 @@ public final class DepotPathEditorService {
 		final List<EditorNode> result = new ArrayList<>();
 		final PathData first = path.get(0);
 		final var firstPosition = first.getPosition(0);
-		result.add(new EditorNode(first.getOrderedPosition1(), firstPosition.x, firstPosition.z));
+		result.add(new EditorNode(travelStart(first), firstPosition.x, firstPosition.z));
 		for (final PathData segment : path) {
-			final Position position = segment.getOrderedPosition2();
+			final Position position = travelEnd(segment);
 			if (!result.get(result.size() - 1).position().equals(position)) {
 				final var display = segment.getPosition(segment.getRailLength());
 				result.add(new EditorNode(position, display.x, display.z));
@@ -301,12 +406,35 @@ public final class DepotPathEditorService {
 	}
 
 	private static Simulator simulator(MinecraftServer server, JsonObject request) {
-		final String dimension = string(request, "dimension");
+		final ServerLevel level = level(server, request);
+		return level == null ? null : SectionStateManager.getSimulator(dimension(level));
+	}
+
+	private static ServerLevel level(MinecraftServer server, JsonObject request) {
+		final String requestedDimension = string(request, "dimension");
+		for (final ServerLevel level : server.getAllLevels()) if (dimension(level).equals(requestedDimension)) return level;
+		return null;
+	}
+
+	private static ServerLevel level(Simulator simulator) {
+		final MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+		if (server == null) return null;
+		for (final ServerLevel level : server.getAllLevels()) if (simulator.dimension.equals(dimension(level))) return level;
+		return null;
+	}
+
+	private static Simulator simulator(Depot depot) {
+		final MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+		if (server == null) return null;
 		for (final ServerLevel level : server.getAllLevels()) {
-			final String id = level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
-			if (id.equals(dimension)) return SectionStateManager.getSimulator(id);
+			final Simulator simulator = SectionStateManager.getSimulator(dimension(level));
+			if (simulator != null && simulator.depotIdMap.get(depot.getId()) == depot) return simulator;
 		}
 		return null;
+	}
+
+	private static String dimension(ServerLevel level) {
+		return level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
 	}
 
 	private static JsonObject onSimulationThread(Simulator simulator, java.util.function.Supplier<JsonObject> action) {
@@ -402,8 +530,11 @@ public final class DepotPathEditorService {
 	}
 
 	private record DirectedRail(Position start, Position end, Rail rail, boolean existingPathEdge) {
+		private String sectionId() { return rail.getHexId(); }
 	}
-	private record StateKey(Position position, Angle facing) {
+	private record RouteState(String sectionId, Angle facing) {
+	}
+	private record StateKey(Position position, String sectionId, Angle facing) {
 	}
 	private record SearchNode(Position position, Angle facing, double cost, SearchNode previous, DirectedRail edge) {
 	}
@@ -414,13 +545,13 @@ public final class DepotPathEditorService {
 			return new PreparedEdit(null, List.of(), List.of(), failure);
 		}
 	}
-	private record Leg(Angle arrivalFacing, double cost, List<DirectedRail> edges) {
+	private record Leg(String arrivalSectionId, Angle arrivalFacing, double cost, List<DirectedRail> edges) {
 	}
-	private record PlannedRoute(Angle arrivalFacing, double cost, List<DirectedRail> edges) {
+	private record PlannedRoute(String arrivalSectionId, Angle arrivalFacing, double cost, List<DirectedRail> edges) {
 		private PlannedRoute extend(Leg leg) {
 			final List<DirectedRail> combined = new ArrayList<>(edges);
 			combined.addAll(leg.edges());
-			return new PlannedRoute(leg.arrivalFacing(), cost + leg.cost(), List.copyOf(combined));
+			return new PlannedRoute(leg.arrivalSectionId(), leg.arrivalFacing(), cost + leg.cost(), List.copyOf(combined));
 		}
 	}
 	private record SolveResult(List<DirectedRail> edges, JsonObject failure) {

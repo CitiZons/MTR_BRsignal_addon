@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -214,6 +215,26 @@ public final class SectionStateManager {
 		if (state != null) {
 			state.releaseStaleReservations(activeRequestIds == null ? Set.of() : Set.copyOf(activeRequestIds), retainedSectionOwners, retainedBlockOwners);
 		}
+	}
+
+	/** Resources already held by this request must survive a failed extension. */
+	static List<String> unownedBlocks(Simulator simulator, List<String> ids, String owner) {
+		final SimulationState state = STATES.get(simulator);
+		return ids.stream().filter(id -> state == null || (!state.blockReservedBy.getOrDefault(id, Set.of()).contains(owner)
+				&& !state.blockLockedBy.getOrDefault(id, Set.of()).contains(owner))).toList();
+	}
+
+	/** Simulation-thread handover between generations of the same live train. */
+	static void transferRequestOwner(Simulator simulator, String previous, String next) {
+		final SimulationState state = STATES.get(simulator);
+		if (state == null || previous.equals(next)) return;
+		for (final SectionRecord section : state.sections.values()) {
+			if (section.reservedBy.remove(previous)) section.reservedBy.add(next);
+			if (section.lockedBy.remove(previous)) section.lockedBy.add(next);
+		}
+		for (final Set<String> owners : state.blockReservedBy.values()) if (owners.remove(previous)) owners.add(next);
+		for (final Set<String> owners : state.blockLockedBy.values()) if (owners.remove(previous)) owners.add(next);
+		state.stateRevision++;
 	}
 
 	public static final class SectionSnapshot {

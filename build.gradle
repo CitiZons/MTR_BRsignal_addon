@@ -74,3 +74,29 @@ processResources {
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = "UTF-8"
 }
+
+// Exercise pure path projection and interlocking fixtures without launching Minecraft.
+tasks.register("turnbackRegression", JavaExec) {
+	group = "verification"
+	description = "Checks fixed-Block boundaries at native/platform reverse occurrences"
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = "org.mtrbr.server.TurnbackProjectionRegression"
+	javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+	workingDir = layout.buildDirectory.dir("turnback-regression").get().asFile
+	doFirst { workingDir.mkdirs() }
+}
+tasks.named("check") { dependsOn "turnbackRegression" }
+
+// LINE editing must preserve native directed paths and persisted overlays.
+tasks.register("depotPathRegression", JavaExec) {
+    group = "verification"
+    description = "Checks LINE path direction, validation and persisted route restoration"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "org.mtrbr.web.DepotPathRegression"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+    workingDir = layout.buildDirectory.dir("depot-path-regression").get().asFile
+    doFirst { workingDir.mkdirs() }
+}
+tasks.named("check") { dependsOn "depotPathRegression" }

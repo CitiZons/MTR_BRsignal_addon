@@ -44,6 +44,7 @@
     <section class="diagram-wrap">
       <canvas id="diagram" aria-label="Rail topology map"></canvas>
 	  <form id="signal-name-form" class="signal-name-form" hidden><input id="signal-name" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,39}" autocomplete="off"><button type="submit">SAVE</button></form>
+      <div id="vehicle-delete-form" class="vehicle-delete-form" hidden><button id="vehicle-quarantine" type="button">QUARANTINE</button><button id="vehicle-delete" type="button" disabled>DELETE</button><button id="vehicle-delete-confirm" type="button" disabled>CONFIRM</button></div>
       <div class="map-title">TOPOLOGY // <span id="map-dimension">--</span></div>
       <div class="scale"><i></i><span id="scale-label">-- m</span></div>
       <aside id="line-edit-prompt" class="line-edit-prompt" hidden>

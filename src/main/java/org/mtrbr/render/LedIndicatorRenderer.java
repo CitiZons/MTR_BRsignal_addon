@@ -86,11 +86,11 @@ public final class LedIndicatorRenderer implements BlockEntityRenderer<LedIndica
 	}
 
 	private static void drawScreen(BlockPos pos, float angle, org.mtr.mapping.holder.Identifier texture) {
-		// 模型空间：屏幕面在 z=5/16；渲染层按 1 - 5/16 + 0.005 = 0.6925 绘制，经 -(angle+180) 旋转后落在北侧显示面
+		// 模型空间：屏幕面在 z=5/16，图层在 z=0.3 略向外偏移；绕方块中心随 blockstate 模型额外旋转 180°。
 		MainRenderer.scheduleRender(texture, false, QueuedRenderLayer.EXTERIOR, (graphicsHolder, cameraOffset) -> {
 			graphicsHolder.push();
 			graphicsHolder.translate(pos.getX() + 0.5 - cameraOffset.getXMapped(), pos.getY() + 0.5 - cameraOffset.getYMapped(), pos.getZ() + 0.5 - cameraOffset.getZMapped());
-			graphicsHolder.rotateYDegrees(-(angle + 180));
+			graphicsHolder.rotateYDegrees(-angle);
 			graphicsHolder.translate(-0.5, -0.5, -0.5);
 			IDrawing.drawTexture(graphicsHolder,
 					0.3125F, 0.4375F, 0.3F,

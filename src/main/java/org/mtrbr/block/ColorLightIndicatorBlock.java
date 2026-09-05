@@ -31,8 +31,15 @@ public final class ColorLightIndicatorBlock extends Block implements EntityBlock
 	public static final EnumProperty<ColorLightRoute> ROUTE = EnumProperty.create("route", ColorLightRoute.class);
 	private static final VoxelShape SHAPE = Block.box(4.5, 0, 5, 16, 11.5, 10);
 
+	private final VoxelShape[] directionalShapes;
+
 	public ColorLightIndicatorBlock(Properties properties) {
+		this(properties, null);
+	}
+
+	public ColorLightIndicatorBlock(Properties properties, VoxelShape[] directionalShapes) {
 		super(properties);
+		this.directionalShapes = directionalShapes;
 		registerDefaultState(getStateDefinition().any().setValue(FACING, Direction.NORTH).setValue(IS_22_5, false).setValue(IS_45, false).setValue(ROUTE, ColorLightRoute.OFF));
 	}
 
@@ -50,7 +57,16 @@ public final class ColorLightIndicatorBlock extends Block implements EntityBlock
 
 	@Override
 	public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-		return SHAPE;
+		if (directionalShapes == null) return SHAPE;
+		final int facingIndex = switch (state.getValue(FACING)) {
+			case NORTH -> 0;
+			case EAST -> 1;
+			case SOUTH -> 2;
+			case WEST -> 3;
+			default -> 0;
+		};
+		final int variantIndex = (state.getValue(IS_22_5) ? 1 : 0) + (state.getValue(IS_45) ? 2 : 0);
+		return directionalShapes[facingIndex * 4 + variantIndex];
 	}
 
 	@Override

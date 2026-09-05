@@ -46,13 +46,19 @@ public final class MtrbrWebServlet extends HttpServlet {
 			if ("name_signal".equals(action)) {
 				accepted = body.has("signalId") && WebTopologySnapshot.renameSignal(token(request), deviceId(request), body.get("signalId").getAsString(), body.has("name") ? body.get("name").getAsString() : "");
 			} else {
-				final long vehicleId = body.has("vehicleId") ? body.get("vehicleId").getAsLong() : Long.MIN_VALUE;
+				final long vehicleId;
+				try {
+					vehicleId = body.has("vehicleId") ? Long.parseLong(body.get("vehicleId").getAsString()) : Long.MIN_VALUE;
+				} catch (NumberFormatException exception) {
+					send(response, HttpServletResponse.SC_BAD_REQUEST, "application/json; charset=UTF-8", "{\"ok\":false,\"reason\":\"INVALID_VEHICLE_ID\"}");
+					return;
+				}
 				accepted = WebTopologySnapshot.dispatch(token(request), deviceId(request), action, vehicleId);
 			}
 			if (accepted) {
 				send(response, "application/json; charset=UTF-8", "{\"ok\":true}");
 			} else {
-				send(response, HttpServletResponse.SC_FORBIDDEN, "application/json; charset=UTF-8", "{\"ok\":false}");
+				send(response, HttpServletResponse.SC_FORBIDDEN, "application/json; charset=UTF-8", "{\"ok\":false,\"reason\":\"DISPATCH_REJECTED\"}");
 			}
 		} else {
 			response.sendError(HttpServletResponse.SC_NOT_FOUND);
