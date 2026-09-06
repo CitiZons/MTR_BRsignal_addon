@@ -104,7 +104,7 @@ public final class SignalDebugScreen extends Screen {
 		for (final RouteBinding binding : bindings) {
 			rowYs.add(rowY);
 			final EditBox editBox = new EditBox(font, sx(ROUTE_EDIT), rowY, 100, 16, Component.literal("进路"));
-			editBox.setMaxLength(16);
+			editBox.setMaxLength(RouteContent.MAX_LENGTH);
 			editBox.setValue(binding.content());
 			addRenderableWidget(editBox);
 			addRenderableWidget(Button.builder(Component.literal("保存"), button -> save(binding, editBox.getValue())).bounds(sx(ROUTE_SAVE), rowY, 40, 16).build());

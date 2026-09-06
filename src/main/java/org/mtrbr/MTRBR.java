@@ -117,6 +117,11 @@ public final class MTRBR {
     public static final RegistryObject<BlockItem> REPEATING_SIGNAL_ITEM = ITEMS.register("banner_repeating_signal", () -> new BlockItem(REPEATING_SIGNAL_BLOCK.get(), new Item.Properties()));
     public static final RegistryObject<BlockEntityType<RepeatingSignalBlockEntity>> REPEATING_SIGNAL_BLOCK_ENTITY = BLOCK_ENTITIES.register("banner_repeating_signal", () -> BlockEntityType.Builder.of(RepeatingSignalBlockEntity::new, REPEATING_SIGNAL_BLOCK.get()).build(null));
 
+	public static final RegistryObject<org.mtrbr.block.PositionLightSignalBlock> POSITION_LIGHT_BLOCK = BLOCKS.register("position_light_signal", () -> new org.mtrbr.block.PositionLightSignalBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), false));
+	public static final RegistryObject<org.mtrbr.block.PositionLightSignalBlock> YELLOW_POSITION_LIGHT_BLOCK = BLOCKS.register("yellow_position_light_signal", () -> new org.mtrbr.block.PositionLightSignalBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), true));
+	public static final RegistryObject<BlockItem> POSITION_LIGHT_ITEM = ITEMS.register("position_light_signal", () -> new BlockItem(POSITION_LIGHT_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<BlockItem> YELLOW_POSITION_LIGHT_ITEM = ITEMS.register("yellow_position_light_signal", () -> new BlockItem(YELLOW_POSITION_LIGHT_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<BlockEntityType<org.mtrbr.block.PositionLightSignalBlockEntity>> POSITION_LIGHT_BLOCK_ENTITY = BLOCK_ENTITIES.register("position_light_signal", () -> BlockEntityType.Builder.of(org.mtrbr.block.PositionLightSignalBlockEntity::new, POSITION_LIGHT_BLOCK.get(), YELLOW_POSITION_LIGHT_BLOCK.get()).build(null));
 	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_BLOCK = BLOCKS.register("signal_bracket", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion()));
 	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_ITEM = ITEMS.register("signal_bracket", () -> new BlockItem(SIGNAL_BRACKET_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<DispatcherConsoleBlock> DISPATCHER_CONSOLE_BLOCK = BLOCKS.register("dispatcher_console", () -> new DispatcherConsoleBlock(BlockBehaviour.Properties.of().strength(2.0F)));
@@ -133,6 +138,8 @@ public final class MTRBR {
 				output.accept(new ItemStack(DISPATCHER_CONSOLE_ITEM.get()));
 				output.accept(new ItemStack(LED_INDICATOR_ITEM.get()));
                 output.accept(new ItemStack(REPEATING_SIGNAL_ITEM.get()));
+				output.accept(new ItemStack(POSITION_LIGHT_ITEM.get()));
+				output.accept(new ItemStack(YELLOW_POSITION_LIGHT_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_2_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_4_ITEM.get()));

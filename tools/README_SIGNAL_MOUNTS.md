@@ -16,5 +16,6 @@ python tools/check_signal_mounts.py
 .\gradlew.bat build --offline --no-daemon
 ```
 
-下挂生成器同时更新方块状态、旋转模型与 `IndicatorMountGeometry.java`，保留全部手工 PNG。修改源模型外壳后须重新生成并构建；只替换复示贴图可直接资源重载。
+下挂生成器同时更新方块状态、旋转模型、信号机支架的三种斜向模型与 `IndicatorMountGeometry.java`，保留全部手工 PNG。支架斜向模型以其后方格中心 `(8, 0, -8)` 为旋转轴，而不是碰撞方块中心。修改源模型外壳后须重新生成并构建；只替换复示贴图可直接资源重载。
+支架的 0° 变体在原有方块状态旋转基础上额外转 180°；三个斜向变体沿用已有变换。
 `generate_triple_indicators.py`、`generate_six_route_indicators.py` 的命令行入口也会自动更新下挂资源。若运行较早的 `generate_indicator_rotations.py`，须继续运行现有色灯资源整理流程及下挂生成器；不要用其历史烘焙亮灯方块状态替代当前动态渲染状态。

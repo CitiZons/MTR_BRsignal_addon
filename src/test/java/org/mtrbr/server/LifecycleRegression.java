@@ -29,6 +29,8 @@ final class LifecycleRegression {
 		test("same-train handover rejects another train", LifecycleRegression::wrongTrain);
 		test("entered single-line zone preserves owner and release state", LifecycleRegression::zoneHandover);
 		test("rollback selection excludes pre-existing reserved and locked resources", LifecycleRegression::rollbackSelection);
+		test("shunt grants one Block, holds extensions, respects occupancy and keeps upstream red propagation", LifecycleRegression::shunt);
+		test("shunt names and binding save/load/unbind lifecycle", LifecycleRegression::shuntBindings);
 		System.out.println("Dispatch lifecycle regression: " + passed + " cases passed.");
 	}
 
@@ -177,6 +179,151 @@ final class LifecycleRegression {
 		check(SectionStateManager.unownedBlocks(sim, List.of("prior-block"), "rollback-owner").isEmpty(), "do not roll back old locked block");
 		SectionStateManager.releaseBlocks(sim, List.of("prior-block"), "rollback-owner");
 		JunctionStateManager.release(sim, List.of("prior-junction"), "rollback-owner");
+	}
+
+	private static void shunt() throws Exception {
+		final var rails = List.of("shunt0", "shunt1", "shunt2", "shunt3", "shunt4", "shunt5");
+		final var path = path("shunt", rails);
+		final Map<String, SignalFace> signals = new LinkedHashMap<>();
+		for (int i = 1; i < 6; i++) signals.put("shunt-face-" + i, new SignalFace("shunt-face-" + i,
+				new BlockPos(i * 10, -59, 0), new BlockPos(i * 10, -60, 0), false, 180));
+		final var topology = new ServerAspectManager.FaceSnapshot(signals, 981);
+		set(ServerAspectManager.class, "FACE_SNAPSHOTS", Map.of(sim.dimension, topology));
+		final var faces = path.getFaceTraversals(sim.dimension, topology).stream().filter(PathSnapshot::isDirectionMatched).toList();
+		check(faces.size() == 5, "fixture needs all five directed faces");
+		final var shunt = signals.get("shunt-face-3").signalPos();
+		final var destination = new BlockPos(50, -60, 0);
+		final String compound = "route=2 || path=1 || shunt=yard";
+		final var binding = new org.mtrbr.data.RouteBinding(destination, compound);
+		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(binding)), Set.of(shunt));
+		check(ShuntSignalPolicy.route(sim.dimension, path, faces.get(2)).equals(compound), "target beyond first block retains shunt and indicator content");
+		final var mixedFaces = new ArrayList<>(faces);
+		mixedFaces.add(new PathSnapshot.FaceTraversal("reverse-face", 3, 0,
+				new SignalFace("reverse-face", new BlockPos(35, -59, 0), new BlockPos(35, -60, 0), true, 0), 35, 180, 0));
+		check(ShuntSignalPolicy.exitAtHead(sim.dimension, path, mixedFaces, 35) == null, "opposite-facing signal is not a shunt exit");
+		check(ShuntSignalPolicy.exitAtHead(sim.dimension, path, mixedFaces, 40).key().sameIdentity(faces.get(3).key()), "exit uses next same-direction signal");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 25) == 40, "one block before entry");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 35) == 40, "no rolling extension while inside block");
+		check(Double.isInfinite(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 40)), "next signal controls continuation at boundary");
+		check(Double.isInfinite(ShuntSignalPolicy.boundary("another-dimension", path, faces, 15)), "dimension isolation");
+		final Map<String,String> faceBlocks = new HashMap<>(), occurrences = new HashMap<>();
+		final Map<String,List<String>> blockRails = new HashMap<>();
+		for (var face : faces) {
+			final var definition = RouteProjection.define(sim, path, faces, face);
+			faceBlocks.put(face.faceId(), definition.blockDefinitionId());
+			occurrences.put(SignalBlockSavedData.occurrenceKey(path.getFingerprint(), face.key()), definition.blockDefinitionId());
+			blockRails.put(definition.blockDefinitionId(), definition.sectionIds());
+		}
+		set(SignalBlockSavedData.class, "SNAPSHOTS", Map.of(sim.dimension, new SignalBlockSavedData.Snapshot(faceBlocks, occurrences, blockRails, Map.of())));
+		for (String rail : rails) section(rail);
+		final Object vehicle = vehicle(block("shunt", rails, 50), Set.of());
+		set(vehicle, "authorization", null);
+		set(vehicle, "head", 25.0);
+		set(vehicle, "endDistance", 50.0);
+		set(vehicle, "controlDistance", 30.0);
+		set(vehicle, "authorizationLookaheadEndDistance", 50.0);
+		Object clearance = call("clearancePrefix", sim, vehicle, 30.0, 50.0);
+		check(((List<?>)recordValue(clearance, "blockAuthorizations")).size() == 1, "production clearance grants exactly one Block");
+		check((double)recordValue(clearance, "endDistance") == 40, "production authorization stops at next face");
+		check((double)call("authorizationBoundary", sim, vehicle, 40.0) == 40, "extension start cannot move shunt limit");
+		call("refreshAuthorizationLookahead", sim, vehicle);
+		check((double)get(vehicle, "authorizationLookaheadEndDistance") == 40, "moving preview cannot open second block");
+		occupants("shunt4").add(998L);
+		clearance = call("clearancePrefix", sim, vehicle, 30.0, 50.0);
+		check(((List<?>)recordValue(clearance, "blockAuthorizations")).size() == 1, "second-block occupation does not deny first-block permission");
+		occupants("shunt3").add(999L);
+		clearance = call("clearancePrefix", sim, vehicle, 30.0, 50.0);
+		check(((List<?>)recordValue(clearance, "blockAuthorizations")).isEmpty(), "first-block occupation denies shunt permission");
+		occupants("shunt3").clear(); occupants("shunt4").clear();
+		final var auth = new RouteRequestManager.AuthorizedPath(1, "TEST", path, path.getTraversals(), List.of(), 0, 40,
+				new ArrayList<>(faceBlocks.values()), faces.stream().map(PathSnapshot.FaceTraversal::key).toList(), "test:auth", 1);
+		final var resolver = ServerAspectManager.class.getDeclaredMethod("resolveAspect", String.class, ServerAspectManager.FaceSnapshot.class,
+				RouteRequestManager.AuthorizedPath.class, PathSnapshot.FaceTraversal.class, Set.class);
+		resolver.setAccessible(true);
+		check(resolver.invoke(null, sim.dimension, topology, auth, faces.get(2), new HashSet<>()) == ServerAspect.RED, "shunt main stays red");
+		check(resolver.invoke(null, sim.dimension, topology, auth, faces.get(1), new HashSet<>()) == ServerAspect.YELLOW, "previous main becomes yellow");
+		check(resolver.invoke(null, sim.dimension, topology, auth, faces.get(0), new HashSet<>()) == ServerAspect.DOUBLE_YELLOW, "second previous main becomes double yellow");
+		set(vehicle, "head", 40.0);
+		occupants("shunt4").add(998L);
+		check(((List<?>)recordValue(call("clearancePrefix", sim, vehicle, 40.0, 50.0), "blockAuthorizations")).isEmpty(), "occupied exit Block keeps next main red");
+		occupants("shunt4").clear();
+		final var outgoing = (Authorization.BlockAuthorization)((List<?>)recordValue(call("clearancePrefix", sim, vehicle, 40.0, 50.0), "blockAuthorizations")).get(0);
+		hold(outgoing, request(vehicle));
+		final var outgoingAuth = new Authorization("shunt-exit-auth", request(vehicle).getRequestId(), List.of(outgoing), List.of(), 0, 12);
+		set(vehicle, "authorization", outgoingAuth);
+		set(vehicle, "authorizationEndDistance", 50.0);
+		final var state = construct(nested(RouteRequestManager.class, "State"));
+		final long vehicleId = ((Vehicle)get(vehicle, "vehicle")).getId();
+		map(state, "vehicles").put(vehicleId, vehicle);
+		final String exitKey = sim.dimension + "|" + faces.get(3).face().signalPos().asLong() + "|false";
+		final var displayConstructor = nested(ServerAspectManager.class, "SignalDisplay").getDeclaredConstructor(ServerAspect.class, String.class, String.class, long.class, boolean.class);
+		displayConstructor.setAccessible(true);
+		final String code = RouteRequestManager.getVehicleCode(vehicleId);
+		for (double head : new double[] {40, 40.008}) {
+			set(vehicle, "head", head);
+			final var activity = new RouteRequestManager.ActivityAuthorization(head, 50, List.of(outgoing.blockId()), outgoing.faceTraversalKeys(), true);
+			set(vehicle, "activityAuthorization", activity);
+			map(ServerAspectManager.class, "ASPECTS").remove(exitKey);
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == head, "exit waits for signal publication before moving");
+			call("publishAuthorizations", sim, state);
+			final var published = RouteRequestManager.getAuthorizedPaths(sim).get(0);
+			check(published.startDistance() == 40 && published.activeFaceTraversalKeys().contains(faces.get(3).key()), "exit face survives boundary rounding in published authorization");
+			final var covered = ServerAspectManager.class.getDeclaredMethod("coveredFaceTraversal", String.class, ServerAspectManager.FaceSnapshot.class, RouteRequestManager.AuthorizedPath.class, SignalFace.class);
+			covered.setAccessible(true);
+			check(covered.invoke(null, sim.dimension, topology, published, faces.get(3).face()) != null, "next main receives outgoing authorization");
+			final var aspect = (ServerAspect)resolver.invoke(null, sim.dimension, topology, published, faces.get(3), new HashSet<>());
+			check(aspect == ServerAspect.YELLOW, "next main changes red to yellow before departure");
+			map(ServerAspectManager.class, "ASPECTS").put(exitKey, displayConstructor.newInstance(aspect, "another-vehicle", "", 12L, false));
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == head, "another vehicle's green cannot release exit");
+			map(ServerAspectManager.class, "ASPECTS").put(exitKey, displayConstructor.newInstance(aspect, code, "", 11L, false));
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == head, "old clearance cannot release exit");
+			map(ServerAspectManager.class, "ASPECTS").put(exitKey, displayConstructor.newInstance(ServerAspect.RED, code, "", 12L, false));
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == head, "published red still stops vehicle");
+			map(ServerAspectManager.class, "ASPECTS").put(exitKey, displayConstructor.newInstance(aspect, code, "", 12L, false));
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == 50, "move only after current outgoing clearance is displayed");
+		}
+		map(ServerAspectManager.class, "ASPECTS").remove(exitKey);
+		set(vehicle, "authorization", null);
+		set(vehicle, "head", 25.0);
+		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(binding)), Set.of());
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 25) == 30, "missing shunt holds at main signal");
+		clearance = call("clearancePrefix", sim, vehicle, 30.0, 50.0);
+		check(((List<?>)recordValue(clearance, "blockAuthorizations")).isEmpty(), "no device means no shunt authorization");
+		set(vehicle, "head", 35.0);
+		final var staleActivity = new RouteRequestManager.ActivityAuthorization(30, 50, List.of(), List.of(), true);
+		check((double)call("authorizedControlBoundary", sim, vehicle, staleActivity, topology) == 35,
+				"removing device while inside block stops at head even with stale activity");
+		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(new org.mtrbr.data.RouteBinding(destination, "route=1"))), Set.of(shunt));
+		check(Double.isInfinite(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 15)), "normal route is not shunting even with bound device");
+		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(new org.mtrbr.data.RouteBinding(new BlockPos(10, -60, 0), "shunt=behind"))), Set.of(shunt));
+		check(ShuntSignalPolicy.route(sim.dimension, path, faces.get(2)).isEmpty(), "destination behind face must not select shunt");
+		ShuntSignalPolicy.reset();
+	}
+
+	private static void shuntBindings() throws Exception {
+		check("shunt=yard_1".equals(org.mtrbr.data.RouteContent.validate(" SHUNT=Yard_1 ")), "normalize shunt names");
+		for (String invalid : List.of("shunt=", "shunt=a b", "shunt=" + "a".repeat(33)))
+			check(org.mtrbr.data.RouteContent.validate(invalid) == null, "reject invalid shunt name");
+		check("route=6".equals(org.mtrbr.data.RouteContent.validate("route=6")), "existing route validation");
+		final var data = new org.mtrbr.data.RouteBindingsSavedData();
+		final var indicator = new BlockPos(1, 2, 3);
+		final var main = new BlockPos(4, 5, 6);
+		set(data, "dimension", sim.dimension);
+		data.setShuntIndicatorBinding(indicator, main);
+		check(ShuntSignalPolicy.hasSignal(sim.dimension, main), "publish binding");
+		final var tag = data.save(new net.minecraft.nbt.CompoundTag());
+		final var loader = data.getClass().getDeclaredMethod("load", net.minecraft.nbt.CompoundTag.class);
+		loader.setAccessible(true);
+		final var restored = (org.mtrbr.data.RouteBindingsSavedData) loader.invoke(null, tag);
+		set(restored, "dimension", sim.dimension); restored.setDirty();
+		check(main.equals(restored.getIndicatorBinding(indicator)) && ShuntSignalPolicy.hasSignal(sim.dimension, main), "reload restores typed binding");
+		restored.removeIndicatorBinding(indicator);
+		check(!ShuntSignalPolicy.hasSignal(sim.dimension, main), "unbind removes authority");
+		restored.setShuntIndicatorBinding(indicator, main); restored.clearIndicatorBinding(indicator);
+		check(!ShuntSignalPolicy.hasSignal(sim.dimension, main), "break removes authority");
+		restored.setShuntIndicatorBinding(indicator, main); restored.clearSignalBindings(main);
+		check(!ShuntSignalPolicy.hasSignal(sim.dimension, main), "main deletion removes authority");
+		ShuntSignalPolicy.reset();
 	}
 
 	private static Authorization.BlockAuthorization block(String name, List<String> rails, double end) throws Exception {

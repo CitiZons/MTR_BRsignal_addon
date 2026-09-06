@@ -82,6 +82,35 @@ class SignalMounts(unittest.TestCase):
             self.assertTrue((ASSETS/f'textures/block/repeating_signal/{state}.png').is_file())
         self.assertTrue((ROOT/'src/main/resources/data/mtr_brsignal_addon/loot_tables/blocks/banner_repeating_signal.json').is_file())
 
+    def test_signal_bracket_uses_mtr_signal_properties_and_all_sixteen_angles(self):
+        variants=read(ASSETS/'blockstates/signal_bracket.json')['variants']
+        self.assertEqual(len(variants),16)
+        for key,value in variants.items():
+            p=dict(part.split('=') for part in key.split(','))
+            model=read(MODELS/(value['model'].split('/')[-1]+'.json'))
+            model_angle=model['elements'][0].get('rotation',{}).get('angle',0)
+            if model_angle:
+                self.assertTrue(all(e['rotation']['origin']==[8,0,-8] for e in model['elements']),key)
+            actual=(model_angle-value.get('y',0))%360
+            base_angle={'north':180,'east':270,'south':0,'west':90}[p['facing']]
+            if p['is_22_5']=='false' and p['is_45']=='false':base_angle+=180
+            expected=-(base_angle+22.5*(p['is_22_5']=='true')
+                       +45*(p['is_45']=='true'))%360
+            self.assertAlmostEqual(actual,expected,msg=key)
+        java=(JAVA/'block/SignalBracketBlock.java').read_text(encoding='utf-8')
+        self.assertIn('DirectionHelper.FACING.data',java)
+        self.assertIn('BlockSignalBase.IS_22_5.data',java)
+        self.assertIn('BlockSignalBase.IS_45.data',java)
+        self.assertIn('Angle.getQuadrant(context.getRotation(), true)',java)
+
+    def test_signal_bracket_diagonal_models_pivot_in_the_rear_block(self):
+        base=read(MODELS/'signal_bracket.json')
+        self.assertEqual(min(e['from'][2] for e in base['elements']),-16)
+        self.assertEqual(max(e['to'][2] for e in base['elements']),0)
+        for suffix in ('22_5','45','67_5'):
+            model=read(MODELS/f'signal_bracket_{suffix}.json')
+            self.assertTrue(all(e['rotation']['origin']==[8,0,-8] for e in model['elements']),suffix)
+
     def test_bind_ui_far_render_and_mount_height_integrated(self):
         for f in ('network/BindIndicatorPacket.java','network/UnbindIndicatorPacket.java','network/PacketValidation.java','item/DebugToolItem.java','screen/IndicatorInfoScreen.java','screen/SignalDebugScreen.java','render/SignalFarRenderer.java'):
             self.assertIn('RepeatingSignalBlockEntity',(JAVA/f).read_text(encoding='utf-8'),f)

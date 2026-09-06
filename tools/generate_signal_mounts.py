@@ -38,6 +38,24 @@ def repeater():
     loot.mkdir(parents=True,exist_ok=True)
     write(loot/f'{prefix}.json',{'type':'minecraft:block','pools':[{'rolls':1,'entries':[{'type':'minecraft:item','name':f'mtr_brsignal_addon:{prefix}'}],'conditions':[{'condition':'minecraft:survives_explosion'}]}]})
 
+def bracket():
+    prefix='signal_bracket'
+    base=MODELS/f'{prefix}.json'
+    for angle,suffix in ((-22.5,'22_5'),(-45,'45'),(22.5,'67_5')):
+        # The authored bracket occupies the block behind its collision/anchor
+        # block (z=-16..0), so diagonal variants pivot around that block.
+        rotate_model(base,MODELS/f'{prefix}_{suffix}.json',angle,(8,0,-8))
+    variants={}
+    # Correct the cardinal variant by 180 degrees; diagonal rear-block pivots
+    # retain their existing transforms.
+    for facing,y in (('north',180),('east',270),('south',0),('west',90)):
+        for index,suffix in enumerate(('', '_22_5','_45','_67_5')):
+            entry={'model':f'mtr_brsignal_addon:block/{prefix}{suffix}'}
+            rotation=(y+(180 if index==0 else 90 if index==3 else 0))%360
+            if rotation:entry['y']=rotation
+            variants[f'facing={facing},is_22_5={str(bool(index&1)).lower()},is_45={str(bool(index&2)).lower()}']=entry
+    write(ASSETS/f'blockstates/{prefix}.json',{'variants':variants})
+
 def mount_model(model,offset):
     m=copy.deepcopy(model)
     # Discrete floor foot is not part of the suspended casing. Preserve all
@@ -63,6 +81,7 @@ def mount_model(model,offset):
 
 def generate():
     repeater()
+    bracket()
     files=sorted((ASSETS/'blockstates').glob('indicator_*.json'))+[ASSETS/'blockstates/led_indicator.json',ASSETS/'blockstates/banner_repeating_signal.json']
     java=['package org.mtrbr.block;','','import net.minecraft.world.level.block.Block;','import net.minecraft.world.phys.shapes.VoxelShape;','','/** Generated from standing/hanging model bounds by generate_signal_mounts.py. */','public final class IndicatorMountGeometry {',' private IndicatorMountGeometry() {}']
     offsets={};tables={}

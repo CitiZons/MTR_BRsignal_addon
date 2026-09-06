@@ -33,11 +33,42 @@ public final class RouteBindingsSavedData extends SavedData {
 	private final Map<BlockPos, NodeBinding> nodeBindings = new HashMap<>();
 	private final Map<BlockPos, BlockPos> indicatorBindings = new HashMap<>();
 	private final Set<BlockPos> repeatingIndicatorBindings = new HashSet<>();
+	private final Set<BlockPos> shuntIndicatorBindings = new HashSet<>();
+	private String dimension;
 	private final Map<BlockPos, String> signalNames = new HashMap<>();
 
 	public static RouteBindingsSavedData get(ServerLevel level) {
-		return level.getDataStorage().computeIfAbsent(RouteBindingsSavedData::load, RouteBindingsSavedData::new, NAME);
+		final RouteBindingsSavedData data = level.getDataStorage().computeIfAbsent(RouteBindingsSavedData::load, RouteBindingsSavedData::new, NAME);
+		if (data.dimension == null) {
+			data.dimension = level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
+			data.publishShuntConfiguration();
+		}
+		return data;
 	}
+
+	@Override public void setDirty() {
+		super.setDirty();
+		publishShuntConfiguration();
+	}
+
+	private void publishShuntConfiguration() {
+		if (dimension == null) return;
+		final Set<BlockPos> signals = new HashSet<>();
+		for (BlockPos pos : shuntIndicatorBindings) {
+			final BlockPos signal = indicatorBindings.get(pos);
+			if (signal != null) signals.add(signal);
+		}
+		org.mtrbr.server.ShuntSignalPolicy.publish(dimension, bindings, signals);
+	}
+
+	public void setShuntIndicatorBinding(BlockPos indicator, BlockPos signal) {
+		indicatorBindings.put(indicator.immutable(), signal.immutable());
+		repeatingIndicatorBindings.remove(indicator);
+		shuntIndicatorBindings.add(indicator.immutable());
+		setDirty();
+	}
+
+	public BlockPos getIndicatorBinding(BlockPos indicator) { return indicatorBindings.get(indicator); }
 
 	private static RouteBindingsSavedData load(CompoundTag tag) {
 		final RouteBindingsSavedData data = new RouteBindingsSavedData();
@@ -81,6 +112,7 @@ public final class RouteBindingsSavedData extends SavedData {
 			data.repeatingIndicatorBindings.add(new BlockPos(position.getInt("x"), position.getInt("y"), position.getInt("z")));
 		}
 		final CompoundTag signalNamesTag = tag.getCompound(KEY_SIGNAL_NAMES);
+		for (long pos : tag.getLongArray("shunt_indicators")) data.shuntIndicatorBindings.add(BlockPos.of(pos));
 		for (final String key : signalNamesTag.getAllKeys()) {
 			final String[] parts = key.split(",");
 			if (parts.length != 3) {
@@ -130,6 +162,7 @@ public final class RouteBindingsSavedData extends SavedData {
 			repeatingIndicatorsTag.add(positionTag);
 		}
 		tag.put(KEY_REPEATING_INDICATORS, repeatingIndicatorsTag);
+		tag.putLongArray("shunt_indicators", shuntIndicatorBindings.stream().mapToLong(BlockPos::asLong).toArray());
 		final CompoundTag signalNamesTag = new CompoundTag();
 		for (final Map.Entry<BlockPos, String> entry : signalNames.entrySet()) {
 			final BlockPos pos = entry.getKey();
@@ -210,6 +243,7 @@ public final class RouteBindingsSavedData extends SavedData {
 		final BlockPos immutableIndicator = indicatorPos.immutable();
 		indicatorBindings.put(immutableIndicator, signalPos.immutable());
 		repeatingIndicatorBindings.remove(immutableIndicator);
+		shuntIndicatorBindings.remove(immutableIndicator);
 		setDirty();
 	}
 
@@ -218,13 +252,15 @@ public final class RouteBindingsSavedData extends SavedData {
 		final BlockPos immutableIndicator = indicatorPos.immutable();
 		indicatorBindings.put(immutableIndicator, signalPos.immutable());
 		repeatingIndicatorBindings.add(immutableIndicator);
+		shuntIndicatorBindings.remove(immutableIndicator);
 		setDirty();
 	}
 
 	public void removeIndicatorBinding(BlockPos indicatorPos) {
 		final boolean removed = indicatorBindings.remove(indicatorPos) != null;
 		final boolean removedRepeater = repeatingIndicatorBindings.remove(indicatorPos);
-		if (removed || removedRepeater) setDirty();
+		final boolean removedShunt = shuntIndicatorBindings.remove(indicatorPos);
+		if (removed || removedRepeater || removedShunt) setDirty();
 	}
 
 	/** Idempotently removes the binding owned by a deleted indicator block. */
@@ -232,6 +268,7 @@ public final class RouteBindingsSavedData extends SavedData {
 		if (indicatorPos == null) return false;
 		boolean changed = indicatorBindings.remove(indicatorPos) != null;
 		changed |= repeatingIndicatorBindings.remove(indicatorPos);
+		changed |= shuntIndicatorBindings.remove(indicatorPos);
 		if (changed) setDirty();
 		return changed;
 	}
@@ -268,6 +305,7 @@ public final class RouteBindingsSavedData extends SavedData {
 		changed |= signalNames.remove(signalPos) != null;
 		changed |= indicatorBindings.entrySet().removeIf(entry -> signalPos.equals(entry.getValue()));
 		changed |= repeatingIndicatorBindings.removeIf(indicatorPos -> !indicatorBindings.containsKey(indicatorPos));
+		changed |= shuntIndicatorBindings.removeIf(indicatorPos -> !indicatorBindings.containsKey(indicatorPos));
 		if (changed) setDirty();
 		return changed;
 	}
@@ -275,11 +313,11 @@ public final class RouteBindingsSavedData extends SavedData {
 	/** Idempotently removes bindings that reference a deleted node. */
 	public boolean clearNodeBindings(BlockPos nodePos) {
 		if (nodePos == null) return false;
-		boolean changed = bindings.entrySet().removeIf(entry -> {
-			final List<RouteBinding> list = entry.getValue();
-			list.removeIf(binding -> nodePos.equals(binding.node()));
-			return list.isEmpty();
-		});
+		boolean changed = false;
+		for (final List<RouteBinding> list : bindings.values()) {
+			changed |= list.removeIf(binding -> nodePos.equals(binding.node()));
+		}
+		bindings.values().removeIf(List::isEmpty);
 		changed |= nodeBindings.entrySet().removeIf(entry -> nodePos.equals(entry.getValue().node()));
 		if (changed) setDirty();
 		return changed;

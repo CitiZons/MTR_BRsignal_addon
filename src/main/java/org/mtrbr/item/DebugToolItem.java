@@ -82,7 +82,9 @@ public final class DebugToolItem extends Item {
 					Network.CHANNEL.sendToServer(new BindIndicatorPacket(indicatorPos, signalPos));
 					// 客户端乐观更新，UI 立即显示已绑定
 					final BlockEntity blockEntity = context.getLevel().getBlockEntity(indicatorPos);
-					if (blockEntity instanceof RepeatingSignalBlockEntity repeating) {
+					if (blockEntity instanceof org.mtrbr.block.PositionLightSignalBlockEntity shunt) {
+						shunt.setBoundSignalPos(signalPos);
+					} else if (blockEntity instanceof RepeatingSignalBlockEntity repeating) {
                     repeating.setBoundSignalPos(signalPos);
                 } else if (blockEntity instanceof LedIndicatorBlockEntity led) {
 						led.setBoundSignalPos(signalPos);

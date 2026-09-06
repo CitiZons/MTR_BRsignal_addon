@@ -125,12 +125,22 @@ public final class ServerAspectManager {
 			String authorizationId = "";
 			String routeContent = "";
 			long revision = 0;
+			boolean shuntClear = false;
 			if (coveringAuthorization != null && coveredTraversal != null) {
 				aspect = resolveAspect(dimension, topology, coveringAuthorization, coveredTraversal, new HashSet<>());
 				// Keep the requestId internal for lock/occupancy checks; expose only
 				// the stable dispatcher vehicle code to the client panel.
 				authorizationId = coveringAuthorization.vehicleCode();
 				routeContent = authorizedRouteContent(savedBindings, coveringAuthorization, face, coveredTraversal.distance());
+				final String shuntRoute = ShuntSignalPolicy.route(dimension, coveringAuthorization.path(), coveredTraversal);
+				if (!shuntRoute.isEmpty()) {
+					aspect = ServerAspect.RED;
+					routeContent = shuntRoute;
+					final var boundary = coveringAuthorization.path().getNextProtectionBoundary(coveredTraversal,
+						coveringAuthorization.path().getFaceTraversals(dimension, topology).stream().filter(PathSnapshot::isDirectionMatched).toList());
+					shuntClear = ShuntSignalPolicy.hasSignal(dimension, face.signalPos())
+						&& coveringAuthorization.endDistance() >= boundary.distance() - 1.0E-6;
+				}
 				revision = coveringAuthorization.revision();
 					if (aspect != ServerAspect.RED) {
 						aspectDebug.append(" | ")
@@ -143,7 +153,7 @@ public final class ServerAspectManager {
 								.append(" auth=").append(authorizationId);
 					}
 			}
-			next.put(faceKey, new SignalDisplay(aspect, authorizationId, routeContent, revision));
+			next.put(faceKey, new SignalDisplay(aspect, authorizationId, routeContent, revision, shuntClear));
 			diagnostics.put(faceKey, signalDiagnostic(signalBlocks, face, coveredTraversal != null, false, aspect));
 		}
 		if (aspectDebug.length() > 0) {
@@ -216,6 +226,7 @@ public final class ServerAspectManager {
 
 	/** Clears topology/aspect caches when the server stops, so a new world session starts clean. */
 	public static void resetAll() {
+		ShuntSignalPolicy.reset();
 		synchronized (ASPECTS) {
 			ASPECTS.clear();
 			REGISTRY_REVISIONS.clear();
@@ -228,7 +239,26 @@ public final class ServerAspectManager {
 		return dimension + "|" + signalPos.asLong() + "|" + reversed;
 	}
 
-	private record SignalDisplay(ServerAspect aspect, String authorizationId, String routeContent, long revision) {
+	public static boolean isShuntClear(ServerLevel level, BlockPos signalPos) {
+		synchronized (ASPECTS) {
+			final SignalDisplay display = ASPECTS.get(key(simulatorDimension(level), signalPos, false));
+			return display != null && display.shuntClear() && ShuntSignalPolicy.hasSignal(simulatorDimension(level), signalPos);
+		}
+	}
+
+	/** The simulation waits for its own outgoing clearance to reach the signal display. */
+	static boolean isClearancePublished(Simulator simulator, SignalFace face, String vehicleCode, long revision) {
+		synchronized (ASPECTS) {
+			final SignalDisplay display = ASPECTS.get(key(simulator.dimension, face.signalPos(), face.backSide()));
+			return display != null && display.authorizationId().equals(vehicleCode) && display.revision() >= revision
+					&& (display.aspect() != ServerAspect.RED || display.shuntClear());
+		}
+	}
+
+	private record SignalDisplay(ServerAspect aspect, String authorizationId, String routeContent, long revision, boolean shuntClear) {
+		SignalDisplay(ServerAspect aspect, String authorizationId, String routeContent, long revision) {
+			this(aspect, authorizationId, routeContent, revision, false);
+		}
 	}
 
 	/** Immutable topology published from the server thread to simulation threads. */
@@ -306,6 +336,7 @@ public final class ServerAspectManager {
 
 	/** Resolves indications through the directed protection boundary of each active SignalFace. */
 	private static ServerAspect resolveAspect(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, PathSnapshot.FaceTraversal faceTraversal, Set<String> visited) {
+		if (!ShuntSignalPolicy.route(dimension, authorization.path(), faceTraversal).isEmpty()) return ServerAspect.RED;
 		final String visitKey = faceTraversal.key().toString();
 		if (!visited.add(visitKey)) {
 			return ServerAspect.RED;

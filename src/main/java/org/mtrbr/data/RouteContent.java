@@ -9,8 +9,11 @@ import java.util.regex.Pattern;
  * 允许格式：
  * route=X，X 为 1–6 之一；
  * path=Y，Y 为 0-20 的数字、1-4 个大写字母、指定双字母组合，或指定小写箭头组合。
+ * shunt=名称；不同类型可用 || 组合，每种类型最多一项。
  */
 public final class RouteContent {
+	public static final int MAX_LENGTH = 64;
+	private static final Pattern SHUNT_PATTERN = Pattern.compile("^shunt=[a-z0-9_-]{1,32}$", Pattern.CASE_INSENSITIVE);
 
 	private static final Pattern ROUTE_PATTERN = Pattern.compile("^route=([1-6])$", Pattern.CASE_INSENSITIVE);
 	private static final Pattern PATH_NUMBER_PATTERN = Pattern.compile("^path=(\\d{1,2})$", Pattern.CASE_INSENSITIVE);
@@ -21,8 +24,37 @@ public final class RouteContent {
 	private RouteContent() {
 	}
 
-	/** 校验并规范化输入；非法时返回 null。 */
+	public static boolean isShunt(String content) {
+		return !part(content, "shunt").isEmpty();
+	}
+
+	/** A node may carry one value of each type, joined with || in stable order. */
 	public static String validate(String rawInput) {
+		if (rawInput == null) return null;
+		final java.util.Map<String, String> parts = new java.util.HashMap<>();
+		for (final String rawPart : rawInput.split("\\|\\|", -1)) {
+			final String value = validateSingle(rawPart);
+			if (value == null) return null;
+			final String type = value.substring(0, value.indexOf('='));
+			if (parts.putIfAbsent(type, value) != null) return null;
+		}
+		final String result = java.util.List.of("route", "path", "shunt").stream()
+				.filter(parts::containsKey).map(parts::get).collect(java.util.stream.Collectors.joining(" || "));
+		return result.length() <= MAX_LENGTH ? result : null;
+	}
+
+	/** Returns the validated prefix=value component, or empty for missing/invalid content. */
+	public static String part(String content, String type) {
+		final String normalized = validate(content);
+		if (normalized == null) return "";
+		for (final String part : normalized.split(" \\|\\| ")) {
+			if (part.startsWith(type + "=")) return part;
+		}
+		return "";
+	}
+
+	/** 校验并规范化输入；非法时返回 null。 */
+	private static String validateSingle(String rawInput) {
 		if (rawInput == null) {
 			return null;
 		}
@@ -31,6 +63,7 @@ public final class RouteContent {
 			return null;
 		}
 		final String lower = input.toLowerCase(Locale.ROOT);
+		if (SHUNT_PATTERN.matcher(lower).matches()) return lower;
 		if (ROUTE_PATTERN.matcher(lower).matches()) {
 			return "route=" + lower.substring("route=".length());
 		}

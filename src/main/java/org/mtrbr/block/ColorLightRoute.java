@@ -25,7 +25,7 @@ public enum ColorLightRoute implements StringRepresentable {
 
 	public static ColorLightRoute fromRouteContent(String content) {
 		if (content == null) return OFF;
-		return switch (content.trim().toLowerCase(java.util.Locale.ROOT)) {
+		return switch (org.mtrbr.data.RouteContent.part(content, "route")) {
 			case "route=1" -> ROUTE_1;
 			case "route=2" -> ROUTE_2;
 			case "route=3" -> ROUTE_3;

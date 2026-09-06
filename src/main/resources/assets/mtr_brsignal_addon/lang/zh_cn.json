@@ -1,4 +1,8 @@
 {
+  "block.mtr_brsignal_addon.position_light_signal": "调车信号",
+  "block.mtr_brsignal_addon.yellow_position_light_signal": "调车信号（黄灯型）",
+  "screen.mtr_brsignal_addon.shunt.ground": "安装：落地",
+  "screen.mtr_brsignal_addon.shunt.pole": "安装：贴杆",
   "item.mtr_brsignal_addon.signal_debug_tool": "信号机调试工具",
   "item.mtr_brsignal_addon.route_tool": "进路工具",
   "item.mtr_brsignal_addon.dispatcher_tool": "调度工具",

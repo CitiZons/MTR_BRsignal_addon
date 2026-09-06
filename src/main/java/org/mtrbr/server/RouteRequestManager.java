@@ -683,7 +683,8 @@ public final class RouteRequestManager {
 		final double stopBoundary = turnback.stopDistance();
 		final double turnbackBoundary = fence.fenceDistance();
 		final double fiveSignalBoundary = ahead.size() > 4 ? ahead.get(4).traversal().distance() : path.getTotalDistance();
-		final double lookaheadEndDistance = Math.min(stopBoundary, Math.min(turnbackBoundary, fiveSignalBoundary));
+		final double shuntBoundary = ShuntSignalPolicy.boundary(simulator.dimension, path, faces, head);
+		final double lookaheadEndDistance = Math.min(shuntBoundary, Math.min(stopBoundary, Math.min(turnbackBoundary, fiveSignalBoundary)));
 		// A stopping point exactly at the first control face still needs a
 		// Request. Keep a zero-length authorization window so SectionCheck marks
 		// it denied and MovementGate holds the train at that face.
@@ -1078,7 +1079,8 @@ public final class RouteRequestManager {
 				.skip(4)
 				.mapToDouble(PathSnapshot.FaceTraversal::distance)
 				.findFirst().orElse(vehicle.path.getTotalDistance());
-		return Math.min(stopBoundary, Math.min(turnbackBoundary, fiveSignalBoundary));
+		final double shuntBoundary = ShuntSignalPolicy.boundary(simulator.dimension, vehicle.path, phaseFaces(simulator, vehicle, fence), vehicle.head);
+		return Math.min(shuntBoundary, Math.min(stopBoundary, Math.min(turnbackBoundary, fiveSignalBoundary)));
 	}
 
 	/** Acquires a checked prefix as one transaction; Authorization changes only after this succeeds. */
@@ -1400,7 +1402,8 @@ public final class RouteRequestManager {
 		final double stopBoundary = turnback.stopDistance();
 		final double turnbackBoundary = fence.fenceDistance();
 		final double fiveSignalBoundary = ahead.size() > 4 ? ahead.get(4).distance() : vehicle.path.getTotalDistance();
-		final double recomputedEnd = Math.min(stopBoundary, Math.min(turnbackBoundary, fiveSignalBoundary));
+		final double shuntBoundary = ShuntSignalPolicy.boundary(simulator.dimension, vehicle.path, phaseFaces(simulator, vehicle, fence), vehicle.head);
+		final double recomputedEnd = Math.min(shuntBoundary, Math.min(stopBoundary, Math.min(turnbackBoundary, fiveSignalBoundary)));
 		vehicle.authorizationLookaheadEndDistance = Math.min(vehicle.endDistance, Math.max(vehicle.head, recomputedEnd));
 		MtrbrDebugLog.event("MTRBR-AUTH-WINDOW", "vehicle=" + vehicle.vehicle.getId()
 				+ " headDistance=" + fmt(vehicle.head) + " stopBoundary=" + fmt(stopBoundary)
@@ -1419,8 +1422,12 @@ public final class RouteRequestManager {
 	private static void trimAuthorizationPastOperationalBoundary(Simulator simulator, VehicleState vehicle) {
 		if (vehicle.authorization == null || vehicle.request == null) return;
 		final PathSnapshot.TurnbackWindow turnback = vehicle.path.getNextTurnbackWindow(vehicle.head - 1.0E-6);
-		if (turnback.requiresTurnback() || vehicle.head < turnback.stopDistance() - 1.0E-6) return;
-		final double boundary = turnback.stopDistance();
+		final double operationalBoundary = !turnback.requiresTurnback() && vehicle.head >= turnback.stopDistance() - 1.0E-6
+				? turnback.stopDistance() : Double.POSITIVE_INFINITY;
+		final double shuntBoundary = ShuntSignalPolicy.boundary(simulator.dimension, vehicle.path,
+				phaseFaces(simulator, vehicle, turnbackPhaseFence(simulator, vehicle, vehicle.head, "SHUNT_BOUNDARY")), vehicle.head);
+		final double boundary = Math.min(operationalBoundary, shuntBoundary);
+		if (!Double.isFinite(boundary)) return;
 		final List<Authorization.BlockAuthorization> active = vehicle.authorization.getBlockAuthorizations();
 		final List<Authorization.BlockAuthorization> retained = active.stream()
 				.filter(block -> block.startDistance() < boundary - 1.0E-6)
@@ -2274,16 +2281,24 @@ public final class RouteRequestManager {
 	}
 
 	private static double authorizedControlBoundary(Simulator simulator, VehicleState vehicle, ActivityAuthorization activity, ServerAspectManager.FaceSnapshot topology) {
-		for (final PathSnapshot.FaceTraversal face : vehicle.path.getFaceTraversals(simulator.dimension, topology)) {
+		final List<PathSnapshot.FaceTraversal> faces = vehicle.path.getFaceTraversals(simulator.dimension, topology);
+		final double effectiveEnd = Math.min(activity.endDistance(), ShuntSignalPolicy.boundary(simulator.dimension, vehicle.path,
+				faces.stream().filter(PathSnapshot::isDirectionMatched).toList(), vehicle.head));
+		final var shuntExit = ShuntSignalPolicy.exitAtHead(simulator.dimension, vehicle.path, faces, vehicle.head);
+		if (shuntExit != null && !ServerAspectManager.isClearancePublished(simulator, shuntExit.face(),
+				vehicleCode(vehicle), vehicle.authorization.getRevision())) {
+			return Math.min(effectiveEnd, vehicle.head);
+		}
+		for (final PathSnapshot.FaceTraversal face : faces) {
 			if (!PathSnapshot.isDirectionMatched(face) || face.distance() <= vehicle.head + 1.0E-6) continue;
-			if (face.distance() >= activity.endDistance() - 1.0E-6) return activity.endDistance();
+			if (face.distance() >= effectiveEnd - 1.0E-6) return effectiveEnd;
 			final Authorization.BlockAuthorization block = vehicle.authorization.getBlockAuthorizations().stream()
 					.filter(candidate -> candidate.faceTraversalKeys().stream().anyMatch(key -> key.sameIdentity(face.key())))
 					.filter(candidate -> vehicle.tail < candidate.endDistance() - 1.0E-6)
 					.findFirst().orElse(null);
 			if (block == null || !isBlockLocked(simulator, block, vehicle.request.getRequestId())) return face.distance();
 		}
-		return activity.endDistance();
+		return effectiveEnd;
 	}
 
 	private static boolean isBlockLocked(Simulator simulator, Authorization.BlockAuthorization block, String requestId) {
@@ -2732,11 +2747,15 @@ public final class RouteRequestManager {
 				final ActivityAuthorization activity = vehicle.activityAuthorization;
 				if (activity.startDistance() < activity.endDistance()) {
 					final TurnbackPhaseFence fence = turnbackPhaseFence(simulator, vehicle, vehicle.head, "SIGNAL_PROJECTION");
-					final List<PathSnapshot.FaceTraversalKey> displayFaceKeys = phaseFaces(simulator, vehicle, fence).stream()
-							.filter(face -> face.distance() >= vehicle.head - 1.0E-6 && face.distance() < vehicle.authorizationEndDistance - 1.0E-6)
+					final List<PathSnapshot.FaceTraversal> faces = phaseFaces(simulator, vehicle, fence);
+					final var shuntExit = ShuntSignalPolicy.exitAtHead(simulator.dimension, vehicle.path, faces, vehicle.head);
+					final double displayStart = shuntExit == null ? activity.startDistance() : Math.min(activity.startDistance(), shuntExit.distance());
+					final double firstVisibleFace = shuntExit == null ? vehicle.head : Math.min(vehicle.head, shuntExit.distance());
+					final List<PathSnapshot.FaceTraversalKey> displayFaceKeys = faces.stream()
+							.filter(face -> face.distance() >= firstVisibleFace - 1.0E-6 && face.distance() < vehicle.authorizationEndDistance - 1.0E-6)
 							.filter(face -> vehicle.authorization.getFaceTraversalKeys().stream().anyMatch(key -> key.sameIdentity(face.key())))
 							.map(PathSnapshot.FaceTraversal::key).toList();
-					paths.add(new AuthorizedPath(vehicle.vehicle.getId(), vehicleCode(vehicle), vehicle.path, vehicle.authorization.getTraversals(), vehicle.authorization.getFaceTraversalKeys(), activity.startDistance(), activity.endDistance(), activity.blockIds(), displayFaceKeys, vehicle.authorization.getAuthorizationId(), vehicle.authorization.getRevision()));
+					paths.add(new AuthorizedPath(vehicle.vehicle.getId(), vehicleCode(vehicle), vehicle.path, vehicle.authorization.getTraversals(), vehicle.authorization.getFaceTraversalKeys(), displayStart, activity.endDistance(), activity.blockIds(), displayFaceKeys, vehicle.authorization.getAuthorizationId(), vehicle.authorization.getRevision()));
 				}
 			}
 		}

@@ -9,6 +9,10 @@ public final class RepeatingSignalModel {
     public record Surface(String texture, String direction, float[] vertices, float[] uv) {}
 
     public static List<Surface> parse(JsonObject model) {
+        return parse(model, ":block/repeating_signal/");
+    }
+
+    public static List<Surface> parse(JsonObject model, String texturePrefix) {
         final List<Surface> result = new ArrayList<>();
         final JsonObject textures = model.getAsJsonObject("textures");
         for (JsonElement value : model.getAsJsonArray("elements")) {
@@ -23,7 +27,7 @@ public final class RepeatingSignalModel {
                     final JsonElement alias = textures.get(texture.substring(1));
                     texture = alias == null ? "" : alias.getAsString();
                 }
-                if (!texture.contains(":block/repeating_signal/")) continue;
+                if (!texture.contains(texturePrefix)) continue;
                 final float x=a[0], y=a[1], z=a[2], X=b[0], Y=b[1], Z=b[2], e=0.008F;
                 float[] v = switch (entry.getKey()) {
                     case "south" -> new float[]{X,Y,Z+e, x,Y,Z+e, x,y,Z+e, X,y,Z+e};

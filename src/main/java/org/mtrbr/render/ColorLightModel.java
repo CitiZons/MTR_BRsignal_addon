@@ -55,7 +55,8 @@ public final class ColorLightModel {
 
 	/** Reads the light rectangles from the exported route model; the null model remains the block shell. */
 	public static List<Light> getRouteLights(String indicatorModel, String routeContent) {
-		if (routeContent == null || !routeContent.startsWith("route=")) return List.of();
+		routeContent = org.mtrbr.data.RouteContent.part(routeContent, "route");
+		if (routeContent.isEmpty()) return List.of();
 		final String route = routeContent.substring("route=".length()).trim();
 		if (route.isEmpty()) return List.of();
 		final String key = indicatorModel + "|" + route;

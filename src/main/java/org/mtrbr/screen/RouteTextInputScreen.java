@@ -12,7 +12,7 @@ import org.mtrbr.network.SetRouteBindingPacket;
 
 /**
  * 进路绑定内容输入对话框。
- * 格式：route=X（X=1–6）或 path=Y（Y=0-20 数字 / 大写字母 / UF,US,DF,DS）。
+ * route、path 与 shunt 可用 || 组合，同一节点保存为一条完整绑定。
  */
 public final class RouteTextInputScreen extends Screen {
 
@@ -29,25 +29,38 @@ public final class RouteTextInputScreen extends Screen {
 
 	@Override
 	protected void init() {
-		editBox = new EditBox(font, width / 2 - 100, height / 2 - 30, 200, 20, Component.literal("进路内容"));
-		editBox.setMaxLength(16);
-		editBox.setValue("route=");
+		final String previous = editBox == null ? org.mtrbr.data.ClientBindings.get(signalPos).stream()
+				.filter(binding -> nodePos.equals(binding.node())).map(org.mtrbr.data.RouteBinding::content).findFirst().orElse("route=") : editBox.getValue();
+		final int inputWidth = Math.min(420, width - 40);
+		editBox = new EditBox(font, (width - inputWidth) / 2, height / 2 - 15, inputWidth, 20, Component.literal("进路内容"));
+		editBox.setMaxLength(RouteContent.MAX_LENGTH);
+		editBox.setValue(previous);
 		addRenderableWidget(editBox);
 		setInitialFocus(editBox);
 
-		addRenderableWidget(Button.builder(Component.literal("确定"), button -> confirm()).bounds(width / 2 - 110, height / 2 + 10, 100, 20).build());
-		addRenderableWidget(Button.builder(Component.literal("取消"), button -> onClose()).bounds(width / 2 + 10, height / 2 + 10, 100, 20).build());
+		addRenderableWidget(Button.builder(Component.literal("确定"), button -> confirm()).bounds(width / 2 - 110, height / 2 + 20, 100, 20).build());
+		addRenderableWidget(Button.builder(Component.literal("取消"), button -> onClose()).bounds(width / 2 + 10, height / 2 + 20, 100, 20).build());
 	}
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		guiGraphics.fillGradient(0, 0, width, height, 0xB0404040, 0xB0404040);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
-		guiGraphics.drawCenteredString(font, "信号机 " + signalPos + " -> 节点 " + nodePos, width / 2, height / 2 - 60, 0xFFFFFFFF);
-		guiGraphics.drawCenteredString(font, "格式: route=1–6  或  path=0-20/大写字母/UF,US,DF,DS,DN,DR,UP,UR/adl,adr,arl,arr,atl,atm,atr", width / 2, height / 2 - 45, 0xFFAAAAAA);
+		drawFittedLine(guiGraphics, "信号机 " + signalPos + " -> 节点 " + nodePos, height / 2 - 76, 0xFFFFFFFF);
+		drawFittedLine(guiGraphics, "route=1–6  |  path=0–20 / 1–4位大写字母 / UF,US,DF,DS,DN,DR,UP,UR / adl,adr,arl,arr,atl,atm,atr", height / 2 - 57, 0xFFAAAAAA);
+		drawFittedLine(guiGraphics, "shunt=1–32位字母、数字、_、-  |  组合：path=1 || shunt=yard_1", height / 2 - 38, 0xFFAAAAAA);
 		if (error != null) {
-			guiGraphics.drawCenteredString(font, error, width / 2, height / 2 + 38, 0xFFFF5555);
+			drawFittedLine(guiGraphics, error, height / 2 + 48, 0xFFFF5555);
 		}
+	}
+
+	private void drawFittedLine(GuiGraphics graphics, String text, int y, int color) {
+		final float scale = Math.min(1F, (width - 24F) / Math.max(1, font.width(text)));
+		graphics.pose().pushPose();
+		graphics.pose().translate(width / 2F, y, 0);
+		graphics.pose().scale(scale, scale, 1);
+		graphics.drawCenteredString(font, text, 0, 0, color);
+		graphics.pose().popPose();
 	}
 
 	@Override
@@ -74,7 +87,7 @@ public final class RouteTextInputScreen extends Screen {
 	private void confirm() {
 		final String validated = RouteContent.validate(editBox.getValue());
 		if (validated == null) {
-			error = "格式错误，请检查输入";
+			error = "格式错误：每种类型最多一项，用 || 分隔";
 			return;
 		}
 		Network.CHANNEL.sendToServer(new SetRouteBindingPacket(signalPos, nodePos, validated));

@@ -38,7 +38,9 @@ public final class UnbindIndicatorPacket {
 					&& PacketValidation.canEdit(context.getSender(), serverLevel, message.indicatorPos)
 					&& PacketValidation.isIndicator(serverLevel, message.indicatorPos)) {
 				final BlockEntity blockEntity = serverLevel.getBlockEntity(message.indicatorPos);
-				if (blockEntity instanceof RepeatingSignalBlockEntity repeating) {
+				if (blockEntity instanceof org.mtrbr.block.PositionLightSignalBlockEntity shunt) {
+					shunt.setBoundSignalPos(null);
+				} else if (blockEntity instanceof RepeatingSignalBlockEntity repeating) {
                     repeating.setBoundSignalPos(null);
                 } else if (blockEntity instanceof LedIndicatorBlockEntity led) {
 					led.setBoundSignalPos(null);

@@ -43,7 +43,9 @@ public final class BindIndicatorPacket {
 					&& PacketValidation.isSignal(serverLevel, message.signalPos)) {
 				final net.minecraft.world.level.block.entity.BlockEntity blockEntity = serverLevel.getBlockEntity(message.indicatorPos);
 				final boolean repeatingBinding = blockEntity instanceof RepeatingSignalBlockEntity;
-				if (repeatingBinding) {
+				if (blockEntity instanceof org.mtrbr.block.PositionLightSignalBlockEntity shunt) {
+					shunt.setBoundSignalPos(message.signalPos);
+				} else if (repeatingBinding) {
                     ((RepeatingSignalBlockEntity) blockEntity).setBoundSignalPos(message.signalPos);
                 } else if (blockEntity instanceof LedIndicatorBlockEntity led) {
 					led.setBoundSignalPos(message.signalPos);
@@ -53,7 +55,8 @@ public final class BindIndicatorPacket {
 				// 双写 SavedData，确保重进游戏后绑定不丢失
 				final RouteBindingsSavedData data = RouteBindingsSavedData.get(serverLevel);
 				WebTopologySnapshot.invalidateTopology(serverLevel);
-				if (repeatingBinding) data.setRepeatingIndicatorBinding(message.indicatorPos, message.signalPos);
+				if (blockEntity instanceof org.mtrbr.block.PositionLightSignalBlockEntity) data.setShuntIndicatorBinding(message.indicatorPos, message.signalPos);
+				else if (repeatingBinding) data.setRepeatingIndicatorBinding(message.indicatorPos, message.signalPos);
 				else data.setIndicatorBinding(message.indicatorPos, message.signalPos);
 				// 显式广播方块实体数据包，确保客户端同步（sendBlockUpdated 在状态未变化时可能不发）
 				if (blockEntity != null) {

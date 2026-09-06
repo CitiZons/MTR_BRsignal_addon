@@ -23,11 +23,13 @@ public final class ClientSetup {
 
 	@SubscribeEvent
 	public static void onReloadListeners(RegisterClientReloadListenersEvent event) {
+		event.registerReloadListener((ResourceManagerReloadListener) manager -> org.mtrbr.render.PositionLightSignalRenderer.clearModelCache());
 		event.registerReloadListener((ResourceManagerReloadListener) manager -> RepeatingSignalRenderer.clearModelCache());
 	}
 
 	@SubscribeEvent
 	public static void onClientSetup(FMLClientSetupEvent event) {
+		BlockEntityRenderers.register(MTRBR.POSITION_LIGHT_BLOCK_ENTITY.get(), org.mtrbr.render.PositionLightSignalRenderer::new);
 		ItemBlockRenderTypes.setRenderLayer(MTRBR.REPEATING_SIGNAL_BLOCK.get(), RenderType.cutout());
 		BlockEntityRenderers.register(MTRBR.REPEATING_SIGNAL_BLOCK_ENTITY.get(), RepeatingSignalRenderer::new);
 		ItemBlockRenderTypes.setRenderLayer(MTRBR.LED_INDICATOR_BLOCK.get(), RenderType.cutout());

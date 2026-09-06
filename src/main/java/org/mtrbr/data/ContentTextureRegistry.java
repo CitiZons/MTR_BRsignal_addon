@@ -17,7 +17,8 @@ public final class ContentTextureRegistry {
 
 	@Nullable
 	public static ResourceLocation getTexture(String content) {
-		if (content == null) {
+		content = RouteContent.part(content, "path");
+		if (content.isEmpty()) {
 			return null;
 		}
 		final String lower = content.trim().toLowerCase(Locale.ROOT);
@@ -39,7 +40,8 @@ public final class ContentTextureRegistry {
 
 	@Nullable
 	public static ResourceLocation getColorLightTexture(String content, String indicatorModel) {
-		if (content == null) {
+		content = RouteContent.part(content, "route");
+		if (content.isEmpty()) {
 			return null;
 		}
 		final String lower = content.trim().toLowerCase(Locale.ROOT);

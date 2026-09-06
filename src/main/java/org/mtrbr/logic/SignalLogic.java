@@ -42,7 +42,8 @@ public final class SignalLogic {
 	public static boolean isIndicatorBlock(BlockState state) {
 		return state.getBlock() instanceof LedIndicatorBlock
 				|| state.getBlock() instanceof ColorLightIndicatorBlock
-                || state.getBlock() instanceof RepeatingSignalBlock;
+                || state.getBlock() instanceof RepeatingSignalBlock
+                || state.getBlock() instanceof org.mtrbr.block.PositionLightSignalBlock;
 	}
 
 	/** 是否为 LED 进路显示器。 */
@@ -62,7 +63,7 @@ public final class SignalLogic {
 					+ (state.getValue(LedIndicatorBlock.IS_22_5) ? 22.5F : 0)
 					+ (state.getValue(LedIndicatorBlock.IS_45) ? 45 : 0);
 		}
-		if (state.getBlock() instanceof ColorLightIndicatorBlock || state.getBlock() instanceof RepeatingSignalBlock) {
+		if (state.getBlock() instanceof ColorLightIndicatorBlock || state.getBlock() instanceof RepeatingSignalBlock || state.getBlock() instanceof org.mtrbr.block.PositionLightSignalBlock) {
 			return state.getValue(ColorLightIndicatorBlock.FACING).toYRot()
 					+ (state.getValue(ColorLightIndicatorBlock.IS_22_5) ? 22.5F : 0)
 					+ (state.getValue(ColorLightIndicatorBlock.IS_45) ? 45 : 0);

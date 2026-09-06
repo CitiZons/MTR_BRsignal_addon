@@ -1,0 +1,244 @@
+{
+  "variants": {
+    "facing=north,is_22_5=false,is_45=false,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red",
+      "y": 180
+    },
+    "facing=north,is_22_5=false,is_45=false,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed",
+      "y": 180
+    },
+    "facing=north,is_22_5=false,is_45=false,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark",
+      "y": 180
+    },
+    "facing=north,is_22_5=false,is_45=false,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed",
+      "y": 180
+    },
+    "facing=north,is_22_5=true,is_45=false,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_22_5",
+      "y": 180
+    },
+    "facing=north,is_22_5=true,is_45=false,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_22_5",
+      "y": 180
+    },
+    "facing=north,is_22_5=true,is_45=false,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_22_5",
+      "y": 180
+    },
+    "facing=north,is_22_5=true,is_45=false,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_22_5",
+      "y": 180
+    },
+    "facing=north,is_22_5=false,is_45=true,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_45",
+      "y": 180
+    },
+    "facing=north,is_22_5=false,is_45=true,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_45",
+      "y": 180
+    },
+    "facing=north,is_22_5=false,is_45=true,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_45",
+      "y": 180
+    },
+    "facing=north,is_22_5=false,is_45=true,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_45",
+      "y": 180
+    },
+    "facing=north,is_22_5=true,is_45=true,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_67_5",
+      "y": 270
+    },
+    "facing=north,is_22_5=true,is_45=true,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_67_5",
+      "y": 270
+    },
+    "facing=north,is_22_5=true,is_45=true,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_67_5",
+      "y": 270
+    },
+    "facing=north,is_22_5=true,is_45=true,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_67_5",
+      "y": 270
+    },
+    "facing=east,is_22_5=false,is_45=false,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red",
+      "y": 270
+    },
+    "facing=east,is_22_5=false,is_45=false,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed",
+      "y": 270
+    },
+    "facing=east,is_22_5=false,is_45=false,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark",
+      "y": 270
+    },
+    "facing=east,is_22_5=false,is_45=false,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed",
+      "y": 270
+    },
+    "facing=east,is_22_5=true,is_45=false,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_22_5",
+      "y": 270
+    },
+    "facing=east,is_22_5=true,is_45=false,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_22_5",
+      "y": 270
+    },
+    "facing=east,is_22_5=true,is_45=false,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_22_5",
+      "y": 270
+    },
+    "facing=east,is_22_5=true,is_45=false,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_22_5",
+      "y": 270
+    },
+    "facing=east,is_22_5=false,is_45=true,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_45",
+      "y": 270
+    },
+    "facing=east,is_22_5=false,is_45=true,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_45",
+      "y": 270
+    },
+    "facing=east,is_22_5=false,is_45=true,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_45",
+      "y": 270
+    },
+    "facing=east,is_22_5=false,is_45=true,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_45",
+      "y": 270
+    },
+    "facing=east,is_22_5=true,is_45=true,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_67_5"
+    },
+    "facing=east,is_22_5=true,is_45=true,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_67_5"
+    },
+    "facing=east,is_22_5=true,is_45=true,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_67_5"
+    },
+    "facing=east,is_22_5=true,is_45=true,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_67_5"
+    },
+    "facing=south,is_22_5=false,is_45=false,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red"
+    },
+    "facing=south,is_22_5=false,is_45=false,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed"
+    },
+    "facing=south,is_22_5=false,is_45=false,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark"
+    },
+    "facing=south,is_22_5=false,is_45=false,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed"
+    },
+    "facing=south,is_22_5=true,is_45=false,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_22_5"
+    },
+    "facing=south,is_22_5=true,is_45=false,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_22_5"
+    },
+    "facing=south,is_22_5=true,is_45=false,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_22_5"
+    },
+    "facing=south,is_22_5=true,is_45=false,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_22_5"
+    },
+    "facing=south,is_22_5=false,is_45=true,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_45"
+    },
+    "facing=south,is_22_5=false,is_45=true,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_45"
+    },
+    "facing=south,is_22_5=false,is_45=true,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_45"
+    },
+    "facing=south,is_22_5=false,is_45=true,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_45"
+    },
+    "facing=south,is_22_5=true,is_45=true,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_67_5",
+      "y": 90
+    },
+    "facing=south,is_22_5=true,is_45=true,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_67_5",
+      "y": 90
+    },
+    "facing=south,is_22_5=true,is_45=true,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_67_5",
+      "y": 90
+    },
+    "facing=south,is_22_5=true,is_45=true,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_67_5",
+      "y": 90
+    },
+    "facing=west,is_22_5=false,is_45=false,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red",
+      "y": 90
+    },
+    "facing=west,is_22_5=false,is_45=false,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed",
+      "y": 90
+    },
+    "facing=west,is_22_5=false,is_45=false,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark",
+      "y": 90
+    },
+    "facing=west,is_22_5=false,is_45=false,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed",
+      "y": 90
+    },
+    "facing=west,is_22_5=true,is_45=false,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_22_5",
+      "y": 90
+    },
+    "facing=west,is_22_5=true,is_45=false,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_22_5",
+      "y": 90
+    },
+    "facing=west,is_22_5=true,is_45=false,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_22_5",
+      "y": 90
+    },
+    "facing=west,is_22_5=true,is_45=false,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_22_5",
+      "y": 90
+    },
+    "facing=west,is_22_5=false,is_45=true,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_45",
+      "y": 90
+    },
+    "facing=west,is_22_5=false,is_45=true,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_45",
+      "y": 90
+    },
+    "facing=west,is_22_5=false,is_45=true,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_45",
+      "y": 90
+    },
+    "facing=west,is_22_5=false,is_45=true,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_45",
+      "y": 90
+    },
+    "facing=west,is_22_5=true,is_45=true,hanging=false,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_red_67_5",
+      "y": 180
+    },
+    "facing=west,is_22_5=true,is_45=true,hanging=false,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_ground_proceed_67_5",
+      "y": 180
+    },
+    "facing=west,is_22_5=true,is_45=true,hanging=true,proceed=false": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_dark_67_5",
+      "y": 180
+    },
+    "facing=west,is_22_5=true,is_45=true,hanging=true,proceed=true": {
+      "model": "mtr_brsignal_addon:block/position_light_pole_proceed_67_5",
+      "y": 180
+    }
+  }
+}

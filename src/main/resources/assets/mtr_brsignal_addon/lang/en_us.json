@@ -1,4 +1,8 @@
 {
+  "block.mtr_brsignal_addon.position_light_signal": "Position Light Signal",
+  "block.mtr_brsignal_addon.yellow_position_light_signal": "Yellow Position Light Signal",
+  "screen.mtr_brsignal_addon.shunt.ground": "Mount: Ground",
+  "screen.mtr_brsignal_addon.shunt.pole": "Mount: Signal Pole",
   "item.mtr_brsignal_addon.signal_debug_tool": "Signal Debug Tool",
   "item.mtr_brsignal_addon.route_tool": "Route Tool",
   "item.mtr_brsignal_addon.dispatcher_tool": "Dispatcher Tool",

@@ -4,10 +4,10 @@ import sys
 from pathlib import Path
 
 
-def rotate_model(source, target, angle):
+def rotate_model(source, target, angle, origin=(8, 0, 8)):
     model = json.loads(source.read_text(encoding="utf-8-sig"))
     for element in model.get("elements", []):
-        element["rotation"] = {"angle": angle, "axis": "y", "origin": [8, 0, 8]}
+        element["rotation"] = {"angle": angle, "axis": "y", "origin": list(origin)}
     target.write_text(json.dumps(model, ensure_ascii=False, indent="\t") + "\n", encoding="utf-8")
 
 

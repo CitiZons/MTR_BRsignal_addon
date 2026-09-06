@@ -1,5 +1,17 @@
 # Third-Party Notices
 
+## Minecraft Transit Railway Signal Pole Texture
+
+File: `src/main/resources/assets/mtr_brsignal_addon/textures/block/position_light/mtr_signal_pole.png`
+
+Copied unchanged from the local Minecraft Transit Railway source tree:
+`fabric/src/main/resources/assets/mtr/textures/block/metal.png`.
+
+Copyright (c) 2022 Jonathan Ho
+
+License: MIT. The complete upstream license is included at
+`LICENSES/MTR-MIT.txt` and is packaged with binary distributions.
+
 ## Terminus Regular 4.49.3
 
 File: `src/main/resources/assets/mtr_brsignal_addon/web/Terminus-Regular.ttf`

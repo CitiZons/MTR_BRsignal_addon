@@ -33,15 +33,21 @@ public final class IndicatorInfoScreen extends Screen {
 	private final BlockPos indicatorPos;
 	private final boolean isLed;
 	private final boolean isRepeater;
+	private final boolean isShunt;
 	private Button mountButton;
 	private boolean needsRebuild = false;
 	private boolean unbindRequested = false;
 
 	public IndicatorInfoScreen(BlockPos indicatorPos, boolean isLed) {
-		super(isRepeater(indicatorPos) ? Component.translatable("block.mtr_brsignal_addon.banner_repeating_signal") : Component.literal(isLed ? "LED进路显示器" : "色灯式进路指示器"));
+		super(isShunt(indicatorPos) ? Component.translatable("block.mtr_brsignal_addon.position_light_signal") : isRepeater(indicatorPos) ? Component.translatable("block.mtr_brsignal_addon.banner_repeating_signal") : Component.literal(isLed ? "LED进路显示器" : "色灯式进路指示器"));
 		this.indicatorPos = indicatorPos;
 		this.isLed = isLed;
 		this.isRepeater = isRepeater(indicatorPos);
+		this.isShunt = isShunt(indicatorPos);
+	}
+
+	private static boolean isShunt(BlockPos pos) {
+		return Minecraft.getInstance().level != null && Minecraft.getInstance().level.getBlockEntity(pos) instanceof org.mtrbr.block.PositionLightSignalBlockEntity;
 	}
 
 	private static boolean isRepeater(BlockPos pos) {
@@ -54,6 +60,7 @@ public final class IndicatorInfoScreen extends Screen {
     }
 
     private Component mountLabel() {
+        if (isShunt) return Component.translatable(isHanging() ? "screen.mtr_brsignal_addon.shunt.pole" : "screen.mtr_brsignal_addon.shunt.ground");
         return Component.translatable(isHanging() ? "screen.mtr_brsignal_addon.mount.hanging" : "screen.mtr_brsignal_addon.mount.standing");
     }
 
@@ -86,7 +93,7 @@ public final class IndicatorInfoScreen extends Screen {
 			return;
 		}
 
-        guiGraphics.drawCenteredString(font, Component.translatable("screen.mtr_brsignal_addon.mount.hint"), width / 2, height - 72, 0xFFAAAAAA);
+        if (!isShunt) guiGraphics.drawCenteredString(font, Component.translatable("screen.mtr_brsignal_addon.mount.hint"), width / 2, height - 72, 0xFFAAAAAA);
         int y = 30;
 		guiGraphics.drawString(font, getTitle().getString() + " " + indicatorPos, width / 2 - 200, y, 0xFFFFFFFF);
 		y += LINE_HEIGHT;
@@ -106,7 +113,7 @@ public final class IndicatorInfoScreen extends Screen {
             }
             return;
         }
-        guiGraphics.drawString(font, "可用显示（" + (isLed ? "仅 path 类型" : "仅 route 类型") + "）:", width / 2 - 200, y, 0xFFFFFFFF);
+        guiGraphics.drawString(font, "可用显示（" + (isShunt ? "仅 shunt 类型" : isLed ? "仅 path 类型" : "仅 route 类型") + "）:", width / 2 - 200, y, 0xFFFFFFFF);
 		y += LINE_HEIGHT;
 		if (boundSignalPos == null) {
 			guiGraphics.drawString(font, "  (未绑定信号机)", width / 2 - 200, y, 0xFFAAAAAA);
@@ -115,18 +122,17 @@ public final class IndicatorInfoScreen extends Screen {
 		final List<RouteBinding> bindings = ClientBindings.get(boundSignalPos);
 		boolean any = false;
 		for (final RouteBinding binding : bindings) {
-			final boolean pathType = binding.content().toLowerCase(Locale.ROOT).startsWith("path=");
-			final boolean routeType = binding.content().toLowerCase(Locale.ROOT).startsWith("route=");
-			if (isLed ? !pathType : !routeType) {
+			final String component = org.mtrbr.data.RouteContent.part(binding.content(), isShunt ? "shunt" : isLed ? "path" : "route");
+			if (component.isEmpty()) {
 				continue;
 			}
 			any = true;
-			final String display = binding.content().equalsIgnoreCase("path=NULL") ? binding.content() + "（无显示）" : binding.content();
+			final String display = component.equalsIgnoreCase("path=NULL") ? component + "（无显示）" : component;
 			guiGraphics.drawString(font, "  " + display, width / 2 - 200, y, 0xFFFFFFFF);
 			y += LINE_HEIGHT;
 		}
 		if (!any) {
-			guiGraphics.drawString(font, "  (无" + (isLed ? " path" : " route") + "类进路绑定)", width / 2 - 200, y, 0xFFAAAAAA);
+			guiGraphics.drawString(font, "  (无" + (isShunt ? " shunt" : isLed ? " path" : " route") + "类进路绑定)", width / 2 - 200, y, 0xFFAAAAAA);
 		}
 	}
 
@@ -143,7 +149,9 @@ public final class IndicatorInfoScreen extends Screen {
 		BlockPos bound = ClientIndicatorBindings.get(indicatorPos);
 		if (bound == null && level != null) {
 			final BlockEntity blockEntity = level.getBlockEntity(indicatorPos);
-			if (blockEntity instanceof RepeatingSignalBlockEntity repeating) {
+			if (blockEntity instanceof org.mtrbr.block.PositionLightSignalBlockEntity shunt) {
+				bound = shunt.getBoundSignalPos();
+			} else if (blockEntity instanceof RepeatingSignalBlockEntity repeating) {
                 bound = repeating.getBoundSignalPos();
             } else if (blockEntity instanceof LedIndicatorBlockEntity led) {
 				bound = led.getBoundSignalPos();

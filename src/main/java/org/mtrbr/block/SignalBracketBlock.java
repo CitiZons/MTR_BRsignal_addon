@@ -6,20 +6,23 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import org.mtr.mapping.mapper.DirectionHelper;
+import org.mtr.mod.block.BlockSignalBase;
 
 /** Signal bracket with a horizontal facing so its model follows placement direction. */
 
 public final class SignalBracketBlock extends Block {
-	public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
-	public static final BooleanProperty IS_22_5 = BooleanProperty.create("is_22_5");
-	public static final BooleanProperty IS_45 = BooleanProperty.create("is_45");
+	public static final DirectionProperty FACING = DirectionHelper.FACING.data;
+	public static final EnumProperty<BlockSignalBase.EnumBooleanInverted> IS_22_5 = BlockSignalBase.IS_22_5.data;
+	public static final EnumProperty<BlockSignalBase.EnumBooleanInverted> IS_45 = BlockSignalBase.IS_45.data;
 
 	public SignalBracketBlock(Properties properties) {
 		super(properties);
-		registerDefaultState(defaultBlockState().setValue(FACING, Direction.SOUTH).setValue(IS_22_5, false).setValue(IS_45, false));
+		registerDefaultState(defaultBlockState().setValue(FACING, Direction.SOUTH)
+				.setValue(IS_22_5, BlockSignalBase.EnumBooleanInverted.FALSE)
+				.setValue(IS_45, BlockSignalBase.EnumBooleanInverted.FALSE));
 	}
 
 	@Override
@@ -46,7 +49,7 @@ public final class SignalBracketBlock extends Block {
 		final int quadrant = org.mtr.core.tool.Angle.getQuadrant(context.getRotation(), true);
 		final Direction facing = Direction.from2DDataValue(quadrant / 4);
 		return defaultBlockState().setValue(FACING, facing)
-				.setValue(IS_22_5, quadrant % 2 == 1)
-				.setValue(IS_45, quadrant % 4 >= 2);
+				.setValue(IS_22_5, quadrant % 2 == 1 ? BlockSignalBase.EnumBooleanInverted.TRUE : BlockSignalBase.EnumBooleanInverted.FALSE)
+				.setValue(IS_45, quadrant % 4 >= 2 ? BlockSignalBase.EnumBooleanInverted.TRUE : BlockSignalBase.EnumBooleanInverted.FALSE);
 	}
 }

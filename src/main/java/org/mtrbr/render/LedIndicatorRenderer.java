@@ -72,13 +72,14 @@ public final class LedIndicatorRenderer implements BlockEntityRenderer<LedIndica
 			bindings = java.util.List.of();
 		}
 		for (final RouteBinding binding : bindings) {
-			if (binding.content().equalsIgnoreCase("path=NULL")) {
+			final String pathContent = org.mtrbr.data.RouteContent.part(binding.content(), "path");
+			if (pathContent.equalsIgnoreCase("path=NULL")) {
 				continue; // path=NULL：不显示
 			}
-			if (!binding.content().toLowerCase(java.util.Locale.ROOT).startsWith("path=")) {
+			if (pathContent.isEmpty()) {
 				continue;
 			}
-			final ResourceLocation texture = ContentTextureRegistry.getTexture(binding.content());
+			final ResourceLocation texture = ContentTextureRegistry.getTexture(pathContent);
 			if (texture != null && Minecraft.getInstance().getResourceManager().getResource(texture).isPresent()) {
 				drawScreen(pos, angle, org.mtrbr.block.IndicatorMount.offset(state), new org.mtr.mapping.holder.Identifier(texture.getNamespace(), texture.getPath()));
 			}

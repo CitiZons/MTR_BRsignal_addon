@@ -33,6 +33,6 @@ final class PacketValidation {
 
 	static boolean isIndicator(ServerLevel level, BlockPos position) {
 		final BlockEntity blockEntity = level.getBlockEntity(position);
-		return blockEntity instanceof RepeatingSignalBlockEntity || blockEntity instanceof LedIndicatorBlockEntity || blockEntity instanceof ColorLightIndicatorBlockEntity;
+		return blockEntity instanceof org.mtrbr.block.PositionLightSignalBlockEntity || blockEntity instanceof RepeatingSignalBlockEntity || blockEntity instanceof LedIndicatorBlockEntity || blockEntity instanceof ColorLightIndicatorBlockEntity;
 	}
 }
