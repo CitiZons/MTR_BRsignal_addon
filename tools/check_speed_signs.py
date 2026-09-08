@@ -1,6 +1,7 @@
 """Check visual invariants and resource links without starting Minecraft."""
 import json
 import math
+import zipfile
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageFont
@@ -57,7 +58,11 @@ def run():
         assert read(ROOT / f"src/main/resources/data/mtr_brsignal_addon/loot_tables/blocks/{name}.json")["type"] == "minecraft:block"
         for language in ("en_us", "zh_cn"):
             assert "block.mtr_brsignal_addon."+name in read(ASSETS / f"lang/{language}.json")
-    assert (OUT / "mtr_signal_pole.png").read_bytes() == (ROOT.parent / "MTR/fabric/src/main/resources/assets/mtr/textures/block/metal.png").read_bytes()
+    properties = dict(line.strip().split("=", 1) for line in (ROOT / "gradle.properties").read_text().splitlines()
+                      if "=" in line and not line.lstrip().startswith("#"))
+    dependency = ROOT / "libs" / f"MTR-forge-{properties['mtr_version']}+{properties['minecraft_version']}.jar"
+    with zipfile.ZipFile(dependency) as mtr:
+        assert (OUT / "mtr_signal_pole.png").read_bytes() == mtr.read("assets/mtr/textures/block/metal.png")
     print("Speed sign resources passed: 10 blocks, exact paired-arrow halves, font glyphs, smooth contours, pole texture, item/loot/lang links")
 
 

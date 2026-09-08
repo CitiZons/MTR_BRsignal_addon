@@ -53,17 +53,41 @@ public final class ShuntSignalPolicy {
         return RouteContent.isShunt(best) ? best : "";
     }
 
-    /** The shunt entry grants only its immediate Block, until the next control point is reached. */
+    /** Each passed shunt entry permits one more Block; a passed main entry restores normal lookahead. */
     public static double boundary(String dimension, PathSnapshot path, List<PathSnapshot.FaceTraversal> faces, double head) {
         double limit = Double.POSITIVE_INFINITY;
+        PathSnapshot.FaceTraversal previous = null;
+        PathSnapshot.FaceTraversal next = null;
         for (final PathSnapshot.FaceTraversal face : faces) {
-            if (!PathSnapshot.isDirectionMatched(face) || route(dimension, path, face).isEmpty()) continue;
-            final double end = path.getNextProtectionBoundary(face, faces).distance();
-            if (end <= head + 1.0E-6) continue;
-            final double candidate = hasSignal(dimension, face.face().signalPos()) ? end : Math.max(head, face.distance());
-            limit = Math.min(limit, candidate);
+            if (!PathSnapshot.isDirectionMatched(face)) continue;
+            if (face.distance() < head - 1.0E-6) {
+                if (previous == null || face.distance() > previous.distance()) previous = face;
+            } else {
+                if (next == null || face.distance() < next.distance()) next = face;
+                if (!route(dimension, path, face).isEmpty()) {
+                    limit = Math.min(limit, path.getNextProtectionBoundary(face, faces).distance());
+                }
+            }
+        }
+        if (previous != null && path.getNextTerminalNode(previous.distance()).distance() >= head - 1.0E-6
+                && !route(dimension, path, previous).isEmpty() && next != null) {
+            limit = Math.min(limit, path.getNextProtectionBoundary(next, faces).distance());
         }
         return limit;
+    }
+
+    /** The next signal must publish this vehicle's clearance before it can be passed on the move. */
+    public static PathSnapshot.FaceTraversal nextExit(String dimension, PathSnapshot path, List<PathSnapshot.FaceTraversal> faces, double head) {
+        PathSnapshot.FaceTraversal previous = null;
+        PathSnapshot.FaceTraversal next = null;
+        for (final var face : faces) {
+            if (!PathSnapshot.isDirectionMatched(face)) continue;
+            if (face.distance() < head - 1.0E-6) {
+                if (previous == null || face.distance() > previous.distance()) previous = face;
+            } else if (next == null || face.distance() < next.distance()) next = face;
+        }
+        return previous != null && path.getNextTerminalNode(previous.distance()).distance() >= head - 1.0E-6
+                && !route(dimension, path, previous).isEmpty() ? next : null;
     }
 
     /** Keep the exit face visible while stopped at its node, including a small tick overshoot. */

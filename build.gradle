@@ -142,3 +142,11 @@ tasks.register("webSessionRegression", JavaExec) {
     doFirst { workingDir.mkdirs() }
 }
 tasks.named("check") { dependsOn "webSessionRegression" }
+
+tasks.register("resourceRegression", Exec) {
+    group = "verification"
+    description = "Checks authored models, textures, fonts and mounts without regenerating resources"
+    workingDir = projectDir
+    commandLine providers.gradleProperty("pythonExecutable").getOrElse("python"), "-B", "tools/check_resources.py"
+}
+tasks.named("check") { dependsOn "resourceRegression" }

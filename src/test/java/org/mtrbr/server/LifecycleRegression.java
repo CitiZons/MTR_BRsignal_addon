@@ -29,7 +29,7 @@ final class LifecycleRegression {
 		test("same-train handover rejects another train", LifecycleRegression::wrongTrain);
 		test("entered single-line zone preserves owner and release state", LifecycleRegression::zoneHandover);
 		test("rollback selection excludes pre-existing reserved and locked resources", LifecycleRegression::rollbackSelection);
-		test("shunt grants one Block, holds extensions, respects occupancy and keeps upstream red propagation", LifecycleRegression::shunt);
+		test("shunt requests one Block per passed node, respects occupancy and keeps upstream red propagation", LifecycleRegression::shunt);
 		test("shunt names and binding save/load/unbind lifecycle", LifecycleRegression::shuntBindings);
 		System.out.println("Dispatch lifecycle regression: " + passed + " cases passed.");
 	}
@@ -203,8 +203,18 @@ final class LifecycleRegression {
 		check(ShuntSignalPolicy.exitAtHead(sim.dimension, path, mixedFaces, 35) == null, "opposite-facing signal is not a shunt exit");
 		check(ShuntSignalPolicy.exitAtHead(sim.dimension, path, mixedFaces, 40).key().sameIdentity(faces.get(3).key()), "exit uses next same-direction signal");
 		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 25) == 40, "one block before entry");
-		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 35) == 40, "no rolling extension while inside block");
-		check(Double.isInfinite(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 40)), "next signal controls continuation at boundary");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 30) == 40, "entry must be crossed before the next request");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 30.01) == 50, "crossed entry permits one new Block immediately");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 35) == 50, "moving train can request one Block beyond the next signal");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 40) == 50, "at the main node the one-Block cap remains");
+		check(Double.isInfinite(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 40.01)), "crossing ordinary main restores normal lookahead");
+		final var secondShunt = faces.get(3).face().signalPos();
+		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(binding), secondShunt, List.of(binding)), Set.of(shunt, secondShunt));
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 35) == 50, "consecutive shunts cannot reserve two future Blocks");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 40) == 50, "second shunt must also be passed");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 40.01) == 60, "passing second shunt unlocks exactly one further Block");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, mixedFaces, 35) == 50, "opposite-facing main cannot clear shunt restriction");
+		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(binding)), Set.of(shunt));
 		check(Double.isInfinite(ShuntSignalPolicy.boundary("another-dimension", path, faces, 15)), "dimension isolation");
 		final Map<String,String> faceBlocks = new HashMap<>(), occurrences = new HashMap<>();
 		final Map<String,List<String>> blockRails = new HashMap<>();
@@ -276,6 +286,13 @@ final class LifecycleRegression {
 			if (previousState == null) map(RouteRequestManager.class, "STATES").remove(sim);
 			else map(RouteRequestManager.class, "STATES").put(sim, previousState);
 		}
+		set(vehicle, "head", 35.0);
+		check((double)call("authorizationBoundary", sim, vehicle, 40.0) == 50, "new request is allowed immediately after entry");
+		call("refreshAuthorizationLookahead", sim, vehicle);
+		check((double)get(vehicle, "authorizationLookaheadEndDistance") == 50, "lookahead advances without waiting at exit");
+		final var rolling = call("clearancePrefix", sim, vehicle, 40.0, 60.0);
+		check(((List<?>)recordValue(rolling, "blockAuthorizations")).size() == 1 && (double)recordValue(rolling, "endDistance") == 50,
+				"rolling request receives only the next Block");
 		set(vehicle, "head", 40.0);
 		occupants("shunt4").add(998L);
 		check(((List<?>)recordValue(call("clearancePrefix", sim, vehicle, 40.0, 50.0), "blockAuthorizations")).isEmpty(), "occupied exit Block keeps next main red");
@@ -292,29 +309,38 @@ final class LifecycleRegression {
 		final var displayConstructor = nested(ServerAspectManager.class, "SignalDisplay").getDeclaredConstructor(ServerAspect.class, String.class, String.class, long.class, boolean.class);
 		displayConstructor.setAccessible(true);
 		final String code = RouteRequestManager.getVehicleCode(vehicleId);
-		for (double head : new double[] {40, 40.008}) {
+		for (double head : new double[] {35, 39.99, 40, 40.008}) {
+			set(vehicle, "publishedShuntExit", null);
 			set(vehicle, "head", head);
 			final var activity = new RouteRequestManager.ActivityAuthorization(head, 50, List.of(outgoing.blockId()), outgoing.faceTraversalKeys(), true);
 			set(vehicle, "activityAuthorization", activity);
 			map(ServerAspectManager.class, "ASPECTS").remove(exitKey);
-			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == head, "exit waits for signal publication before moving");
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == Math.max(head, 40), "approach holds at exit until signal publication");
 			call("publishAuthorizations", sim, state);
 			final var published = RouteRequestManager.getAuthorizedPaths(sim).get(0);
-			check(published.startDistance() == 40 && published.activeFaceTraversalKeys().contains(faces.get(3).key()), "exit face survives boundary rounding in published authorization");
+			check(published.startDistance() == Math.min(head, 40) && published.activeFaceTraversalKeys().contains(faces.get(3).key()), "exit face is published before arrival and survives rounding");
 			final var covered = ServerAspectManager.class.getDeclaredMethod("coveredFaceTraversal", String.class, ServerAspectManager.FaceSnapshot.class, RouteRequestManager.AuthorizedPath.class, SignalFace.class);
 			covered.setAccessible(true);
 			check(covered.invoke(null, sim.dimension, topology, published, faces.get(3).face()) != null, "next main receives outgoing authorization");
 			final var aspect = (ServerAspect)resolver.invoke(null, sim.dimension, topology, published, faces.get(3), new HashSet<>());
 			check(aspect == ServerAspect.YELLOW, "next main changes red to yellow before departure");
 			map(ServerAspectManager.class, "ASPECTS").put(exitKey, displayConstructor.newInstance(aspect, "another-vehicle", "", 12L, false));
-			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == head, "another vehicle's green cannot release exit");
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == Math.max(head, 40), "another vehicle's green cannot release exit");
 			map(ServerAspectManager.class, "ASPECTS").put(exitKey, displayConstructor.newInstance(aspect, code, "", 11L, false));
-			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == head, "old clearance cannot release exit");
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == Math.max(head, 40), "old clearance cannot release exit");
 			map(ServerAspectManager.class, "ASPECTS").put(exitKey, displayConstructor.newInstance(ServerAspect.RED, code, "", 12L, false));
-			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == head, "published red still stops vehicle");
+			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == Math.max(head, 40), "published red still stops vehicle");
 			map(ServerAspectManager.class, "ASPECTS").put(exitKey, displayConstructor.newInstance(aspect, code, "", 12L, false));
 			check((double)call("authorizedControlBoundary", sim, vehicle, activity, topology) == 50, "move only after current outgoing clearance is displayed");
 		}
+		set(vehicle, "head", 39.99);
+		final var rollingActivity = new RouteRequestManager.ActivityAuthorization(39.99, 50, List.of(outgoing.blockId()), outgoing.faceTraversalKeys(), true);
+		check((double)call("authorizedControlBoundary", sim, vehicle, rollingActivity, topology) == 50, "published exit allows continuous approach");
+		set(vehicle, "head", 40.008);
+		set(vehicle, "authorization", new Authorization("shunt-exit-auth", request(vehicle).getRequestId(), List.of(outgoing), List.of(), 0, 13));
+		check((double)call("authorizedControlBoundary", sim, vehicle, rollingActivity, topology) == 50,
+				"new revision after crossing an already-cleared main does not introduce a stop");
+		set(vehicle, "authorization", outgoingAuth);
 		map(ServerAspectManager.class, "ASPECTS").remove(exitKey);
 		set(vehicle, "authorization", null);
 		set(vehicle, "head", 25.0);
@@ -363,7 +389,7 @@ final class LifecycleRegression {
 		check((double)call("authorizedControlBoundary", sim, vehicle, staleActivity, topology) == 40,
 				"deletion does not allow crossing the next main without a locked Block");
 		deletionData.setShuntIndicatorBinding(indicator, shunt);
-		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 35) == 40, "rebinding restores one-Block shunt protection");
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 35) == 50, "rebinding restores one-future-Block shunt protection");
 		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(new org.mtrbr.data.RouteBinding(destination, "route=1"))), Set.of(shunt));
 		check(Double.isInfinite(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 15)), "normal route is not shunting even with bound device");
 		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(new org.mtrbr.data.RouteBinding(new BlockPos(10, -60, 0), "shunt=behind"))), Set.of(shunt));

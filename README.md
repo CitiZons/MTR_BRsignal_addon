@@ -25,6 +25,7 @@ You need Minecraft 1.20.1, Forge 47.4.18, and MTR Forge 4.0.3. Put the built JAR
 To build from source, use JDK 17 and set `JAVA_HOME` to its installation directory if necessary:
 
 ```powershell
+python -m pip install -r tools/requirements.txt
 .\gradlew.bat build --no-daemon
 ```
 
@@ -54,6 +55,10 @@ Combine different binding types for the same node with `||`, for example `path=1
 
 With white shunt clearance and a valid authorization, a train can pass the associated red main signal without stopping, still limited to the next control point. Removing the last bound position light restores normal route evaluation; retained `shunt=` text alone does not enable shunting. Stale stopping-point caches and bindings to deleted devices are cleared.
 
+越过调车入口节点后即可申请下一段，无需先在下一灯停车。在越过无调车设备或由普通主信号放行的节点前，每次只增加一个前方闭塞；连续调车信号逐段申请。下一信号提前获得授权并发布开放显示时可连续通过，未开放则停在其节点。信号每 10 tick 计算一次（20 TPS 时约 0.5 秒），显示变化即同步，每 20 tick 兜底同步。
+
+After passing a shunt entry node, the train may immediately request the next Block. One additional forward Block is permitted until it passes a signal operating under ordinary main-signal authority. Consecutive shunts advance this window one node at a time. A published clearance permits continuous travel through the next signal; otherwise its node remains the stopping boundary. Aspects are calculated every 10 ticks, synchronized when changed, with a 20-tick fallback.
+
 ## 限速牌 / Decorative Speed Signs
 
 提供红色圆形 PSR 永久限速牌、黄色三角形 AWI 限速预告牌，各有单行和双行版本；红色、黄色箭头牌各有左、双向、右三种。圆牌直径为 12/16 方块，使用 Alte DIN 1451 Mittelschrift Regular 字体（SIL OFL 1.1）、平滑轮廓和内置 MTR 信号杆材质。所有限速牌仅作装饰，不改变列车速度、进路或闭塞。
@@ -73,6 +78,10 @@ Speed signs support center, bottom, and top mounting; arrow plates support botto
 右键调度台或使用调度工具打开面板。底部两排按钮随窗口宽度居中；第二排提供“生成 Token”（成功后自动打开默认浏览器 WebUI）、“Token 列表”（个人聊天框）和“销毁 Token”（聊天框中选择具体 token）。直接执行 `/mtrbr web_token generate` 仍只返回可点击地址。
 
 Open the console with the dispatcher block or tool. Both button rows stay centered as the window changes. The second row generates a token and opens the Web UI in your default browser, lists your tokens in private chat, or shows clickable token revocation entries. The plain `/mtrbr web_token generate` command still returns a clickable URL.
+
+列表支持搜索编号/线路/车站、状态筛选、点击表头升降序排序。窄窗口中长字段显示省略，悬浮可查看完整内容。批准、撤销、一次越行由服务端执行后私下回复结果及拒绝原因。
+
+The table supports text search, status filters and header sorting. Narrow columns truncate long fields and show complete values on hover. Approve, revoke and one-shot override actions receive private server execution results, including rejection reasons.
 
 Token 和 Web 写操作保持 OP 权限要求。`list_all` 按玩家列出有效 token，仅执行命令的 OP 收到结果。`disable/enable` 只控制新 token 的生成，按 UUID 保存且重启后保留，不撤销已有 token。专用服务器需要先配置 `web_public_host` 并启用 MTR Web server。首次部署或调整信号拓扑后，建议执行 `/mtrbr protection regenerate`。
 
@@ -116,6 +125,10 @@ For the complete architecture, block semantics, resource workflow, web dispatch,
 完整构建会运行 Java 编译、资源处理以及 LINE、折返、指示器、复示信号机、调度生命周期、限速牌文本/安装和 token 权限/生命周期回归测试。Python 资源检查需要 Pillow；调车模型预览还需要 NumPy。
 
 A full build runs Java compilation, resource processing, and regression checks for LINE paths, turnbacks, indicators, repeater signals, dispatch lifecycles, speed-sign text/mounting, and token permissions/lifecycles. Python resource checks require Pillow; position-light previews also require NumPy.
+
+`gradlew build` 同时运行只读资源检查；Python 可通过 `-PpythonExecutable=完整路径` 指定。材质对照直接读取仓库内 `libs/` 的 MTR JAR，不依赖旁边的 MTR 源码目录。GitHub Actions 在 push/PR 时执行同一构建和静态检查。
+
+The build also runs read-only resource checks. Override Python with `-PpythonExecutable=...` when needed. Texture verification uses the bundled MTR dependency JAR. GitHub Actions runs the build and static checks on pushes and pull requests.
 
 ```powershell
 .\gradlew.bat compileJava --no-daemon

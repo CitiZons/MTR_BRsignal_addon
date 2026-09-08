@@ -2285,9 +2285,24 @@ public final class RouteRequestManager {
 		final double effectiveEnd = Math.min(activity.endDistance(), ShuntSignalPolicy.boundary(simulator.dimension, vehicle.path,
 				faces.stream().filter(PathSnapshot::isDirectionMatched).toList(), vehicle.head));
 		final var shuntExit = ShuntSignalPolicy.exitAtHead(simulator.dimension, vehicle.path, faces, vehicle.head);
-		if (shuntExit != null && !ServerAspectManager.isClearancePublished(simulator, shuntExit.face(),
+		final boolean crossedPublishedExit = shuntExit != null && vehicle.head > shuntExit.distance() + 1.0E-6
+				&& vehicle.publishedShuntExit != null && vehicle.publishedShuntExit.sameIdentity(shuntExit.key())
+				&& vehicle.publishedShuntPath.equals(vehicle.path.getFingerprint())
+				&& vehicle.publishedShuntRequest.equals(vehicle.request.getRequestId());
+		if (shuntExit != null && !crossedPublishedExit && !ServerAspectManager.isClearancePublished(simulator, shuntExit.face(),
 				vehicleCode(vehicle), vehicle.authorization.getRevision())) {
 			return Math.min(effectiveEnd, vehicle.head);
+		}
+		final var approachingExit = ShuntSignalPolicy.nextExit(simulator.dimension, vehicle.path, faces, vehicle.head);
+		if (approachingExit != null) {
+			if (!ServerAspectManager.isClearancePublished(simulator, approachingExit.face(), vehicleCode(vehicle), vehicle.authorization.getRevision())) {
+				vehicle.publishedShuntExit = null;
+				return Math.min(effectiveEnd, approachingExit.distance());
+			}
+			// A later prefix extension must not re-stop a train just past a cleared node.
+			vehicle.publishedShuntExit = approachingExit.key();
+			vehicle.publishedShuntPath = vehicle.path.getFingerprint();
+			vehicle.publishedShuntRequest = vehicle.request.getRequestId();
 		}
 		for (final PathSnapshot.FaceTraversal face : faces) {
 			if (!PathSnapshot.isDirectionMatched(face) || face.distance() <= vehicle.head + 1.0E-6) continue;
@@ -2350,24 +2365,39 @@ public final class RouteRequestManager {
 
 	/** 人工批准：直接按 SectionCheck 结果授权到 Request 内最后一个可开放 Section。 */
 	public static void approveWaiting(Simulator simulator, long vehicleId) {
+		approveWaiting(simulator, vehicleId, result -> {});
+	}
+
+	public record DispatchResult(boolean accepted, String reason, String detail) {}
+
+	public static void approveWaiting(Simulator simulator, long vehicleId, java.util.function.Consumer<DispatchResult> reply) {
 		simulator.run(() -> {
 			final State state = STATES.get(simulator);
 			final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
 			if (vehicle == null || vehicle.request == null) {
 				MtrbrDebugLog.event("DISPATCH", "approve vehicle=" + vehicleId + " accepted=false reason=REQUEST_NOT_READY");
+				reply.accept(new DispatchResult(false, "request_missing", ""));
 				return;
 			}
+			final double previousEnd = vehicle.authorization == null ? Double.NEGATIVE_INFINITY : vehicle.authorizationEndDistance;
 			if (vehicle.authorization == null) {
 				grantAuthorizationPrefix(simulator, state, vehicle, "Manual dispatcher approval");
 			} else {
 				extendAuthorization(simulator, vehicle);
 			}
 			state.audit.add("tick=" + SectionStateManager.getCurrentTick() + " dispatcher-approve vehicle=" + vehicleId);
+			final boolean advanced = vehicle.authorization != null && vehicle.authorizationEndDistance > previousEnd + 1.0E-6;
+			reply.accept(new DispatchResult(advanced, advanced ? "approved" : "no_clearance",
+					vehicle.authorization == null ? vehicle.request.getReason() : ""));
 		});
 	}
 
 	/** Human dispatcher revocation. Physical occupancy remains protected until the tail clears each Section. */
 	public static void revokePendingAuthorization(Simulator simulator, long vehicleId) {
+		revokePendingAuthorization(simulator, vehicleId, result -> {});
+	}
+
+	public static void revokePendingAuthorization(Simulator simulator, long vehicleId, java.util.function.Consumer<DispatchResult> reply) {
 		simulator.run(() -> {
 			final State state = STATES.get(simulator);
 			final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
@@ -2376,14 +2406,20 @@ public final class RouteRequestManager {
 				vehicle.lastCheckedStateRevision = -1;
 				vehicle.lastCheckedTick = -20;
 				state.audit.add("tick=" + SectionStateManager.getCurrentTick() + " dispatcher-revoke vehicle=" + vehicleId);
+				reply.accept(new DispatchResult(true, "revoked", ""));
 			} else {
 				MtrbrDebugLog.event("DISPATCH", "revoke vehicle=" + vehicleId + " accepted=false reason=REQUEST_NOT_READY");
+				reply.accept(new DispatchResult(false, "request_missing", ""));
 			}
 		});
 	}
 
 	/** 一次性越过当前红灯：执行层放行一个信号边界后自动失效。 */
 	public static void grantOneShotOverride(Simulator simulator, long vehicleId) {
+		grantOneShotOverride(simulator, vehicleId, result -> {});
+	}
+
+	public static void grantOneShotOverride(Simulator simulator, long vehicleId, java.util.function.Consumer<DispatchResult> reply) {
 		simulator.run(() -> {
 			final State state = STATES.get(simulator);
 			final VehicleState vehicle = state == null ? null : state.vehicles.get(vehicleId);
@@ -2397,12 +2433,14 @@ public final class RouteRequestManager {
 				vehicle.overrideState = OverrideState.ONE_SHOT;
 				MtrbrDebugLog.event("OVERRIDE", "vehicle=" + vehicleId + " request=" + vehicle.request.getRequestId() + " face=" + target.key() + " boundary=" + target.distance());
 				state.audit.add("tick=" + SectionStateManager.getCurrentTick() + " dispatcher-override vehicle=" + vehicleId + " until=" + vehicle.overrideEndDistance);
+				reply.accept(new DispatchResult(true, "override", ""));
 			} else {
 				final String reason = vehicle == null || vehicle.request == null ? "REQUEST_NOT_READY"
 						: vehicle.path == null || vehicle.path.isEmpty() ? "PATH_EMPTY"
 						: vehicle.authorization != null ? "ALREADY_AUTHORIZED"
 						: target == null ? "NO_RED_FACE" : "INVALID_TARGET";
 				MtrbrDebugLog.event("OVERRIDE", "vehicle=" + vehicleId + " accepted=false reason=" + reason);
+				reply.accept(new DispatchResult(false, reason.toLowerCase(java.util.Locale.ROOT), ""));
 			}
 		});
 	}
@@ -3222,6 +3260,8 @@ public final class RouteRequestManager {
 		private boolean turnbackActivityAwaiting;
 		private boolean turnbackReacquirePending;
 		private double fixedGateBoundary = Double.NaN;
+		private PathSnapshot.FaceTraversalKey publishedShuntExit;
+		private String publishedShuntPath = "", publishedShuntRequest = "";
 		private String fixedGateBoundarySignature = "";
 		private TurnbackHandoffPhase turnbackHandoffPhase = TurnbackHandoffPhase.NORMAL;
 		private long turnbackHandoffStartedTick = -1;

@@ -19,7 +19,7 @@ MTR `immutablePath` is the physical source of truth. Requests describe the compl
 - `src/main/java/org/mtrbr/server/SignalTopology.java`: persisted signal/node topology.
 - `src/main/java/org/mtrbr/web/DepotPathEditorService.java`: LINE path validation/rebuild.
 - `src/main/java/org/mtrbr/mixin/RenderSignalBaseMixin.java`: expanded native client node lookup.
-- `src/main/java/org/mtrbr/server/ShuntSignalPolicy.java`: requires a bound position light and matching `shunt=` route; grants one Block only. Removing the last device restores normal signalling. Authorized trains need not stop at the entry; preserve the exit clearance publication check.
+- `src/main/java/org/mtrbr/server/ShuntSignalPolicy.java`: requires a bound position light and matching `shunt=` route. Passing an entry immediately permits the next one-Block request; consecutive shunts advance the window only after each node is passed. Passing an ordinary main-signal node restores normal lookahead. Removing the last device restores normal signalling. Preserve clearance publication checks on approach and at the exit.
 - `src/main/java/org/mtrbr/block/SpeedSignMount.java` and `render/SpeedSignRenderer.java`: decorative PSR/AWI signs. Signs have bottom/center/top mounts, arrows bottom/top only; all top mounts have full-height poles. Never change movement authority from these signs.
 - `src/main/java/org/mtrbr/data/WebTokenPermissionsSavedData.java`: UUID-based generation bans stored in the overworld. Bans survive restarts but do not revoke existing tokens; token and Web dispatch operations still require OP.
 - `src/main/java/org/mtrbr/client/ClientWebTokenActions.java`: explicit generate-and-open action; browser responses are correlated to a pending client request. Token replies must remain private.
@@ -33,6 +33,8 @@ The refreshed 0.1.2 uses network protocol 9. Update both server and clients, inc
 All previews belong in `build/previews/`. Restore the eight indicator sheets with `python tools/preview_indicators.py`; call `preview()` from `tools/check_position_light_signals.py` to render the position lights without regenerating authored models. Avoid `gradlew clean` when previews must be retained: it deletes the whole build directory. Preview generator scripts belong in `tools/`, not `build/`.
 
 ## Logs
+
+Signal aspects are evaluated every 10 server ticks; changed displays synchronize immediately, with a 20-tick fallback. Dispatcher/Web snapshots remain on the 20-tick schedule. `gradlew build` includes non-generating Python resource checks; install `tools/requirements.txt` and optionally set `-PpythonExecutable=...`.
 
 Use `MTRBR-*` diagnostics, especially `MTRBR-MTR-PATH-*`, `MTRBR-OCCUPANCY-*`, `MTRBR-REQUEST-*`, `MTRBR-AUTH-*`, `MTRBR-GATE-*`, and `MTRBR-TURNBACK-*`; correlate by vehicle ID and absolute timestamp.
 

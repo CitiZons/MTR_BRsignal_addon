@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 未发布 / Unreleased
+
+- 调车越过入口节点后可立即申请下一个闭塞；连续调车逐段申请，越过普通主信号节点后恢复普通授权窗口。提前获得下一信号开放显示即可不停车通过，保留占用、锁闭及灯色发布检查。
+- 信号计算周期调整为 10 tick，变化时同步、20 tick 兜底；调度和 Web 全量更新保持 20 tick。
+- 调度列表增加搜索、状态筛选、表头排序、长字段省略和悬浮完整显示；调度操作增加服务端私有执行结果。
+- 资源检查改用仓库内 MTR JAR，并接入 Gradle 和 GitHub Actions；更新统一预览目录说明。
+
+Shunt requests roll forward by one Block after each passed entry, without requiring a stop at the following signal when clearance is already displayed. Signals refresh every 10 ticks. Dispatcher filtering, sorting, clipped fields and private execution results are added. Portable resource checks now run in Gradle and CI.
+
 ## 0.1.2 更新版 / Refreshed Release (2026-09-08)
 
 此更新替换原有 `v0.1.2` release。Minecraft 1.20.1、Forge 47.4.18、MTR Forge 4.0.3；网络协议为 `9`，服务器与客户端均需替换为本次 JAR，不能与较早的同版本号 JAR 混用。

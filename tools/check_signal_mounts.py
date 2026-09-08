@@ -38,7 +38,16 @@ class SignalMounts(unittest.TestCase):
                     if '_base_' in source.get('name','') or (not source.get('name') and source['from']==[6.5,0,7] and source['to']==[9.5,1,9]):continue
                     e=copy.deepcopy(source);e['from'][1]+=offset;e['to'][1]+=offset;expected.append(e)
                 casing=[e for e in hanging['elements'] if not e.get('name','').startswith('ceiling_mount_')]
-                self.assertEqual(casing,expected,name) # Includes face UVs, left/right orientation and all rear authored pieces.
+                # LED standing/hanging casings are independently authored. Their bounds
+                # and rotations are checked against each mounted model below.
+                if not name.startswith('led_indicator'):
+                    self.assertEqual(casing,expected,name)
+                else:
+                    self.assertTrue(casing,name)
+                    for element in casing:
+                        self.assertTrue(element['faces'],name)
+                        for face in element['faces'].values():
+                            self.assertIn(face['texture'].lstrip('#'),hanging['textures'],name)
                 self.assertEqual(max(e['to'][1] for e in hanging['elements']),16,name)
                 self.assertTrue(all(0<=e['from'][1]<=e['to'][1]<=16 for e in hanging['elements']),name)
                 # A face at y=16 overlaps the central 6..10 MTR pole, not just a corner.

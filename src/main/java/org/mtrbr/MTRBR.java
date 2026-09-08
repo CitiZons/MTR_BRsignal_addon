@@ -188,18 +188,22 @@ public final class MTRBR {
 
 	private static void onServerTick(TickEvent.ServerTickEvent event) {
 		if (event.phase == TickEvent.Phase.END && event.getServer() != null) {
-				if (event.getServer().getTickCount() % 20 == 0) {
+			if (event.getServer().getTickCount() % 10 == 0) {
+				final boolean fullSync = event.getServer().getTickCount() % 20 == 0;
 				event.getServer().getAllLevels().forEach(level -> {
-					org.mtrbr.server.ServerAspectManager.update(level);
-					updateColorLightIndicatorRoutes(level);
-					Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncSignalAspectsPacket(org.mtrbr.server.ServerAspectManager.snapshot(level)));
+					final boolean changed = org.mtrbr.server.ServerAspectManager.update(level);
+					if (changed || fullSync) {
+						updateColorLightIndicatorRoutes(level);
+						Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncSignalAspectsPacket(org.mtrbr.server.ServerAspectManager.snapshot(level)));
+					}
+					if (!fullSync) return;
 					final Simulator simulator = org.mtrbr.server.SectionStateManager.getSimulator(level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath());
 					if (simulator != null) {
 						org.mtrbr.server.CapacityLeaseManager.persistCompiledZones(level, simulator);
 						Network.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new SyncDispatcherDataPacket(org.mtrbr.server.RouteRequestManager.getRequestSnapshots(simulator)));
 					}
 				});
-				WebTopologySnapshot.publish(event.getServer());
+				if (fullSync) WebTopologySnapshot.publish(event.getServer());
 			}
 		}
 	}
