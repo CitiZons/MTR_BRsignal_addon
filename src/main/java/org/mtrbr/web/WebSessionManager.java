@@ -25,17 +25,24 @@ public final class WebSessionManager {
 	}
 
 	public static IssueResult issue(ServerPlayer player) {
+		return issue(player.getUUID(), player.hasPermissions(2),
+				org.mtrbr.data.WebTokenPermissionsSavedData.get(player.server).isEnabled(player.getUUID()));
+	}
+
+	static IssueResult issue(UUID playerId, boolean operator, boolean enabled) {
+		if (!operator) return new IssueResult("", "Operator permission is required.");
+		if (!enabled) return new IssueResult("", "Web token generation has been disabled for this player.");
 		synchronized (LOCK) {
 			final long now = System.currentTimeMillis();
 			expireTokens(now);
-			final List<String> tokens = TOKENS_BY_OPERATOR.computeIfAbsent(player.getUUID(), ignored -> new ArrayList<>());
-			if (tokens.size() >= MAX_TOKENS_PER_OPERATOR) return new IssueResult("");
+			final List<String> tokens = TOKENS_BY_OPERATOR.computeIfAbsent(playerId, ignored -> new ArrayList<>());
+			if (tokens.size() >= MAX_TOKENS_PER_OPERATOR) return new IssueResult("", "Web token limit reached (5). Revoke an existing token first.");
 			final byte[] bytes = new byte[24];
 			RANDOM.nextBytes(bytes);
 			final String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-			SESSIONS.put(token, new Session(player.getUUID(), now + SESSION_LIFETIME_MILLIS, "", Status.ACTIVE, 0));
+			SESSIONS.put(token, new Session(playerId, now + SESSION_LIFETIME_MILLIS, "", Status.ACTIVE, 0));
 			tokens.add(token);
-			return new IssueResult(token);
+			return new IssueResult(token, "");
 		}
 	}
 
@@ -109,6 +116,31 @@ public final class WebSessionManager {
 		}
 	}
 
+	/** A chat selection addresses the token itself, so renumbering cannot revoke a different token. */
+	public static boolean revoke(UUID playerId, String token) {
+		synchronized (LOCK) {
+			final List<String> tokens = TOKENS_BY_OPERATOR.get(playerId);
+			if (tokens == null || !tokens.remove(token)) return false;
+			final Session session = SESSIONS.get(token);
+			if (session != null) transition(token, session, Status.REVOKED);
+			if (tokens.isEmpty()) TOKENS_BY_OPERATOR.remove(playerId);
+			return true;
+		}
+	}
+
+	public static Map<UUID, List<TokenView>> listActive() {
+		synchronized (LOCK) {
+			expireTokens(System.currentTimeMillis());
+			final Map<UUID, List<TokenView>> result = new HashMap<>();
+			TOKENS_BY_OPERATOR.forEach((id, tokens) -> {
+				final List<TokenView> active = tokens.stream().filter(token -> SESSIONS.get(token).status == Status.ACTIVE)
+						.map(token -> new TokenView(token, Status.ACTIVE)).toList();
+				if (!active.isEmpty()) result.put(id, active);
+			});
+			return Map.copyOf(result);
+		}
+	}
+
 	public static void invalidateForOfflinePlayer(UUID playerId) {
 		synchronized (LOCK) {
 			for (final String token : List.copyOf(TOKENS_BY_OPERATOR.getOrDefault(playerId, List.of()))) {
@@ -140,7 +172,7 @@ public final class WebSessionManager {
 		TOKENS_BY_OPERATOR.entrySet().removeIf(entry -> entry.getValue().isEmpty());
 	}
 
-	public record IssueResult(String token) {
+	public record IssueResult(String token, String error) {
 		public boolean issued() { return !token.isBlank(); }
 	}
 

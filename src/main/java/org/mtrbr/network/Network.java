@@ -7,7 +7,7 @@ import org.mtrbr.MTRBR;
 
 public final class Network {
 
-	private static final String PROTOCOL_VERSION = "6";
+	private static final String PROTOCOL_VERSION = "9";
 
 	public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
 			ResourceLocation.fromNamespaceAndPath(MTRBR.MOD_ID, "main"),
@@ -35,5 +35,8 @@ public final class Network {
 		CHANNEL.registerMessage(nextId++, RequestDispatcherDataPacket.class, RequestDispatcherDataPacket::encode, RequestDispatcherDataPacket::decode, RequestDispatcherDataPacket::handle);
 		CHANNEL.registerMessage(nextId++, DispatcherActionPacket.class, DispatcherActionPacket::encode, DispatcherActionPacket::decode, DispatcherActionPacket::handle);
         CHANNEL.registerMessage(nextId++, SetIndicatorMountPacket.class, SetIndicatorMountPacket::encode, SetIndicatorMountPacket::decode, SetIndicatorMountPacket::handle);
+		CHANNEL.registerMessage(nextId++, SetSpeedSignPacket.class, SetSpeedSignPacket::encode, SetSpeedSignPacket::decode, SetSpeedSignPacket::handle);
+		CHANNEL.registerMessage(nextId++, OpenWebTokenPacket.class, OpenWebTokenPacket::encode, OpenWebTokenPacket::decode,
+				OpenWebTokenPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
 	}
 }

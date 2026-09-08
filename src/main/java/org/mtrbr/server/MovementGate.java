@@ -133,6 +133,13 @@ public final class MovementGate {
 		return true;
 	}
 
+	/** Refresh a cached native red stop as soon as movement authority is available. */
+	public static long nativeStoppingCooldown(Vehicle vehicle, long cooldown) {
+		// MTR otherwise reuses the old red stopping point without consulting the moving
+		// block hook. Recompute its station stop, then clamp to the current locked prefix.
+		return shouldDisableNativeBlock(vehicle) ? 0 : cooldown;
+	}
+
 	/** Native signal/reservation occupancy is not a second authority for an authorized vehicle. */
 	public static boolean shouldDisableNativeBlock(Vehicle vehicle) {
 		final org.mtr.core.simulation.Simulator simulator = SectionStateManager.getCurrentSimulator();

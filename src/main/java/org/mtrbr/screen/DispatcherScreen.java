@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.mtrbr.client.ClientDispatcherData;
 import org.mtrbr.client.CenterToast;
+import org.mtrbr.client.ClientWebTokenActions;
 import org.mtrbr.network.DispatcherActionPacket;
 import org.mtrbr.network.Network;
 import org.mtrbr.network.RequestDispatcherDataPacket;
@@ -19,6 +20,7 @@ public final class DispatcherScreen extends Screen {
 	private static final int CONTENT_WIDTH = 700;
 	private static final int LIST_TOP = 50;
 	private static final int ROW_HEIGHT = 18;
+	private static final int FOOTER_HEIGHT = 58;
 	private static final int[] COLUMN_OFFSETS = {5, 65, 130, 210, 285, 360, 420, 480, 540, 610};
 	private static final String[] HEADERS = {"Code", "State", "Route", "Next", "Dest", "Ctrl", "Req", "Auth", "Head", "Occ/Auth/Lock"};
 	private static final String[] CHINESE_HEADERS = {"编号", "状态", "路线", "下一站", "终点", "控制", "请求", "授权", "车头", "区间占用/授权/锁闭"};
@@ -38,16 +40,30 @@ public final class DispatcherScreen extends Screen {
 	protected void init() {
 		leftX = Math.max(10, (width - CONTENT_WIDTH) / 2);
 		scale = Math.min(1.0F, (float) (width - 20) / CONTENT_WIDTH);
-		final int buttonWidth = 55;
-		final int gap = 10;
-		final double startX = leftX + (CONTENT_WIDTH - buttonWidth * 5 - gap * 4) / 2.0;
-		addRenderableWidget(Button.builder(Component.literal("Refresh"), button -> requestRefresh()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 0), height - 28, buttonWidth, 18).build());
-		addRenderableWidget(Button.builder(Component.literal("Approve"), button -> approveSelected()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 1), height - 28, buttonWidth, 18).build());
-		addRenderableWidget(Button.builder(Component.literal("Revoke"), button -> revokeSelected()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 2), height - 28, buttonWidth, 18).build());
-		addRenderableWidget(Button.builder(Component.literal("Override"), button -> overrideSelected()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 3), height - 28, buttonWidth, 18).build());
-		addRenderableWidget(Button.builder(Component.literal("Close"), button -> onClose()).bounds((int) (startX * 0.43 + (buttonWidth + gap) * 4), height - 28, buttonWidth, 18).build());
+		addButtonRow(height - 52, 70,
+				List.of(Component.literal("Refresh"), Component.literal("Approve"), Component.literal("Revoke"), Component.literal("Override"), Component.literal("Close")),
+				List.of(this::requestRefresh, this::approveSelected, this::revokeSelected, this::overrideSelected, this::onClose));
+		addButtonRow(height - 28, 110,
+				List.of(Component.translatable("gui.mtr_brsignal_addon.web_token.generate"), Component.translatable("gui.mtr_brsignal_addon.web_token.list"), Component.translatable("gui.mtr_brsignal_addon.web_token.revoke")),
+				List.of(ClientWebTokenActions::generateAndOpen, () -> ClientWebTokenActions.command("list"), () -> ClientWebTokenActions.command("revocation")));
 		requestRefresh();
 		refreshTicks = 20;
+	}
+
+	private void addButtonRow(int y, int preferredWidth, List<Component> labels, List<Runnable> actions) {
+		final int gap = Math.min(10, Math.max(2, width / 100));
+		final int count = labels.size();
+		final int buttonWidth = Math.max(1, Math.min(preferredWidth, (width - 20 - gap * (count - 1)) / count));
+		final int startX = (width - (buttonWidth * count + gap * (count - 1))) / 2;
+		for (int index = 0; index < count; index++) {
+			final Runnable action = actions.get(index);
+			addRenderableWidget(Button.builder(labels.get(index), button -> action.run())
+					.bounds(startX + (buttonWidth + gap) * index, y, buttonWidth, 18).build());
+		}
+	}
+
+	private int visibleRows() {
+		return Math.max(0, (height - FOOTER_HEIGHT - LIST_TOP) / ROW_HEIGHT);
 	}
 
 	@Override
@@ -71,7 +87,7 @@ public final class DispatcherScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
-		if (mouseY >= LIST_TOP && mouseY < height - 34) {
+		if (mouseY >= LIST_TOP && mouseY < LIST_TOP + visibleRows() * ROW_HEIGHT) {
 			final int visibleIndex = (int) ((mouseY - LIST_TOP) / ROW_HEIGHT);
 			final int index = scrollOffset + visibleIndex;
 			if (index >= 0 && index < entries.size()) {
@@ -84,7 +100,7 @@ public final class DispatcherScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-		final int visibleRows = (height - 34 - LIST_TOP) / ROW_HEIGHT;
+		final int visibleRows = visibleRows();
 		final int maxOffset = Math.max(0, entries.size() - visibleRows);
 		scrollOffset = Math.max(0, Math.min(maxOffset, scrollOffset - (int) Math.signum(delta)));
 		return true;
@@ -112,7 +128,7 @@ public final class DispatcherScreen extends Screen {
 				break;
 			}
 		}
-		scrollOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, entries.size() - (height - 34 - LIST_TOP) / ROW_HEIGHT)));
+		scrollOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, entries.size() - visibleRows())));
 	}
 
 	private void approveSelected() {
@@ -156,7 +172,7 @@ public final class DispatcherScreen extends Screen {
 	}
 
 	private void drawEntries(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		final int visibleRows = (height - 34 - LIST_TOP) / ROW_HEIGHT;
+		final int visibleRows = visibleRows();
 		for (int i = 0; i < visibleRows; i++) {
 			final int index = scrollOffset + i;
 			if (index >= entries.size()) {

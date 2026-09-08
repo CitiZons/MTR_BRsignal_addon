@@ -156,11 +156,13 @@ public final class MTRBR {
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_2_3_4_5_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_2_3_4_5_6_ITEM.get()));
 				output.accept(new ItemStack(SIGNAL_BRACKET_ITEM.get()));
+				for (var item : SpeedSigns.ITEMS) output.accept(new ItemStack(item.get()));
 			})
 			.build());
 
 	public MTRBR() {
 		final IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+		SpeedSigns.init();
 		ITEMS.register(modEventBus);
 		BLOCKS.register(modEventBus);
 		BLOCK_ENTITIES.register(modEventBus);

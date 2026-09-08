@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "mtr_brsignal_addon:block/speed_sign/mtr_signal_pole"
+  },
+  "elements": []
+}

@@ -4,6 +4,10 @@ import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.commands.arguments.GameProfileArgument;
+import net.minecraft.commands.arguments.UuidArgument;
+import org.mtrbr.data.WebTokenPermissionsSavedData;
+import org.mtrbr.web.WebSessionManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -45,10 +49,25 @@ public final class MTRBRCommands {
 						.executes(context -> listRequests(context.getSource().getLevel(), context.getSource())))
 				.then(Commands.literal("web_token")
 						.then(Commands.literal("generate")
-								.executes(context -> issueWebToken(context.getSource())))
+								.executes(context -> issueWebToken(context.getSource(), null))
+								.then(Commands.literal("open")
+										.then(Commands.argument("request_id", UuidArgument.uuid())
+												.executes(context -> issueWebToken(context.getSource(), UuidArgument.getUuid(context, "request_id"))))))
 						.then(Commands.literal("list")
-								.executes(context -> listWebTokens(context.getSource())))
+								.executes(context -> listWebTokens(context.getSource(), false)))
+						.then(Commands.literal("list_all")
+								.executes(context -> listAllWebTokens(context.getSource())))
+						.then(Commands.literal("enable")
+								.then(Commands.argument("player", GameProfileArgument.gameProfile())
+										.executes(context -> setWebTokenEnabled(context.getSource(), GameProfileArgument.getGameProfiles(context, "player"), true))))
+						.then(Commands.literal("disable")
+								.then(Commands.argument("player", GameProfileArgument.gameProfile())
+										.executes(context -> setWebTokenEnabled(context.getSource(), GameProfileArgument.getGameProfiles(context, "player"), false))))
 						.then(Commands.literal("revocation")
+								.executes(context -> listWebTokens(context.getSource(), true))
+								.then(Commands.literal("token")
+										.then(Commands.argument("token", StringArgumentType.word())
+												.executes(context -> revokeWebToken(context.getSource(), StringArgumentType.getString(context, "token")))))
 								.then(Commands.argument("number", IntegerArgumentType.integer(1, 5))
 										.executes(context -> revokeWebToken(context.getSource(), IntegerArgumentType.getInteger(context, "number"))))))
 				.then(Commands.literal("approve")
@@ -76,7 +95,7 @@ public final class MTRBRCommands {
 												.executes(context -> showProtection(context.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(context, "signal_pos"), BoolArgumentType.getBool(context, "reverse"), context.getSource())))))));
 	}
 
-	private static int issueWebToken(net.minecraft.commands.CommandSourceStack source) {
+	private static int issueWebToken(net.minecraft.commands.CommandSourceStack source, java.util.UUID openRequest) {
 		final var player = source.getPlayer();
 		if (player == null) {
 			source.sendFailure(Component.literal("This command must be run by an in-game operator."));
@@ -99,7 +118,7 @@ public final class MTRBRCommands {
 		}
 		final org.mtrbr.web.WebSessionManager.IssueResult issued = org.mtrbr.web.WebSessionManager.issue(player);
 		if (!issued.issued()) {
-			player.sendSystemMessage(Component.literal("Web token limit reached (5). Revoke an existing token first."));
+			player.sendSystemMessage(Component.literal(issued.error()));
 			return 0;
 		}
 		final String url = "http://" + host + ":" + webserverPort + "/mtrbr/?token=" + issued.token();
@@ -108,25 +127,21 @@ public final class MTRBRCommands {
 						.withColor(net.minecraft.ChatFormatting.AQUA)
 						.withUnderlined(true)
 						.withClickEvent(new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_URL, url)))));
+		if (openRequest != null) {
+			org.mtrbr.network.Network.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
+					new org.mtrbr.network.OpenWebTokenPacket(openRequest, url));
+		}
 		return 1;
 	}
 
-	private static int listWebTokens(net.minecraft.commands.CommandSourceStack source) {
+	private static int listWebTokens(net.minecraft.commands.CommandSourceStack source, boolean revocation) {
 		final var player = source.getPlayer();
 		if (player == null) {
 			source.sendFailure(Component.literal("This command must be run by an in-game operator."));
 			return 0;
 		}
 		final int webserverPort = org.mtr.mod.Init.getServerPort();
-		if (webserverPort <= 0) {
-			player.sendSystemMessage(Component.literal("MTR web server is disabled."));
-			return 0;
-		}
 		final String host = player.server.isDedicatedServer() ? org.mtrbr.config.MtrbrServerConfig.webPublicHost() : "localhost";
-		if (host.isBlank()) {
-			player.sendSystemMessage(Component.literal("MTRBR web_public_host is not configured."));
-			return 0;
-		}
 		final List<org.mtrbr.web.WebSessionManager.TokenView> tokens = org.mtrbr.web.WebSessionManager.list(player.getUUID());
 		if (tokens.isEmpty()) {
 			player.sendSystemMessage(Component.literal("No web tokens."));
@@ -134,10 +149,63 @@ public final class MTRBRCommands {
 		}
 		for (int index = 0; index < tokens.size(); index++) {
 			final var entry = tokens.get(index);
-			final String url = "http://" + host + ":" + webserverPort + "/mtrbr/?token=" + entry.token();
-			player.sendSystemMessage(Component.literal((index + 1) + ". [" + entry.status() + "] " + url));
+			final String url = host.isBlank() || webserverPort <= 0 ? entry.token()
+					: "http://" + host + ":" + webserverPort + "/mtrbr/?token=" + entry.token();
+			final var line = Component.literal((index + 1) + ". [" + entry.status() + "] " + url);
+			if (revocation) {
+				line.append(Component.literal(" ")).append(Component.translatable("gui.mtr_brsignal_addon.web_token.revoke_action")
+						.withStyle(style -> style.withColor(net.minecraft.ChatFormatting.RED)
+								.withClickEvent(new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+										"/mtrbr web_token revocation token " + entry.token()))));
+			}
+			player.sendSystemMessage(line);
 		}
 		return 1;
+	}
+
+	private static int revokeWebToken(net.minecraft.commands.CommandSourceStack source, String token) {
+		final var player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.literal("This command must be run by an in-game operator."));
+			return 0;
+		}
+		if (!WebSessionManager.revoke(player.getUUID(), token)) {
+			source.sendFailure(Component.literal("This token no longer exists or does not belong to you."));
+			return 0;
+		}
+		player.sendSystemMessage(Component.literal("Web token revoked."));
+		return 1;
+	}
+
+	private static int listAllWebTokens(net.minecraft.commands.CommandSourceStack source) {
+		final var permissions = WebTokenPermissionsSavedData.get(source.getServer());
+		final var tokensByPlayer = WebSessionManager.listActive();
+		int count = 0;
+		for (final var player : source.getServer().getPlayerList().getPlayers()) {
+			if (!player.hasPermissions(2)) continue;
+			final var tokens = tokensByPlayer.getOrDefault(player.getUUID(), List.of());
+			if (tokens.isEmpty()) continue;
+			source.sendSuccess(() -> Component.literal(player.getGameProfile().getName() + " (" + player.getUUID() + ")"
+					+ " generation=" + (permissions.isEnabled(player.getUUID()) ? "enabled" : "disabled")), false);
+			for (int index = 0; index < tokens.size(); index++) {
+				final String line = "  " + (index + 1) + ". [ACTIVE] " + tokens.get(index).token();
+				source.sendSuccess(() -> Component.literal(line), false);
+				count++;
+			}
+		}
+		if (count == 0) source.sendSuccess(() -> Component.literal("No valid web tokens."), false);
+		return 1;
+	}
+
+	private static int setWebTokenEnabled(net.minecraft.commands.CommandSourceStack source,
+			java.util.Collection<com.mojang.authlib.GameProfile> players, boolean enabled) {
+		final var permissions = WebTokenPermissionsSavedData.get(source.getServer());
+		for (final var profile : players) {
+			permissions.setEnabled(profile.getId(), enabled);
+			source.sendSuccess(() -> Component.literal("Web token generation " + (enabled ? "enabled" : "disabled")
+					+ " for " + profile.getName() + "."), false);
+		}
+		return players.size();
 	}
 
 	private static int revokeWebToken(net.minecraft.commands.CommandSourceStack source, int number) {

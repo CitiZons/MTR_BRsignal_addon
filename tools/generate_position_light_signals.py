@@ -51,16 +51,16 @@ def box(name, a, b, texture):
 
 def model(pole, display):
     result = json.loads(SOURCE.read_text(encoding="utf-8-sig"))
-    result.pop("format_version", None)
     elements = result["elements"]
-    if any(e.get("rotation", {}).get("angle", 0) != 0 for e in elements):
-        raise ValueError("The authored base must use unrotated cuboids for Java 1.20.1 direction variants")
+    elements = copy.deepcopy(elements)
     if pole:
         elements = [e for e in elements if e["name"] not in ("ground_foot", "ground_post")]
         elements += [box("mtr_pole", [6, 0, 6], [10, 16, 10], "pole"),
                      box("pole_clamp", [5, 3, 6], [11, 4, 11], "steel"),
                      box("pole_clamp", [5, 8, 6], [11, 9, 11], "steel")]
         result["textures"]["pole"] = NS + "block/position_light/mtr_signal_pole"
+    for key in ("case", "rim", "glass", "steel"):
+        result["textures"][key] = NS + "block/position_light/" + key
     for element in elements:
         if not element["name"].endswith("_lens"): continue
         name = element["name"].removesuffix("_lens")
@@ -95,7 +95,8 @@ def main():
         for display in ("dark", "red", "yellow", "proceed"):
             base = model(pole, display)
             for suffix, angle in (("", 0), ("_22_5", -22.5), ("_45", -45), ("_67_5", 22.5)):
-                if not pole and display == "dark" and not suffix: continue
+                if not pole and display == "dark" and suffix == "":
+                    continue
                 variant = copy.deepcopy(base)
                 if angle:
                     for e in variant["elements"]:

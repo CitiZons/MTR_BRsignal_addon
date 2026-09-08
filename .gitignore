@@ -3,6 +3,8 @@ build/
 run/
 run-server/
 server_logs/
+logs/
+/build_deploy_alpha4.ps1
 .idea/
 *.iml
 out/

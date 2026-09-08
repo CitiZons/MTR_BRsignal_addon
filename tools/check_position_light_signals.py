@@ -153,8 +153,8 @@ def preview():
     draw = ImageDraw.Draw(image)
     for point, label in labels:
         draw.text(point, label, fill=(35,40,44), font_size=16*scale)
-    output = ROOT / "build/position-light-preview.png"
-    output.parent.mkdir(exist_ok=True)
+    output = ROOT / "build/previews/position-light-preview.png"
+    output.parent.mkdir(parents=True, exist_ok=True)
     image.resize((1000,720), Image.Resampling.LANCZOS).save(output)
     print(output)
 

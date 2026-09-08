@@ -70,6 +70,15 @@ public final class RouteBindingsSavedData extends SavedData {
 
 	public BlockPos getIndicatorBinding(BlockPos indicator) { return indicatorBindings.get(indicator); }
 
+	/** Only discard devices positively observed missing; unloaded chunks are not absence. */
+	public boolean removeMissingShuntIndicators(java.util.function.Predicate<BlockPos> missing) {
+		boolean changed = false;
+		for (final BlockPos pos : Set.copyOf(shuntIndicatorBindings)) {
+			if (missing.test(pos)) changed |= clearIndicatorBinding(pos);
+		}
+		return changed;
+	}
+
 	private static RouteBindingsSavedData load(CompoundTag tag) {
 		final RouteBindingsSavedData data = new RouteBindingsSavedData();
 		final CompoundTag bindingsTag = tag.getCompound(KEY_BINDINGS);

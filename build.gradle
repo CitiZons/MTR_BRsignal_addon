@@ -122,3 +122,23 @@ tasks.register("repeatingSignalRegression", JavaExec) {
     workingDir = projectDir
 }
 tasks.named("check") { dependsOn "repeatingSignalRegression" }
+
+tasks.register("speedSignRegression", JavaExec) {
+    group = "verification"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "org.mtrbr.data.SpeedSignTextRegression"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+}
+tasks.named("check") { dependsOn "speedSignRegression" }
+
+tasks.register("webSessionRegression", JavaExec) {
+    group = "verification"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "org.mtrbr.web.WebSessionRegression"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+    workingDir = layout.buildDirectory.dir("web-session-regression").get().asFile
+    doFirst { workingDir.mkdirs() }
+}
+tasks.named("check") { dependsOn "webSessionRegression" }

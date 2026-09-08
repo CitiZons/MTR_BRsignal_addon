@@ -101,6 +101,7 @@ public final class ServerSignalRegistry {
 			final boolean wasNode = level.getBlockState(deletedPos).getBlock() instanceof org.mtr.mod.block.BlockNode;
 			final boolean wasIndicator = level.getBlockState(deletedPos).getBlock() instanceof LedIndicatorBlock
 					|| level.getBlockState(deletedPos).getBlock() instanceof ColorLightIndicatorBlock
+					|| level.getBlockState(deletedPos).getBlock() instanceof org.mtrbr.block.PositionLightSignalBlock
 					|| level.getBlockState(deletedPos).getBlock() instanceof RepeatingSignalBlock;
 			// BreakEvent fires before the block-state replacement. Refresh on the
 			// next server task so the registry observes the post-break world.
@@ -114,6 +115,7 @@ public final class ServerSignalRegistry {
 				}
 				if (wasIndicator && !(level.getBlockState(deletedPos).getBlock() instanceof LedIndicatorBlock)
 						&& !(level.getBlockState(deletedPos).getBlock() instanceof ColorLightIndicatorBlock)
+						&& !(level.getBlockState(deletedPos).getBlock() instanceof org.mtrbr.block.PositionLightSignalBlock)
 						&& !(level.getBlockState(deletedPos).getBlock() instanceof RepeatingSignalBlock)) {
 					RouteBindingsSavedData.get(level).clearIndicatorBinding(deletedPos);
 				}

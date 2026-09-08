@@ -1,5 +1,32 @@
 # Third-Party Notices
 
+## Alte DIN 1451 Mittelschrift Regular
+
+Font distributed by Peter Wiegel; the unchanged font metadata names Ludwig
+Goller as manufacturer and records its copyright field as "expired".
+
+Source and explicit SIL Open Font License declaration (checked 2026-09-08):
+https://www.1001fonts.com/alte-din-1451-mittelschrift-font.html
+
+The supplied Regular font matches `din1451alt.ttf` in the source download:
+https://www.1001fonts.com/download/alte-din-1451-mittelschrift.zip
+
+File: `assets/mtr_brsignal_addon/font/alte_din_1451_mittelschrift_regular.ttf`.
+The font bytes and embedded metadata are unchanged. The speed-sign glyph
+atlas and number/letter artwork are rasterized from this font; arrow artwork
+is independent of the font.
+
+License: SIL Open Font License, Version 1.1. The complete licence text is
+included in `LICENSES/OFL-1.1.txt`, with font-specific attribution in
+`LICENSES/Alte-DIN-1451-Mittelschrift-NOTICE.txt`. Both are packaged in the JAR.
+The font remains under OFL 1.1, not the project's MIT licence.
+Official licence text: https://openfontlicense.org/documents/OFL.md
+
+The speed-sign pole also uses the unchanged MTR `metal.png`, at
+`assets/mtr_brsignal_addon/textures/block/speed_sign/mtr_signal_pole.png`.
+Its 4/16 square pole dimensions follow the MTR `signal_pole.json` model.
+The MTR MIT license below applies to this copy as well.
+
 ## Minecraft Transit Railway Signal Pole Texture
 
 File: `src/main/resources/assets/mtr_brsignal_addon/textures/block/position_light/mtr_signal_pole.png`

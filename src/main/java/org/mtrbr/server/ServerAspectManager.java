@@ -64,6 +64,12 @@ public final class ServerAspectManager {
 			topology = existing;
 		}
 		final RouteBindingsSavedData savedBindings = RouteBindingsSavedData.get(level);
+		if (savedBindings.removeMissingShuntIndicators(pos -> level.hasChunkAt(pos)
+				&& !(level.getBlockState(pos).getBlock() instanceof org.mtrbr.block.PositionLightSignalBlock))) {
+			org.mtrbr.network.Network.CHANNEL.send(net.minecraftforge.network.PacketDistributor.DIMENSION.with(level::dimension),
+					new org.mtrbr.network.SyncRouteBindingsPacket(savedBindings.toClientMap(), savedBindings.getNodeBindings(),
+							savedBindings.getIndicatorBindings(), savedBindings.getSignalNames()));
+		}
 		final List<RouteRequestManager.AuthorizedPath> authorizations = RouteRequestManager.getAuthorizedPaths(simulator);
 		final Map<String, SectionStateManager.SectionSnapshot> sectionStates = SectionStateManager.getPublishedSections(simulator);
 		SignalBlockSavedData signalBlocks = SignalBlockSavedData.get(level);

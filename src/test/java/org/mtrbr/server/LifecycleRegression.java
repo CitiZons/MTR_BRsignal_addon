@@ -235,7 +235,7 @@ final class LifecycleRegression {
 		clearance = call("clearancePrefix", sim, vehicle, 30.0, 50.0);
 		check(((List<?>)recordValue(clearance, "blockAuthorizations")).isEmpty(), "first-block occupation denies shunt permission");
 		occupants("shunt3").clear(); occupants("shunt4").clear();
-		final var auth = new RouteRequestManager.AuthorizedPath(1, "TEST", path, path.getTraversals(), List.of(), 0, 40,
+		final var auth = new RouteRequestManager.AuthorizedPath(1, "TEST", path, path.getTraversals(), List.of(), 0, 60,
 				new ArrayList<>(faceBlocks.values()), faces.stream().map(PathSnapshot.FaceTraversal::key).toList(), "test:auth", 1);
 		final var resolver = ServerAspectManager.class.getDeclaredMethod("resolveAspect", String.class, ServerAspectManager.FaceSnapshot.class,
 				RouteRequestManager.AuthorizedPath.class, PathSnapshot.FaceTraversal.class, Set.class);
@@ -243,6 +243,39 @@ final class LifecycleRegression {
 		check(resolver.invoke(null, sim.dimension, topology, auth, faces.get(2), new HashSet<>()) == ServerAspect.RED, "shunt main stays red");
 		check(resolver.invoke(null, sim.dimension, topology, auth, faces.get(1), new HashSet<>()) == ServerAspect.YELLOW, "previous main becomes yellow");
 		check(resolver.invoke(null, sim.dimension, topology, auth, faces.get(0), new HashSet<>()) == ServerAspect.DOUBLE_YELLOW, "second previous main becomes double yellow");
+		final var entryClearance = call("clearancePrefix", sim, vehicle, 30.0, 50.0);
+		final var entryBlock = (Authorization.BlockAuthorization)((List<?>)recordValue(entryClearance, "blockAuthorizations")).get(0);
+		hold(entryBlock, request(vehicle));
+		final var entryAuth = new Authorization("shunt-moving-auth", request(vehicle).getRequestId(), List.of(entryBlock), List.of(), 0, 10);
+		set(vehicle, "authorization", entryAuth);
+		final var movingState = construct(nested(RouteRequestManager.class, "State"));
+		final TestVehicle movingTrain = (TestVehicle)get(vehicle, "vehicle");
+		map(movingState, "vehicles").put(movingTrain.getId(), vehicle);
+		final Object previousState = map(RouteRequestManager.class, "STATES").put(sim, movingState);
+		try {
+			for (double head : new double[] {25, 29.99, 30, 35, 39.99}) {
+				set(vehicle, "head", head);
+				set(vehicle, "activityAuthorization", new RouteRequestManager.ActivityAuthorization(head, 40,
+						List.of(entryBlock.blockId()), entryBlock.faceTraversalKeys(), true));
+				movingTrain.mtrbr$setRailProgress(head);
+				movingTrain.mtrbr$setSpeed(0.01);
+				check(MovementGate.nativeStoppingCooldown(movingTrain, 1000) == 0, "white shunt refreshes cached red stop while moving");
+				check(MovementGate.shouldDisableNativeBlock(movingTrain), "red main with shunt authority cannot impose native stop");
+				check(MovementGate.clampStoppingPoint(movingTrain, 60) == 40, "moving train is limited to one shunt Block");
+				check(MovementGate.clampStoppingPoint(movingTrain, head + 0.005) == head + 0.005, "scheduled stop inside shunt Block is retained");
+				MovementGate.beforeVehicleSimulation(movingTrain);
+				check(movingTrain.mtrbr$getSpeed() == 0.01, "passing the main does not zero speed");
+			}
+			set(vehicle, "head", 40.0); movingTrain.mtrbr$setRailProgress(40);
+			check(MovementGate.nativeStoppingCooldown(movingTrain, 1000) == 1000, "expired prefix does not bypass native stop");
+			set(vehicle, "head", 25.0); movingTrain.mtrbr$setRailProgress(25);
+			set(vehicle, "authorization", null);
+			check(MovementGate.nativeStoppingCooldown(movingTrain, 1000) == 1000, "no authority preserves native stopping cache");
+			check(!MovementGate.shouldDisableNativeBlock(movingTrain), "denied shunt cannot bypass native block");
+		} finally {
+			if (previousState == null) map(RouteRequestManager.class, "STATES").remove(sim);
+			else map(RouteRequestManager.class, "STATES").put(sim, previousState);
+		}
 		set(vehicle, "head", 40.0);
 		occupants("shunt4").add(998L);
 		check(((List<?>)recordValue(call("clearancePrefix", sim, vehicle, 40.0, 50.0), "blockAuthorizations")).isEmpty(), "occupied exit Block keeps next main red");
@@ -285,14 +318,52 @@ final class LifecycleRegression {
 		map(ServerAspectManager.class, "ASPECTS").remove(exitKey);
 		set(vehicle, "authorization", null);
 		set(vehicle, "head", 25.0);
-		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(binding)), Set.of());
-		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 25) == 30, "missing shunt holds at main signal");
+		final var deletionData = new org.mtrbr.data.RouteBindingsSavedData();
+		set(deletionData, "dimension", sim.dimension);
+		deletionData.set(shunt, destination, compound);
+		final var indicator = shunt.above();
+		final var secondIndicator = shunt.above(2);
+		deletionData.setShuntIndicatorBinding(indicator, shunt);
+		deletionData.setShuntIndicatorBinding(secondIndicator, shunt);
+		deletionData.clearIndicatorBinding(indicator);
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 25) == 40, "remaining device still enables shunting");
+		deletionData.clearIndicatorBinding(secondIndicator);
+		check(deletionData.getBindings(shunt).get(0).content().equals(compound), "deletion preserves compound route content");
+		check(ShuntSignalPolicy.route(sim.dimension, path, faces.get(2)).isEmpty(), "last device deletion disables shunt route selection");
+		check(Double.isInfinite(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 25)), "last device deletion removes shunt-only stopping boundary");
+		check(ShuntSignalPolicy.exitAtHead(sim.dimension, path, faces, 40) == null, "deleted device leaves no special exit gate");
+		// All downstream faces in auth are active: terminal red -> yellow -> double yellow -> green.
+		check(resolver.invoke(null, sim.dimension, topology, auth, faces.get(2), new HashSet<>()) == ServerAspect.GREEN,
+				"deleted shunt main returns to green with downstream clearance");
+		final var firstBlockOnly = new RouteRequestManager.AuthorizedPath(1, "TEST", path, path.getTraversals(), List.of(), 30, 40,
+				List.of(faceBlocks.get(faces.get(2).faceId())), List.of(faces.get(2).key()), "test:first-block", 1);
+		check(resolver.invoke(null, sim.dimension, topology, firstBlockOnly, faces.get(2), new HashSet<>()) == ServerAspect.YELLOW,
+				"deleted shunt main warns of the next red when only its immediate Block is authorized");
 		clearance = call("clearancePrefix", sim, vehicle, 30.0, 50.0);
-		check(((List<?>)recordValue(clearance, "blockAuthorizations")).isEmpty(), "no device means no shunt authorization");
+		check(((List<?>)recordValue(clearance, "blockAuthorizations")).size() == 2, "normal clearance can span two clear Blocks after deletion");
+		occupants("shunt3").add(999L);
+		check(((List<?>)recordValue(call("clearancePrefix", sim, vehicle, 30.0, 50.0), "blockAuthorizations")).isEmpty(), "deletion does not bypass occupied Blocks");
+		occupants("shunt3").clear();
 		set(vehicle, "head", 35.0);
+		set(vehicle, "authorization", outgoingAuth);
 		final var staleActivity = new RouteRequestManager.ActivityAuthorization(30, 50, List.of(), List.of(), true);
-		check((double)call("authorizedControlBoundary", sim, vehicle, staleActivity, topology) == 35,
-				"removing device while inside block stops at head even with stale activity");
+		check((double)call("authorizedControlBoundary", sim, vehicle, staleActivity, topology) == 50,
+				"deletion inside a Block retains valid ordinary clearance without an artificial stop at head");
+		set(vehicle, "activityAuthorization", staleActivity);
+		movingTrain.mtrbr$setRailProgress(35);
+		map(RouteRequestManager.class, "STATES").put(sim, movingState);
+		try {
+			check(MovementGate.nativeStoppingCooldown(movingTrain, 1000) == 0, "deletion with normal authorization discards cached shunt stop");
+			check(MovementGate.clampStoppingPoint(movingTrain, 60) == 50, "deleted shunt no longer caps moving train at old exit");
+		} finally {
+			if (previousState == null) map(RouteRequestManager.class, "STATES").remove(sim);
+			else map(RouteRequestManager.class, "STATES").put(sim, previousState);
+		}
+		set(vehicle, "authorization", new Authorization("empty", request(vehicle).getRequestId(), List.of(), List.of(), 0, 13));
+		check((double)call("authorizedControlBoundary", sim, vehicle, staleActivity, topology) == 40,
+				"deletion does not allow crossing the next main without a locked Block");
+		deletionData.setShuntIndicatorBinding(indicator, shunt);
+		check(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 35) == 40, "rebinding restores one-Block shunt protection");
 		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(new org.mtrbr.data.RouteBinding(destination, "route=1"))), Set.of(shunt));
 		check(Double.isInfinite(ShuntSignalPolicy.boundary(sim.dimension, path, faces, 15)), "normal route is not shunting even with bound device");
 		ShuntSignalPolicy.publish(sim.dimension, Map.of(shunt, List.of(new org.mtrbr.data.RouteBinding(new BlockPos(10, -60, 0), "shunt=behind"))), Set.of(shunt));
@@ -323,6 +394,15 @@ final class LifecycleRegression {
 		check(!ShuntSignalPolicy.hasSignal(sim.dimension, main), "break removes authority");
 		restored.setShuntIndicatorBinding(indicator, main); restored.clearSignalBindings(main);
 		check(!ShuntSignalPolicy.hasSignal(sim.dimension, main), "main deletion removes authority");
+		restored.setShuntIndicatorBinding(indicator, main);
+		final var unloadedIndicator = indicator.above();
+		restored.setShuntIndicatorBinding(unloadedIndicator, main);
+		check(restored.removeMissingShuntIndicators(indicator::equals), "repair stale saved binding at confirmed missing device");
+		check(restored.getIndicatorBinding(indicator) == null, "repair removes stale map entry as well as typed membership");
+		check(ShuntSignalPolicy.hasSignal(sim.dimension, main), "unloaded or still-present second device keeps authority");
+		check(!restored.removeMissingShuntIndicators(indicator::equals), "repair is idempotent");
+		check(restored.removeMissingShuntIndicators(unloadedIndicator::equals), "remove last device once confirmed missing");
+		check(!ShuntSignalPolicy.hasSignal(sim.dimension, main), "stale-save repair clears last shunt authority");
 		ShuntSignalPolicy.reset();
 	}
 

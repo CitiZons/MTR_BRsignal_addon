@@ -59,6 +59,18 @@ public final class DebugToolItem extends Item {
 			final BlockPos clickedPos = context.getClickedPos();
 			final boolean isShift = context.isSecondaryUseActive();
 
+			if (context.getLevel().getBlockState(clickedPos).getBlock() instanceof org.mtrbr.block.SpeedSignBlock sign) {
+				var state = context.getLevel().getBlockState(clickedPos);
+				if (sign.isArrow()) {
+					Network.CHANNEL.sendToServer(new org.mtrbr.network.SetSpeedSignPacket(clickedPos, "", "",
+							org.mtrbr.block.SpeedSignBlock.mount(state) == org.mtrbr.block.SpeedSignMount.TOP
+									? org.mtrbr.block.SpeedSignMount.BOTTOM : org.mtrbr.block.SpeedSignMount.TOP));
+				} else {
+					DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientHooks.openSpeedSignScreen(clickedPos.immutable()));
+				}
+				return InteractionResult.SUCCESS;
+			}
+
 			if (!isShift && SignalLogic.isIndicatorBlock(context.getLevel().getBlockState(clickedPos))) {
 				final BlockPos pos = clickedPos.immutable();
 				final boolean isLed = SignalLogic.isLedIndicatorBlock(context.getLevel().getBlockState(clickedPos));

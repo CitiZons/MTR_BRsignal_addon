@@ -40,4 +40,8 @@ public final class ClientHooks {
 		Minecraft.getInstance().setScreen(new DispatcherScreen());
 	}
 
+	public static void openSpeedSignScreen(BlockPos pos) {
+		Minecraft.getInstance().setScreen(new org.mtrbr.screen.SpeedSignScreen(pos));
+	}
+
 }

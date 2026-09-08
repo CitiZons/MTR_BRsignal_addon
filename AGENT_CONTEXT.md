@@ -19,6 +19,18 @@ MTR `immutablePath` is the physical source of truth. Requests describe the compl
 - `src/main/java/org/mtrbr/server/SignalTopology.java`: persisted signal/node topology.
 - `src/main/java/org/mtrbr/web/DepotPathEditorService.java`: LINE path validation/rebuild.
 - `src/main/java/org/mtrbr/mixin/RenderSignalBaseMixin.java`: expanded native client node lookup.
+- `src/main/java/org/mtrbr/server/ShuntSignalPolicy.java`: requires a bound position light and matching `shunt=` route; grants one Block only. Removing the last device restores normal signalling. Authorized trains need not stop at the entry; preserve the exit clearance publication check.
+- `src/main/java/org/mtrbr/block/SpeedSignMount.java` and `render/SpeedSignRenderer.java`: decorative PSR/AWI signs. Signs have bottom/center/top mounts, arrows bottom/top only; all top mounts have full-height poles. Never change movement authority from these signs.
+- `src/main/java/org/mtrbr/data/WebTokenPermissionsSavedData.java`: UUID-based generation bans stored in the overworld. Bans survive restarts but do not revoke existing tokens; token and Web dispatch operations still require OP.
+- `src/main/java/org/mtrbr/client/ClientWebTokenActions.java`: explicit generate-and-open action; browser responses are correlated to a pending client request. Token replies must remain private.
+
+## Current release and resources
+
+The refreshed 0.1.2 uses network protocol 9. Update both server and clients, including when replacing an older 0.1.2 JAR. See `CHANGELOG.md` and `内容说明.md` for current behavior. `build_deploy_alpha4.ps1` is local-only and ignored; keep it on disk but out of commits.
+
+`tools/generate_speed_signs.py` uses the bundled Alte DIN 1451 Mittelschrift Regular font (OFL 1.1) and rewrites only speed-sign resources and `build/previews/speed_signs.png`. `tools/check_speed_signs.py` needs Pillow. Do not regenerate unrelated hand-edited LED or position-light source models to prepare a release.
+
+All previews belong in `build/previews/`. Restore the eight indicator sheets with `python tools/preview_indicators.py`; call `preview()` from `tools/check_position_light_signals.py` to render the position lights without regenerating authored models. Avoid `gradlew clean` when previews must be retained: it deletes the whole build directory. Preview generator scripts belong in `tools/`, not `build/`.
 
 ## Logs
 

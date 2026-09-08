@@ -1,0 +1,22 @@
+Alte DIN 1451 Mittelschrift Regular
+
+Distributed by Peter Wiegel.
+The original font metadata names Ludwig Goller as manufacturer and records
+the copyright field as "expired". This distribution preserves that metadata
+and the original font bytes without modification.
+
+Source: https://www.1001fonts.com/alte-din-1451-mittelschrift-font.html
+Download: https://www.1001fonts.com/download/alte-din-1451-mittelschrift.zip
+Original filename in archive: din1451alt.ttf
+Bundled filename: alte_din_1451_mittelschrift_regular.ttf
+
+The source page explicitly identifies this font as licensed under the SIL
+Open Font License (OFL). Source and byte identity checked on 2026-09-08.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The complete licence is included alongside this notice as OFL-1.1.txt.
+Official text: https://openfontlicense.org/documents/OFL.md
+
+No Reserved Font Name declaration was supplied in the downloaded archive
+or embedded metadata; no additional reserved names are asserted here.
+The project MIT licence does not replace the font's OFL terms.

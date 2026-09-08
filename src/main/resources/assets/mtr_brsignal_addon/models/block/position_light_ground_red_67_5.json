@@ -1,4 +1,5 @@
 {
+  "format_version": "1.21.11",
   "credit": "Position light signal - Java Block/Item, current three-lens layout",
   "ambientocclusion": false,
   "render_type": "minecraft:cutout",

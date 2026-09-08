@@ -34,7 +34,8 @@ public final class ShuntSignalPolicy {
     /** Select the nearest configured destination on this directed path occurrence. */
     public static String route(String dimension, PathSnapshot path, PathSnapshot.FaceTraversal face) {
         final Configuration config = CONFIGURATIONS.get(dimension);
-        if (config == null) return "";
+        // Route names remain editable after a device is removed, but cannot enable shunting alone.
+        if (config == null || !config.signals().contains(face.face().signalPos())) return "";
         final List<RouteBinding> bindings = config.routes().getOrDefault(face.face().signalPos(), List.of());
         if (bindings.stream().noneMatch(binding -> RouteContent.isShunt(binding.content()))) return "";
         String best = "";
