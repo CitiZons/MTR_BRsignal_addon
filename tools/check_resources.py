@@ -4,6 +4,8 @@ import unittest
 
 from check_position_light_signals import validate
 from check_speed_signs import run
+from pathlib import Path
+from PIL import Image
 
 
 def main():
@@ -21,6 +23,10 @@ def main():
         return 1
     validate()
     run()
+    path_dir = Path(__file__).resolve().parents[1] / "src/main/resources/assets/mtr_brsignal_addon/textures/block/path"
+    path_files = sorted(path_dir.glob("path_*.png"))
+    assert path_files and {Image.open(path).size for path in path_files} == {(21, 21)}
+    print(f"Path textures passed: {len(path_files)} glyphs at 21x21")
     return 0
 
 

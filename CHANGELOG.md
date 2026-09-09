@@ -1,13 +1,24 @@
 # 更新记录 / Changelog
 
-## 未发布 / Unreleased
+## 0.1.2 更新版 / Refreshed Release (2026-09-09)
 
+本次继续更新 `v0.1.2`，包含 9 月 8 日更新版的全部功能和以下调整；Minecraft、Forge、MTR 依赖及网络协议 `9` 不变。
+
+This refresh updates `v0.1.2` with all features from the September 8 build and the changes below. Minecraft, Forge, MTR requirements and network protocol `9` are unchanged.
+
+- LED 进路的 62 张数字、字母、短码和箭头贴图由 12×12 提升为 21×21，并在 Blockbench 中逐张细调，保留黑白像素风格及相近符号的区别；进路命名不变。
+- 路径预览工具移至 `tools/preview_path_textures.py`，只读取 `path_*.png`，输出至 `build/previews/path-textures.png`；构建检查验证 21×21 尺寸。
+- 清理旧 OBJ 转换、缩放、NBT 检查等一次性工具。
+- 修复 GitHub Actions 环境缺少 `rg` 时静态回归脚本失败的问题，自动回退到 PowerShell `Select-String`。
+- 调度台操作按钮使用英文，搜索栏支持中文和日文；箭头牌名称不再重复标注颜色。
 - 调车越过入口节点后可立即申请下一个闭塞；连续调车逐段申请，越过普通主信号节点后恢复普通授权窗口。提前获得下一信号开放显示即可不停车通过，保留占用、锁闭及灯色发布检查。
 - 信号计算周期调整为 10 tick，变化时同步、20 tick 兜底；调度和 Web 全量更新保持 20 tick。
 - 调度列表增加搜索、状态筛选、表头排序、长字段省略和悬浮完整显示；调度操作增加服务端私有执行结果。
 - 资源检查改用仓库内 MTR JAR，并接入 Gradle 和 GitHub Actions；更新统一预览目录说明。
 
 Shunt requests roll forward by one Block after each passed entry, without requiring a stop at the following signal when clearance is already displayed. Signals refresh every 10 ticks. Dispatcher filtering, sorting, clipped fields and private execution results are added. Portable resource checks now run in Gradle and CI.
+
+All 62 LED path textures have been individually refined in Blockbench at 21×21. The preview tool now lives in `tools/` and writes only to `build/previews/`; obsolete one-off tools are removed. CI static checks work without ripgrep. Dispatcher action labels use English, search accepts Chinese/Japanese, and arrow names omit redundant colours.
 
 ## 0.1.2 更新版 / Refreshed Release (2026-09-08)
 

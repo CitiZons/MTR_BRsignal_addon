@@ -43,6 +43,10 @@ Right-click a signal with the signal debug tool to open its debug screen. Shift-
 
 Select a signal with the route tool, then Shift-right-click a rail node to create a route binding. Colour-light indicators use `route=1` through `route=6`; LED indicators use `path=...`. Diagnostic lines are shown while the relevant tool is held.
 
+LED 进路指示器的 62 张数字、字母、短码和箭头贴图已改为 21×21，并在 Blockbench 中逐张细调。保留黑底白色像素风格，兼顾对称性与相近符号的辨识；`path=` 命名和绑定方式不变。
+
+The 62 LED path textures now use a 21×21 grid, individually refined in Blockbench. They retain white pixel artwork on black, with attention to symmetry and distinctions between similar symbols. Existing `path=` names and bindings are unchanged.
+
 调车信号使用独立的 `shunt=名称`（如 `shunt=yard_1`）。先用调试工具将调车信号绑定到主信号，再用进路工具将主信号绑定到目标节点并输入该名称。调车获准时主信号保持红灯，调车信号显示斜向双白，只授权到下一同向信号或线路终端。调试界面可切换落地／贴杆；贴杆式包含与 MTR 信号柱接续的柱段，平时熄灭。
 
 Position light signals use the separate `shunt=name` format, for example `shunt=yard_1`. Bind the position light to a main signal with the debug tool, then bind that main signal to the destination node with the route tool and enter the shunt name. Shunt clearance keeps the main signal red and shows two diagonal white lights, authorizing only the first Block up to the next same-direction signal or terminal. The debug screen switches between ground and pole mounting; the pole version includes a segment that joins MTR signal poles and is normally unlit.
@@ -82,6 +86,10 @@ Open the console with the dispatcher block or tool. Both button rows stay center
 列表支持搜索编号/线路/车站、状态筛选、点击表头升降序排序。窄窗口中长字段显示省略，悬浮可查看完整内容。批准、撤销、一次越行由服务端执行后私下回复结果及拒绝原因。
 
 The table supports text search, status filters and header sorting. Narrow columns truncate long fields and show complete values on hover. Approve, revoke and one-shot override actions receive private server execution results, including rejection reasons.
+
+底部调度操作按钮使用英文；搜索栏支持中文和日文输入。箭头牌名称只标方向，不再在括号中重复颜色。
+
+Dispatcher action buttons use English labels, and the search field supports Chinese and Japanese input. Arrow plate names identify direction without repeating their colour in parentheses.
 
 Token 和 Web 写操作保持 OP 权限要求。`list_all` 按玩家列出有效 token，仅执行命令的 OP 收到结果。`disable/enable` 只控制新 token 的生成，按 UUID 保存且重启后保留，不撤销已有 token。专用服务器需要先配置 `web_public_host` 并启用 MTR Web server。首次部署或调整信号拓扑后，建议执行 `/mtrbr protection regenerate`。
 
@@ -130,6 +138,10 @@ A full build runs Java compilation, resource processing, and regression checks f
 
 The build also runs read-only resource checks. Override Python with `-PpythonExecutable=...` when needed. Texture verification uses the bundled MTR dependency JAR. GitHub Actions runs the build and static checks on pushes and pull requests.
 
+资源检查包含全部路径贴图的 21×21 尺寸检查。静态回归脚本在没有 `rg` 时自动使用 PowerShell `Select-String`。已移除旧 OBJ/NBT 一次性工具；路径贴图需逐张编辑，预览工具不会重写源图。
+
+Resource checks verify the 21×21 path texture dimensions. Static checks fall back to PowerShell `Select-String` when `rg` is unavailable. Obsolete one-off OBJ/NBT tools have been removed; edit path textures individually, and use the preview tool without rewriting artwork.
+
 ```powershell
 .\gradlew.bat compileJava --no-daemon
 .\gradlew.bat build --no-daemon
@@ -146,6 +158,7 @@ All previews go to `build/previews/`. These commands render existing indicator a
 
 ```powershell
 python tools/preview_indicators.py
+python tools/preview_path_textures.py
 python -c "import sys; sys.path.insert(0, 'tools'); from check_position_light_signals import preview; preview()"
 ```
 

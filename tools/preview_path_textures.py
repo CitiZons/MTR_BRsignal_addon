@@ -1,25 +1,22 @@
+"""Preview authored path textures without rewriting the source images."""
+from pathlib import Path
 from PIL import Image
-import os
 import math
 
-input_dir = "."
-output = "preview.png"
+ROOT = Path(__file__).resolve().parents[1]
+input_dir = ROOT / "src/main/resources/assets/mtr_brsignal_addon/textures/block/path"
+output = ROOT / "build/previews/path-textures.png"
 
 scale = 16
 cols = 6
 
-# 单张图片放大后的尺寸
-img_size = 16 * scale
+# 单张图片放大后的尺寸（源图为 21×21）
+img_size = 21 * scale
 
 # 图片之间的间距
 gap = 32
 
-files = [
-    f for f in os.listdir(input_dir)
-    if f.lower().endswith(".png")
-]
-
-files.sort()
+files = sorted(input_dir.glob("path_*.png"))
 
 rows = math.ceil(len(files) / cols)
 
@@ -30,7 +27,8 @@ height = rows * img_size + (rows - 1) * gap
 canvas = Image.new("RGB", (width, height), (40, 40, 40))
 
 for i, filename in enumerate(files):
-    img = Image.open(os.path.join(input_dir, filename)).convert("RGBA")
+    with Image.open(filename) as source:
+        img = source.convert("RGBA")
 
     # 保持像素风格放大
     img = img.resize(
@@ -43,5 +41,6 @@ for i, filename in enumerate(files):
 
     canvas.paste(img, (x, y), img)
 
+output.parent.mkdir(parents=True, exist_ok=True)
 canvas.save(output)
 print("完成:", output)

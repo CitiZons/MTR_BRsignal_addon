@@ -32,6 +32,8 @@ The refreshed 0.1.2 uses network protocol 9. Update both server and clients, inc
 
 All previews belong in `build/previews/`. Restore the eight indicator sheets with `python tools/preview_indicators.py`; call `preview()` from `tools/check_position_light_signals.py` to render the position lights without regenerating authored models. Avoid `gradlew clean` when previews must be retained: it deletes the whole build directory. Preview generator scripts belong in `tools/`, not `build/`.
 
+The 62 `textures/block/path/path_*.png` textures are hand-refined 21x21 Blockbench artwork. Preserve individual strokes and symbol distinctions; do not batch-rescale or regenerate them. `python tools/preview_path_textures.py` reads these files and writes `build/previews/path-textures.png` without editing the originals. Resource checks enforce the 21x21 size.
+
 ## Logs
 
 Signal aspects are evaluated every 10 server ticks; changed displays synchronize immediately, with a 20-tick fallback. Dispatcher/Web snapshots remain on the 20-tick schedule. `gradlew build` includes non-generating Python resource checks; install `tools/requirements.txt` and optionally set `-PpythonExecutable=...`.
