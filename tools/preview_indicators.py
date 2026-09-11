@@ -174,6 +174,41 @@ def main():
             draw.text((x+12,y+12), f"{prefix} | {'off' if route == 'null' else f'route={route}'}", font=font(14), fill="white")
     save(image, "triple-indicators-front")
 
+    # One gallery for README and release notes: every generated indicator family.
+    gallery_names = ("existing-textures", "latest-authored-backs", "revised-authored-backplates",
+                     "latest-mirrored-backplates", "six-routes-combinations", "six-routes-authorized",
+                     "six-routes-support", "triple-indicators-front")
+    sheets = [Image.open(OUT / (name + ".png")).convert("RGB") for name in gallery_names]
+    width = max(image.width for image in sheets)
+    gap = 24
+    height = sum(image.height for image in sheets) + gap * (len(sheets) - 1)
+    gallery = Image.new("RGB", (width, height), (20, 26, 34))
+    y = 0
+    for image in sheets:
+        gallery.paste(image, ((width - image.width) // 2, y))
+        y += image.height + gap
+    save(gallery, "all-indicators")
+
+    # Front-facing overview of every registered colour-light indicator type.
+    families = (
+        ("indicator_1", (1,)), ("indicator_1-2", (1, 2)),
+        ("indicator_1-4", (1, 4)), ("indicator_4", (1,)),
+        ("indicator_4-5", (4, 5)), ("indicator_1-2-4", (1, 2, 4)),
+        ("indicator_1-4-5", (1, 4, 5)), ("indicator_1-2-3", (1, 2, 3)),
+        ("indicator_4-5-6", (4, 5, 6)), ("indicator_1-4-5-6", (1, 4, 5, 6)),
+        ("indicator_1-2-4-5", (1, 2, 4, 5)),
+        ("indicator_1-2-4-5-6", (1, 2, 4, 5, 6)),
+        ("indicator_1-2-3-4", (1, 2, 3, 4)),
+        ("indicator_1-2-3-4-5", (1, 2, 3, 4, 5)),
+        ("indicator_1-2-3-4-5-6", (1, 2, 3, 4, 5, 6)),
+    )
+    image, draw = sheet((1020, 1700), "Colour-light route indicator families | front view")
+    for i, (prefix, routes) in enumerate(families):
+        x, y = i % 3 * 340, 48 + i // 3 * 325
+        image.paste(render(prefix, data=all_lit(prefix, routes)), (x, y + 30))
+        draw.text((x + 18, y + 5), f"{len(routes)} route{'s' if len(routes) != 1 else ''} | {prefix}", font=font(14), fill="white")
+    save(image, "all-route-families")
+
 
 if __name__ == "__main__":
     main()

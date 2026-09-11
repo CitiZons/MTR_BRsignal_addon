@@ -132,10 +132,12 @@ public final class MTRBR {
 			.title(Component.literal(MOD_NAME))
 			.icon(() -> new ItemStack(DEBUG_TOOL.get()))
 			.displayItems((parameters, output) -> {
+				// Common tools and dispatcher block occupy the first row.
 				output.accept(new ItemStack(DEBUG_TOOL.get()));
 				output.accept(new ItemStack(ROUTE_TOOL.get()));
 				output.accept(new ItemStack(DISPATCHER_TOOL.get()));
 				output.accept(new ItemStack(DISPATCHER_CONSOLE_ITEM.get()));
+				// British signal and display items follow the common tools.
 				output.accept(new ItemStack(LED_INDICATOR_ITEM.get()));
                 output.accept(new ItemStack(REPEATING_SIGNAL_ITEM.get()));
 				output.accept(new ItemStack(POSITION_LIGHT_ITEM.get()));
@@ -157,6 +159,7 @@ public final class MTRBR {
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_2_3_4_5_6_ITEM.get()));
 				output.accept(new ItemStack(SIGNAL_BRACKET_ITEM.get()));
 				for (var item : SpeedSigns.ITEMS) output.accept(new ItemStack(item.get()));
+				// Japanese signal items will be appended here as they are registered.
 			})
 			.build());
 

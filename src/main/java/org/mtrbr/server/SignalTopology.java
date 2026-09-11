@@ -10,6 +10,7 @@ import org.mtr.mod.block.BlockSignalBase;
 import org.mtrbr.data.NodeBinding;
 import org.mtrbr.data.RouteBindingsSavedData;
 import org.mtrbr.data.SignalBlockSavedData;
+import org.mtrbr.api.SignalDeviceCatalog;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,7 +40,7 @@ public final class SignalTopology {
 		for (final BlockPos configuredPos : ServerSignalRegistry.getSignals(level)) {
 			final BlockPos signalPos = configuredPos.immutable();
 			final BlockState state = level.getBlockState(signalPos);
-			if (!(state.getBlock() instanceof BlockSignalBase)) {
+			if (!SignalDeviceCatalog.isMainSignal(state)) {
 				continue;
 			}
 			final NodeBinding binding = nodeBindings.get(signalPos);

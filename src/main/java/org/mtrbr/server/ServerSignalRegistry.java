@@ -13,6 +13,7 @@ import org.mtrbr.data.SignalBlockSavedData;
 import org.mtrbr.data.RouteBindingsSavedData;
 import org.mtrbr.network.Network;
 import org.mtrbr.network.SyncRouteBindingsPacket;
+import org.mtrbr.api.SignalDeviceCatalog;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,7 +34,7 @@ public final class ServerSignalRegistry {
 		}
 		final Set<BlockPos> signals = new HashSet<>();
 		for (final BlockPos position : chunk.getBlockEntitiesPos()) {
-			if (level.getBlockState(position).getBlock() instanceof BlockSignalBase) {
+			if (SignalDeviceCatalog.isMainSignal(level.getBlockState(position))) {
 				signals.add(position.immutable());
 			}
 		}
@@ -41,14 +42,14 @@ public final class ServerSignalRegistry {
 		saved.getSignalFaceDefinitions().values().stream()
 				.map(SignalBlockSavedData.SignalFaceDefinition::signalPos)
 				.filter(position -> position != null && position.getX() >> 4 == chunk.getPos().x && position.getZ() >> 4 == chunk.getPos().z)
-				.filter(position -> !(level.getBlockState(position).getBlock() instanceof BlockSignalBase))
+		.filter(position -> !SignalDeviceCatalog.isMainSignal(level.getBlockState(position)))
 				.forEach(saved::removeSignalFaceDefinitions);
 		final RouteBindingsSavedData bindingsData = RouteBindingsSavedData.get(level);
 		final Set<BlockPos> configuredSignals = new HashSet<>(bindingsData.getManagedSignalPositions());
 		configuredSignals.addAll(bindingsData.getRouteBindingSignalPositions());
 		for (final BlockPos signalPos : configuredSignals) {
 			if (signalPos.getX() >> 4 == chunk.getPos().x && signalPos.getZ() >> 4 == chunk.getPos().z
-					&& !(level.getBlockState(signalPos).getBlock() instanceof BlockSignalBase)) {
+			&& !SignalDeviceCatalog.isMainSignal(level.getBlockState(signalPos))) {
 				bindingsData.clearSignalBindings(signalPos);
 			}
 		}
@@ -97,7 +98,7 @@ public final class ServerSignalRegistry {
 	public static void onBlockBreak(BlockEvent.BreakEvent event) {
 		if (event.getLevel() instanceof ServerLevel level) {
 			final BlockPos deletedPos = event.getPos().immutable();
-			final boolean wasSignal = level.getBlockState(deletedPos).getBlock() instanceof org.mtr.mod.block.BlockSignalBase;
+		final boolean wasSignal = SignalDeviceCatalog.isMainSignal(level.getBlockState(deletedPos));
 			final boolean wasNode = level.getBlockState(deletedPos).getBlock() instanceof org.mtr.mod.block.BlockNode;
 			final boolean wasIndicator = level.getBlockState(deletedPos).getBlock() instanceof LedIndicatorBlock
 					|| level.getBlockState(deletedPos).getBlock() instanceof ColorLightIndicatorBlock
@@ -106,7 +107,7 @@ public final class ServerSignalRegistry {
 			// BreakEvent fires before the block-state replacement. Refresh on the
 			// next server task so the registry observes the post-break world.
 			level.getServer().execute(() -> {
-				if (wasSignal && !(level.getBlockState(deletedPos).getBlock() instanceof org.mtr.mod.block.BlockSignalBase)) {
+		if (wasSignal && !SignalDeviceCatalog.isMainSignal(level.getBlockState(deletedPos))) {
 					RouteBindingsSavedData.get(level).clearSignalBindings(deletedPos);
 					SignalBlockSavedData.get(level).removeSignalFaceDefinitions(deletedPos);
 				}
@@ -115,7 +116,7 @@ public final class ServerSignalRegistry {
 				}
 				if (wasIndicator && !(level.getBlockState(deletedPos).getBlock() instanceof LedIndicatorBlock)
 						&& !(level.getBlockState(deletedPos).getBlock() instanceof ColorLightIndicatorBlock)
-						&& !(level.getBlockState(deletedPos).getBlock() instanceof org.mtrbr.block.PositionLightSignalBlock)
+			&& !(level.getBlockState(deletedPos).getBlock() instanceof org.mtrbr.block.PositionLightSignalBlock)
 						&& !(level.getBlockState(deletedPos).getBlock() instanceof RepeatingSignalBlock)) {
 					RouteBindingsSavedData.get(level).clearIndicatorBinding(deletedPos);
 				}
@@ -156,7 +157,7 @@ public final class ServerSignalRegistry {
 		}
 		final Set<BlockPos> signals = new HashSet<>();
 		for (final BlockPos candidate : chunk.getBlockEntitiesPos()) {
-			if (level.getBlockState(candidate).getBlock() instanceof BlockSignalBase) {
+			if (SignalDeviceCatalog.isMainSignal(level.getBlockState(candidate))) {
 				signals.add(candidate.immutable());
 			}
 		}

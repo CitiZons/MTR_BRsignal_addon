@@ -10,6 +10,7 @@ import org.mtr.libraries.it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.mtr.mapping.mapper.DirectionHelper;
 import org.mtr.mod.block.BlockNode;
 import org.mtr.mod.block.BlockSignalBase;
+import org.mtrbr.api.SignalDeviceCatalog;
 import org.mtr.mod.client.MinecraftClientData;
 import org.mtrbr.block.ColorLightIndicatorBlock;
 import org.mtrbr.block.LedIndicatorBlock;
@@ -30,7 +31,7 @@ public final class SignalLogic {
 
 	/** 该方块状态是否为 MTR 信号机。 */
 	public static boolean isSignalBlock(BlockState state) {
-		return state.getBlock() instanceof BlockSignalBase;
+		return SignalDeviceCatalog.isMainSignal(state);
 	}
 
 	/** 该方块状态是否为 MTR 轨道节点。 */
