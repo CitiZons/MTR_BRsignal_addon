@@ -12,6 +12,7 @@ import org.mtrbr.block.SpeedSignMount;
 import org.mtrbr.data.SpeedSignText;
 import org.mtrbr.network.Network;
 import org.mtrbr.network.SetSpeedSignPacket;
+import org.mtrbr.block.TextSignPoleMount;
 
 public final class SpeedSignScreen extends Screen {
     private final BlockPos pos;
@@ -21,6 +22,8 @@ public final class SpeedSignScreen extends Screen {
     private final Button[] mountButtons = new Button[SpeedSignMount.values().length];
     private Button save;
     private boolean doubleLine;
+    private TextSignPoleMount poleMount = TextSignPoleMount.CENTER;
+    private final Button[] poleButtons = new Button[3];
 
     public SpeedSignScreen(BlockPos pos) {
         super(Component.translatable("screen.mtr_brsignal_addon.speed_sign.title"));
@@ -33,13 +36,16 @@ public final class SpeedSignScreen extends Screen {
             onClose();
             return;
         }
-        doubleLine = ((SpeedSignBlock) entity.getBlockState().getBlock()).isDoubleLine();
+        SpeedSignBlock signBlock = (SpeedSignBlock) entity.getBlockState().getBlock();
+        boolean textSign = signBlock.isTextSign();
+        if (textSign) poleMount = entity.getBlockState().getValue(SpeedSignBlock.TEXT_POLE);
+        doubleLine = signBlock.isDoubleLine();
         String previousUpper = upper == null ? entity.text().upper() : upper.getValue();
         String previousLower = lower == null ? entity.text().lower() : lower.getValue();
         if (mount == null) mount = SpeedSignBlock.mount(entity.getBlockState());
         int w = Math.min(240, width - 32), x = (width - w) / 2, y = height / 2 - 60;
-        upper = new EditBox(font, x, y, w, 20, label(doubleLine ? "upper" : "speed"));
-        upper.setMaxLength(SpeedSignText.MAX_LENGTH);
+        upper = new EditBox(font, x, y, w, 20, label(textSign ? "text" : (doubleLine ? "upper" : "speed")));
+        upper.setMaxLength(textSign ? 3 : SpeedSignText.MAX_LENGTH);
         upper.setValue(previousUpper);
         addRenderableWidget(upper);
         if (doubleLine) {
@@ -56,10 +62,14 @@ public final class SpeedSignScreen extends Screen {
                     button -> selectMount(option)).bounds(left, y + 66, right - left - 2, 20).build());
         }
         selectMount(mount);
+        if (textSign) for (TextSignPoleMount option : TextSignPoleMount.values()) {
+            int i=option.ordinal(); poleButtons[i]=addRenderableWidget(Button.builder(Component.translatable("screen.mtr_brsignal_addon.speed_sign.pole."+option.name().toLowerCase()), b -> { poleMount=option; for(int k=0;k<3;k++) poleButtons[k].active=k!=option.ordinal(); }).bounds(x+i*w/3,y+90,w/3-2,20).build());
+            poleButtons[i].active = i != poleMount.ordinal();
+        }
         save = addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> confirm())
-                .bounds(x, y + 98, (w - 8) / 2, 20).build());
+                .bounds(x, y + (textSign ? 122 : 98), (w - 8) / 2, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), button -> onClose())
-                .bounds(x + (w + 8) / 2, y + 98, (w - 8) / 2, 20).build());
+                .bounds(x + (w + 8) / 2, y + (textSign ? 122 : 98), (w - 8) / 2, 20).build());
         upper.setResponder(value -> validate());
         if (lower != null) lower.setResponder(value -> validate());
         validate();
@@ -69,7 +79,9 @@ public final class SpeedSignScreen extends Screen {
     private static Component label(String key) { return Component.translatable("screen.mtr_brsignal_addon.speed_sign." + key); }
 
     private SpeedSignText validated() {
-        return SpeedSignText.validate(upper.getValue(), doubleLine ? lower.getValue() : "", doubleLine);
+        SpeedSignBlock block = (SpeedSignBlock) minecraft.level.getBlockState(pos).getBlock();
+        return block.isTextSign() ? SpeedSignText.validateLabel(upper.getValue())
+                : SpeedSignText.validate(upper.getValue(), doubleLine ? lower.getValue() : "", doubleLine);
     }
 
     private void validate() { save.active = validated() != null; }
@@ -84,7 +96,7 @@ public final class SpeedSignScreen extends Screen {
     private void confirm() {
         SpeedSignText text = validated();
         if (text == null) return;
-        Network.CHANNEL.sendToServer(new SetSpeedSignPacket(pos, text.upper(), text.lower(), mount));
+        Network.CHANNEL.sendToServer(new SetSpeedSignPacket(pos, text.upper(), text.lower(), mount, poleMount));
         onClose();
     }
 
@@ -93,7 +105,8 @@ public final class SpeedSignScreen extends Screen {
         renderBackground(graphics);
         if (upper == null) return;
         graphics.drawCenteredString(font, title, width / 2, upper.getY() - 32, 0xFFFFFF);
-        graphics.drawString(font, label(doubleLine ? "upper" : "speed"), upper.getX(), upper.getY() - 12, 0xCCCCCC);
+        boolean textSign = minecraft.level != null && ((SpeedSignBlock) minecraft.level.getBlockState(pos).getBlock()).isTextSign();
+        graphics.drawString(font, label(textSign ? "text" : (doubleLine ? "upper" : "speed")), upper.getX(), upper.getY() - 12, 0xCCCCCC);
         if (lower != null) graphics.drawString(font, label("lower"), lower.getX(), lower.getY() - 12, 0xCCCCCC);
         super.render(graphics, mouseX, mouseY, partialTick);
         if (!save.active) {

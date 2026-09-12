@@ -14,6 +14,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.mtrbr.MTRBR;
 import org.mtrbr.block.SpeedSignBlock;
 import org.mtrbr.block.SpeedSignBlockEntity;
+import org.mtrbr.block.TextSignPoleMount;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -57,14 +58,23 @@ public final class SpeedSignRenderer implements BlockEntityRenderer<SpeedSignBlo
         var text = entity.text();
         var mount = SpeedSignBlock.mount(state);
         String shape = block.isArrow() ? "arrow" : block.isWarning() ? "triangle" : "circle";
-        String color = block.isWarning() ? "yellow" : "red";
+        String color = block.isTextSign() ? "gray" : block.isWarning() ? "yellow" : "red";
         float offset = mount.offset(block.isArrow());
         stack.pushPose();
         stack.translate(0.5, 0, 0.5);
         stack.mulPose(Axis.YP.rotationDegrees(-SpeedSignBlock.angle(state)));
 
         float poleHeight = mount.poleHeight(block.isArrow());
+        float poleStart = 0;
+        if (block.isTextSign()) {
+            TextSignPoleMount rod = state.getValue(SpeedSignBlock.TEXT_POLE);
+            poleStart = rod == TextSignPoleMount.HANGING ? .5F : 0;
+            poleHeight = rod == TextSignPoleMount.CENTER ? 1 : .5F;
+        }
+        stack.pushPose();
+        stack.translate(0, poleStart, 0);
         pole(stack.last(), buffers.getBuffer(RenderType.entitySolid(texture("mtr_signal_pole"))), poleHeight, light, overlay);
+        stack.popPose();
         stack.translate(0, offset, 0);
         String front = shape + "_" + color + (block.isArrow() ? "_" + block.arrow() : "");
         face(stack.last(), buffers.getBuffer(SpeedSignRenderTypes.smooth(texture(front))), 0, 0, 1, 1, FRONT,
@@ -87,8 +97,8 @@ public final class SpeedSignRenderer implements BlockEntityRenderer<SpeedSignBlo
         }
         if (!block.isArrow()) {
             if (!block.isDoubleLine()) {
-                text(stack.last(), buffers, art, text.upper(), block.isWarning() ? .805F : .625F,
-                        block.isWarning() ? .26F : .36F, block.isWarning() ? .48F : .55F, light, overlay);
+                text(stack.last(), buffers, art, text.upper(), block.isTextSign() ? .625F : block.isWarning() ? .805F : .625F,
+                        block.isWarning() ? .26F : .36F, block.isTextSign() ? .5F : (block.isWarning() ? .48F : .55F), light, overlay, block.isTextSign() ? 0x101010 : 0xFFFFFF);
             } else if (text.isTrainClass()) {
                 text(stack.last(), buffers, art, text.upper(), block.isWarning() ? .850625F : .774375F,
                         block.isWarning() ? .165F : .18F, block.isWarning() ? .40F : .57F, light, overlay);
@@ -108,7 +118,9 @@ public final class SpeedSignRenderer implements BlockEntityRenderer<SpeedSignBlo
     }
 
     private static void text(PoseStack.Pose pose, MultiBufferSource buffers, JsonObject art, String value, float centerY,
-                             float height, float maxWidth, int light, int overlay) {
+                             float height, float maxWidth, int light, int overlay) { text(pose,buffers,art,value,centerY,height,maxWidth,light,overlay,0xFFFFFF); }
+    private static void text(PoseStack.Pose pose, MultiBufferSource buffers, JsonObject art, String value, float centerY,
+                             float height, float maxWidth, int light, int overlay, int tint) {
         var glyphs = art.getAsJsonObject("glyphs");
         float width = 0, inkHeight = 0;
         for (int i = 0; i < value.length(); i++) {
@@ -124,7 +136,7 @@ public final class SpeedSignRenderer implements BlockEntityRenderer<SpeedSignBlo
             float w = glyph.get("w").getAsFloat(), h = glyph.get("h").getAsFloat();
             float u = glyph.get("u").getAsFloat(), v = glyph.get("v").getAsFloat();
             face(pose, buffer, cursor, centerY - h*scale/2, w*scale, h*scale, FRONT-.0015F,
-                    u, v, w/1024, h/1024, 0xFFFFFF, light, overlay, false);
+                    u, v, w/1024, h/1024, tint, light, overlay, false);
             cursor += glyph.get("advance").getAsFloat()*scale;
         }
     }

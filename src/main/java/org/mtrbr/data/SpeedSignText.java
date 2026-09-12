@@ -17,6 +17,11 @@ public record SpeedSignText(String upper, String lower) {
         if (!speed(upper) || Integer.parseInt(upper) >= Integer.parseInt(lower)) return null;
         return new SpeedSignText(upper, lower);
     }
+    public static SpeedSignText validateLabel(String value) {
+        if (value == null) return null;
+        value = value.trim().toUpperCase(Locale.ROOT);
+        return value.matches("[A-Z0-9]{1,3}") ? new SpeedSignText(value, "") : null;
+    }
 
     private static boolean speed(String value) {
         return value.matches("[1-9][0-9]{0,2}");

@@ -122,8 +122,18 @@ public final class MTRBR {
 	public static final RegistryObject<BlockItem> POSITION_LIGHT_ITEM = ITEMS.register("position_light_signal", () -> new BlockItem(POSITION_LIGHT_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<BlockItem> YELLOW_POSITION_LIGHT_ITEM = ITEMS.register("yellow_position_light_signal", () -> new BlockItem(YELLOW_POSITION_LIGHT_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<BlockEntityType<org.mtrbr.block.PositionLightSignalBlockEntity>> POSITION_LIGHT_BLOCK_ENTITY = BLOCK_ENTITIES.register("position_light_signal", () -> BlockEntityType.Builder.of(org.mtrbr.block.PositionLightSignalBlockEntity::new, POSITION_LIGHT_BLOCK.get(), YELLOW_POSITION_LIGHT_BLOCK.get()).build(null));
-	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_BLOCK = BLOCKS.register("signal_bracket", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion()));
-	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_ITEM = ITEMS.register("signal_bracket", () -> new BlockItem(SIGNAL_BRACKET_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_1_BLOCK = BLOCKS.register("signal_bracket_1", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), true));
+	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_1_ITEM = ITEMS.register("signal_bracket_1", () -> new BlockItem(SIGNAL_BRACKET_1_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_2_BLOCK = BLOCKS.register("signal_bracket_2", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), false));
+	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_2_ITEM = ITEMS.register("signal_bracket_2", () -> new BlockItem(SIGNAL_BRACKET_2_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_1_DOUBLE_SIDE_BLOCK = BLOCKS.register("signal_bracket_1_double_side", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), false));
+	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_1_DOUBLE_SIDE_ITEM = ITEMS.register("signal_bracket_1_double_side", () -> new BlockItem(SIGNAL_BRACKET_1_DOUBLE_SIDE_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_2_DOUBLE_SIDE_BLOCK = BLOCKS.register("signal_bracket_2_double_side", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), false));
+	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_2_DOUBLE_SIDE_ITEM = ITEMS.register("signal_bracket_2_double_side", () -> new BlockItem(SIGNAL_BRACKET_2_DOUBLE_SIDE_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_1_RIGHT_BLOCK = BLOCKS.register("signal_bracket_1_right", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), true));
+	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_1_RIGHT_ITEM = ITEMS.register("signal_bracket_1_right", () -> new BlockItem(SIGNAL_BRACKET_1_RIGHT_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<SignalBracketBlock> SIGNAL_BRACKET_1_LEFT_BLOCK = BLOCKS.register("signal_bracket_1_left", () -> new SignalBracketBlock(BlockBehaviour.Properties.of().strength(1.5F).noOcclusion(), true));
+	public static final RegistryObject<BlockItem> SIGNAL_BRACKET_1_LEFT_ITEM = ITEMS.register("signal_bracket_1_left", () -> new BlockItem(SIGNAL_BRACKET_1_LEFT_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<DispatcherConsoleBlock> DISPATCHER_CONSOLE_BLOCK = BLOCKS.register("dispatcher_console", () -> new DispatcherConsoleBlock(BlockBehaviour.Properties.of().strength(2.0F)));
 	public static final RegistryObject<BlockItem> DISPATCHER_CONSOLE_ITEM = ITEMS.register("dispatcher_console", () -> new BlockItem(DISPATCHER_CONSOLE_BLOCK.get(), new Item.Properties()));
 
@@ -157,7 +167,12 @@ public final class MTRBR {
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_2_3_4_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_2_3_4_5_ITEM.get()));
 				output.accept(new ItemStack(COLOR_LIGHT_INDICATOR_1_2_3_4_5_6_ITEM.get()));
-				output.accept(new ItemStack(SIGNAL_BRACKET_ITEM.get()));
+				output.accept(new ItemStack(SIGNAL_BRACKET_1_ITEM.get()));
+                output.accept(new ItemStack(SIGNAL_BRACKET_2_ITEM.get()));
+                output.accept(new ItemStack(SIGNAL_BRACKET_1_DOUBLE_SIDE_ITEM.get()));
+                output.accept(new ItemStack(SIGNAL_BRACKET_2_DOUBLE_SIDE_ITEM.get()));
+                output.accept(new ItemStack(SIGNAL_BRACKET_1_RIGHT_ITEM.get()));
+                output.accept(new ItemStack(SIGNAL_BRACKET_1_LEFT_ITEM.get()));
 				for (var item : SpeedSigns.ITEMS) output.accept(new ItemStack(item.get()));
 				// Japanese signal items will be appended here as they are registered.
 			})
@@ -262,3 +277,6 @@ public final class MTRBR {
 	}
 
 }
+
+
+

@@ -26,7 +26,7 @@ MTR `immutablePath` is the physical source of truth. Requests describe the compl
 
 ## Current release and resources
 
-The refreshed 0.1.2 uses network protocol 9. Update both server and clients, including when replacing an older 0.1.2 JAR. See `CHANGELOG.md` and `内容说明.md` for current behavior. `build_deploy_alpha4.ps1` is local-only and ignored; keep it on disk but out of commits.
+The current 0.1.2 development build uses network protocol 10 (sign-edit packets include pole mounting). Update both server and clients, including when replacing an older 0.1.2 JAR. See `CHANGELOG.md` and `内容说明.md` for current behavior. `build_deploy_alpha4.ps1` is local-only and ignored; keep it on disk but out of commits.
 
 `tools/generate_speed_signs.py` uses the bundled Alte DIN 1451 Mittelschrift Regular font (OFL 1.1) and rewrites only speed-sign resources and `build/previews/speed_signs.png`. `tools/check_speed_signs.py` needs Pillow. Do not regenerate unrelated hand-edited LED or position-light source models to prepare a release.
 

@@ -17,16 +17,23 @@ public final class SignalBracketBlock extends Block {
 	public static final DirectionProperty FACING = DirectionHelper.FACING.data;
 	public static final EnumProperty<BlockSignalBase.EnumBooleanInverted> IS_22_5 = BlockSignalBase.IS_22_5.data;
 	public static final EnumProperty<BlockSignalBase.EnumBooleanInverted> IS_45 = BlockSignalBase.IS_45.data;
+	private final boolean angled;
 
-	public SignalBracketBlock(Properties properties) {
+	public SignalBracketBlock(Properties properties) { this(properties, true); }
+	public SignalBracketBlock(Properties properties, boolean angled) {
 		super(properties);
-		registerDefaultState(defaultBlockState().setValue(FACING, Direction.SOUTH)
-				.setValue(IS_22_5, BlockSignalBase.EnumBooleanInverted.FALSE)
-				.setValue(IS_45, BlockSignalBase.EnumBooleanInverted.FALSE));
+		this.angled = angled;
+		BlockState state = defaultBlockState().setValue(FACING, Direction.SOUTH);
+		if (angled) state = state.setValue(IS_22_5, BlockSignalBase.EnumBooleanInverted.FALSE)
+				.setValue(IS_45, BlockSignalBase.EnumBooleanInverted.FALSE);
+		registerDefaultState(state);
 	}
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+		// Forge builds the state definition during super(); the instance flag is
+		// not initialized yet, so keep the shared MTR angle properties on every
+		// bracket variant.  Cardinal-only variants simply leave them at FALSE.
 		builder.add(FACING, IS_22_5, IS_45);
 	}
 
@@ -48,8 +55,9 @@ public final class SignalBracketBlock extends Block {
 	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		final int quadrant = org.mtr.core.tool.Angle.getQuadrant(context.getRotation(), true);
 		final Direction facing = Direction.from2DDataValue(quadrant / 4);
-		return defaultBlockState().setValue(FACING, facing)
-				.setValue(IS_22_5, quadrant % 2 == 1 ? BlockSignalBase.EnumBooleanInverted.TRUE : BlockSignalBase.EnumBooleanInverted.FALSE)
+		BlockState state = defaultBlockState().setValue(FACING, facing);
+		if (!angled) return state;
+		return state.setValue(IS_22_5, quadrant % 2 == 1 ? BlockSignalBase.EnumBooleanInverted.TRUE : BlockSignalBase.EnumBooleanInverted.FALSE)
 				.setValue(IS_45, quadrant % 4 >= 2 ? BlockSignalBase.EnumBooleanInverted.TRUE : BlockSignalBase.EnumBooleanInverted.FALSE);
 	}
 }

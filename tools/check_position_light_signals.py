@@ -39,9 +39,9 @@ def validate():
             assert colors == ({"upper": "white", "left": "glass", "right": "white"} if proceed else
                               {"upper": "glass", "left": "glass" if pole else off, "right": "glass" if pole else off})
             assert min(e["from"][1] for e in model["elements"]) == 0
-            assert min(e["from"][0] for e in model["elements"]) == 2
-            assert max(e["to"][0] for e in model["elements"]) == 14
-            assert max(e["to"][1] for e in model["elements"] if e["name"] != "mtr_pole") == 12
+            assert min(e["from"][0] for e in model["elements"]) == min(e["from"][0] for e in source["elements"])
+            assert max(e["to"][0] for e in model["elements"]) == max(e["to"][0] for e in source["elements"])
+            assert max(e["to"][1] for e in model["elements"] if e["name"] != "mtr_pole") == max(e["to"][1] for e in source["elements"])
             if pole:
                 post = next(e for e in model["elements"] if e["name"] == "mtr_pole")
                 assert post["from"] == [6,0,6] and post["to"] == [10,16,10]
@@ -59,7 +59,7 @@ def validate():
                     assert element["rotation"]["angle"] in (-45, -22.5, 0, 22.5, 45)
                 assert not any(word in element["name"] for word in ("arrow", "label", "plate", "text"))
             housing = [e for e in model["elements"] if e["name"] == "housing"]
-            assert len(housing) == 20
+            assert len(housing) == sum(e["name"] == "housing" for e in source["elements"])
             assert min(e["from"][1] for e in housing) == 2
             assert all(e["to"][1]-e["from"][1] == 0.5 for e in housing)
             for texture in model["textures"].values():

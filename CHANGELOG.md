@@ -1,5 +1,17 @@
 # 更新记录 / Changelog
 
+## 未发布 / Unreleased (2026-09-12)
+
+- 新增灰边黑字的文字标牌：支持 1–3 个字母或数字，输入统一为大写，自动缩放并居中；牌面位置与杆子安装方式分别设置，物品图标显示 A。
+- 信号机支架扩展为 (1)、(2)、两种双侧版本及 (1) 左/右护板。(1) 和护板版本支持 16 方位，其余支持四方位；修正斜向朝向并补齐护板旋转模型。
+- 以手工调整的 `position_light_ground_dark.json` 同步所有地面/贴杆调车灯态及旋转模型，更新碰撞范围和预览；校验尺寸和外壳数量从母版读取。
+- 标牌编辑数据包新增杆子安装字段，网络协议从 `9` 升至 `10`，客户端和服务器需一起更新。
+- 旧 `signal_bracket` 注册名已改为 `signal_bracket_1`；当前未提供旧存档注册名自动迁移。
+
+Added gray-bordered text signs with black, centered, auto-scaled lettering (1–3 alphanumeric characters, normalized to uppercase), independent plate/pole mounting controls and an A item icon. Expanded signal brackets to six variants, corrected diagonal orientation and supplied missing guard rotations. Synchronized all position-light variants, bounds and previews with the refined authored model.
+
+The sign-edit packet now carries pole mounting; network protocol is `10`, requiring matching server and client builds. The old `signal_bracket` registry ID was replaced by `signal_bracket_1` without an automatic world migration.
+
 ## 0.1.2 更新版 / Refreshed Release (2026-09-09)
 
 本次继续更新 `v0.1.2`，包含 9 月 8 日更新版的全部功能和以下调整；Minecraft、Forge、MTR 依赖及网络协议 `9` 不变。

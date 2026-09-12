@@ -86,6 +86,20 @@ PSR 是红色圆牌，AWI 是黄色三角牌；两者都有单行、双行和左
 
 PSR signs are red circles and AWI signs are yellow triangles. Both have single- and double-line variants plus left, both-way and right arrows. Text is editable, signs support centre/bottom/top mounting, and arrows support bottom/top mounting. They never change speed, routing or block authority.
 
+## Text signs and brackets / 文字标牌与信号机支架
+
+文字标牌为灰色描边、黑色文字的圆牌。使用调试工具编辑 1–3 个字母或数字（小写输入转为大写）；文字自动缩放、整体居中。第一排安装按钮调整牌面触底/置中/触顶，第二排独立调整杆子下挂/贯穿全块/下触。物品图标为无杆、字母 A 的牌面。
+
+Text signs use a gray circular border and black lettering. Edit 1–3 letters or digits with the debug tool; lowercase input is normalized to uppercase, and text scales and centres automatically. Separate controls select the plate position and pole mounting. The item icon shows A without a pole.
+
+支架提供 (1)、(2)、对应双侧版本和 (1) 左/右护板；(1) 及护板支持 16 方位，其余支持四个正方向。
+
+Brackets come in types (1), (2), their double-sided versions and type (1) left/right guards. Type (1) and guards support 16 orientations; the other variants use four cardinal directions.
+
+本次开发版本使用网络协议 `10`，客户端与服务器需同步更新。旧 `signal_bracket` 注册名改为 `signal_bracket_1`，尚无旧存档自动迁移。
+
+This development build uses network protocol `10`; update server and clients together. The old `signal_bracket` registry ID is now `signal_bracket_1`, with no automatic migration for existing worlds.
+
 ## Dispatcher and Web UI / 调度台与 Web 界面
 
 右键调度台或使用调度工具打开面板。按钮在窗口缩放时保持居中，搜索支持中文和日文，列表支持状态筛选、排序和悬浮查看完整字段。生成 token 后可自动打开 Web UI；token 列表和销毁操作只向执行者私下回复。
@@ -147,4 +161,3 @@ The addon does not modify MTR source code or its original JAR. It integrates thr
 源代码采用 [MIT License](LICENSE)。Alte DIN 1451 Mittelschrift Regular 和 Terminus Regular 字体采用 SIL OFL 1.1；字体、MTR 信号杆材质及其来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 Source code is released under the [MIT License](LICENSE). Alte DIN 1451 Mittelschrift Regular and Terminus Regular use SIL OFL 1.1. Font and MTR signal-pole sources are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-

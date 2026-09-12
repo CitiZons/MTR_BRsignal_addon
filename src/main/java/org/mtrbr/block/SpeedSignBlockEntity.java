@@ -17,6 +17,7 @@ public final class SpeedSignBlockEntity extends BlockEntity {
     }
 
     private SpeedSignText defaults() {
+        if (((SpeedSignBlock) getBlockState().getBlock()).isTextSign()) return new SpeedSignText("A", "");
         return ((SpeedSignBlock) getBlockState().getBlock()).isDoubleLine()
                 ? new SpeedSignText("30", "55") : new SpeedSignText("50", "");
     }
@@ -26,7 +27,8 @@ public final class SpeedSignBlockEntity extends BlockEntity {
     public boolean setText(String upper, String lower) {
         SpeedSignBlock block = (SpeedSignBlock) getBlockState().getBlock();
         if (block.isArrow()) return false;
-        SpeedSignText validated = SpeedSignText.validate(upper, lower, block.isDoubleLine());
+        SpeedSignText validated = block.isTextSign() ? SpeedSignText.validateLabel(upper)
+                : SpeedSignText.validate(upper, lower, block.isDoubleLine());
         if (validated == null) return false;
         text = validated;
         setChanged();
@@ -44,8 +46,9 @@ public final class SpeedSignBlockEntity extends BlockEntity {
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
-        SpeedSignText validated = SpeedSignText.validate(tag.getString("Upper"), tag.getString("Lower"),
-                ((SpeedSignBlock) getBlockState().getBlock()).isDoubleLine());
+        SpeedSignBlock block = (SpeedSignBlock) getBlockState().getBlock();
+        SpeedSignText validated = block.isTextSign() ? SpeedSignText.validateLabel(tag.getString("Upper"))
+                : SpeedSignText.validate(tag.getString("Upper"), tag.getString("Lower"), block.isDoubleLine());
         text = validated == null ? defaults() : validated;
     }
 

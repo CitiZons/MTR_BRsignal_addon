@@ -1,0 +1,67 @@
+{
+  "variants": {
+    "facing=north,is_22_5=false,is_45=false": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left"
+    },
+    "facing=north,is_22_5=true,is_45=false": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_22_5",
+      "y": 0
+    },
+    "facing=north,is_22_5=false,is_45=true": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_45",
+      "y": 0
+    },
+    "facing=north,is_22_5=true,is_45=true": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_67_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=false": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=false": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_22_5",
+      "y": 90
+    },
+    "facing=east,is_22_5=false,is_45=true": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_45",
+      "y": 90
+    },
+    "facing=east,is_22_5=true,is_45=true": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_67_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=false": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=false": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_22_5",
+      "y": 180
+    },
+    "facing=south,is_22_5=false,is_45=true": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_45",
+      "y": 180
+    },
+    "facing=south,is_22_5=true,is_45=true": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_67_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=false": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=false": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_22_5",
+      "y": 270
+    },
+    "facing=west,is_22_5=false,is_45=true": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_45",
+      "y": 270
+    },
+    "facing=west,is_22_5=true,is_45=true": {
+      "model": "mtr_brsignal_addon:block/signal_bracket_1_left_67_5",
+      "y": 0
+    }
+  }
+}

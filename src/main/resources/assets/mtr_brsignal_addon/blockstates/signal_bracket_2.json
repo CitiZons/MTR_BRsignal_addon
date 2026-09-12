@@ -1,0 +1,1 @@
+{ "variants": { "facing=north": {"model":"mtr_brsignal_addon:block/signal_bracket_2"}, "facing=east": {"model":"mtr_brsignal_addon:block/signal_bracket_2", "y":90}, "facing=south": {"model":"mtr_brsignal_addon:block/signal_bracket_2", "y":180}, "facing=west": {"model":"mtr_brsignal_addon:block/signal_bracket_2", "y":270} } }

@@ -17,6 +17,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -25,22 +26,29 @@ public final class SpeedSignBlock extends Block implements EntityBlock {
     public static final IntegerProperty ROTATION = BlockStateProperties.ROTATION_16;
     public static final BooleanProperty HANGING = BooleanProperty.create("hanging");
     public static final BooleanProperty CENTERED = BooleanProperty.create("centered");
+    public static final EnumProperty<TextSignPoleMount> TEXT_POLE = EnumProperty.create("text_pole", TextSignPoleMount.class);
     private final boolean warning;
     private final boolean doubleLine;
     private final String arrow;
+    private final boolean textSign;
 
     public SpeedSignBlock(Properties properties, boolean warning, boolean doubleLine, String arrow) {
+        this(properties, warning, doubleLine, arrow, false);
+    }
+    public SpeedSignBlock(Properties properties, boolean warning, boolean doubleLine, String arrow, boolean textSign) {
         super(properties);
         this.warning = warning;
         this.doubleLine = doubleLine;
         this.arrow = arrow;
-        registerDefaultState(defaultBlockState().setValue(ROTATION, 0).setValue(HANGING, false).setValue(CENTERED, false));
+        this.textSign = textSign;
+        registerDefaultState(defaultBlockState().setValue(ROTATION, 0).setValue(HANGING, false).setValue(CENTERED, false).setValue(TEXT_POLE, TextSignPoleMount.CENTER));
     }
 
     public boolean isWarning() { return warning; }
     public boolean isDoubleLine() { return doubleLine; }
     public boolean isArrow() { return !arrow.isEmpty(); }
     public String arrow() { return arrow; }
+    public boolean isTextSign() { return textSign; }
     public static float angle(BlockState state) { return state.getValue(ROTATION) * 22.5F; }
 
     public static SpeedSignMount mount(BlockState state) {
@@ -59,7 +67,7 @@ public final class SpeedSignBlock extends Block implements EntityBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(ROTATION, HANGING, CENTERED);
+        builder.add(ROTATION, HANGING, CENTERED, TEXT_POLE);
     }
 
     @Override

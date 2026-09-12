@@ -89,5 +89,16 @@
   "screen.mtr_brsignal_addon.repeater.missing": "Unbound → on; bound but aspect unavailable → off_limiting",
   "screen.mtr_brsignal_addon.repeater.bind": "Bind: debugger Shift+right-click repeater, then main signal.",
   "message.mtr_brsignal_addon.display_selected": "Display selected. Shift+right-click the main signal to bind.",
-  "message.mtr_brsignal_addon.display_bound": "Display bound to main signal %s"
+  "message.mtr_brsignal_addon.display_bound": "Display bound to main signal %s",
+  "block.mtr_brsignal_addon.text_sign": "Text Sign",
+  "screen.mtr_brsignal_addon.speed_sign.text": "Text (up to 3 letters/digits)",
+  "block.mtr_brsignal_addon.signal_bracket_1": "Signal Bracket (1)",
+  "block.mtr_brsignal_addon.signal_bracket_2": "Signal Bracket (2)",
+  "block.mtr_brsignal_addon.signal_bracket_1_double_side": "Signal Bracket (1) (Double-sided)",
+  "block.mtr_brsignal_addon.signal_bracket_2_double_side": "Signal Bracket (2) (Double-sided)",
+  "block.mtr_brsignal_addon.signal_bracket_1_right": "Signal Bracket (1) (Right Guard)",
+  "block.mtr_brsignal_addon.signal_bracket_1_left": "Signal Bracket (1) (Left Guard)",
+  "screen.mtr_brsignal_addon.speed_sign.pole.hanging": "Hanging",
+  "screen.mtr_brsignal_addon.speed_sign.pole.center": "Center",
+  "screen.mtr_brsignal_addon.speed_sign.pole.bottom": "Bottom"
 }

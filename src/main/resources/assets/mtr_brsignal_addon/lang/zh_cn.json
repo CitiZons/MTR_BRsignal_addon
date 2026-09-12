@@ -89,5 +89,16 @@
   "screen.mtr_brsignal_addon.repeater.missing": "未绑定 → on；已绑定但尚未收到状态 → off_limiting",
   "screen.mtr_brsignal_addon.repeater.bind": "绑定：调试工具 Shift+右键复示信号机，再 Shift+右键主信号",
   "message.mtr_brsignal_addon.display_selected": "已选中显示设备，请 Shift+右键主信号完成绑定",
-  "message.mtr_brsignal_addon.display_bound": "显示设备已绑定到主信号 %s"
+  "message.mtr_brsignal_addon.display_bound": "显示设备已绑定到主信号 %s",
+  "block.mtr_brsignal_addon.text_sign": "文字标牌",
+  "screen.mtr_brsignal_addon.speed_sign.text": "文字（最多3个字母或数字）",
+  "block.mtr_brsignal_addon.signal_bracket_1": "信号机支架(1)",
+  "block.mtr_brsignal_addon.signal_bracket_2": "信号机支架(2)",
+  "block.mtr_brsignal_addon.signal_bracket_1_double_side": "信号机支架(1)(双侧)",
+  "block.mtr_brsignal_addon.signal_bracket_2_double_side": "信号机支架(2)(双侧)",
+  "block.mtr_brsignal_addon.signal_bracket_1_right": "信号机支架(1)(右护板)",
+  "block.mtr_brsignal_addon.signal_bracket_1_left": "信号机支架(1)(左护板)",
+  "screen.mtr_brsignal_addon.speed_sign.pole.hanging": "上挂",
+  "screen.mtr_brsignal_addon.speed_sign.pole.center": "中间",
+  "screen.mtr_brsignal_addon.speed_sign.pole.bottom": "下触"
 }
