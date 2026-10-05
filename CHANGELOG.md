@@ -1,6 +1,16 @@
 # 更新记录 / Changelog
 
-## 未发布 / Unreleased (2026-09-12)
+## 0.2.0 (2026-10-05)
+
+Added a server-authoritative BR mode to the MTR `mtr:train_sensor`. The signal debug tool opens its settings; ordinary right-click interaction remains unavailable for this configuration screen.
+
+Sensors now support `Approach Sections` and optional `Targeted Sections`. The target set must be a subset of the approach set. A sensor triggers only when the same train has an active BR authorization overlapping an approach section and, when configured, its current forward immutable path reaches a targeted section. Shared approach track followed by a branch to another route does not trigger the sensor.
+
+Continuous output remains powered while the condition is true. Pulse output emits one configurable pulse per rising condition edge. Native MTR sensor behavior remains unchanged when BR mode is disabled.
+
+The English Web UI lists sensor names, dimensions, coordinates, loaded state and output state. It supports direct sensor links, map selection, Ctrl multi-select, `BIND`, `CONFIRM`, `CANCEL`, `UNBIND` and `CLEAR ALL`. Web changes require an authenticated operator token and permission level 2.
+
+Network protocol is `11`; update both client and server together. The release version is `0.2.0`.
 
 - 新增灰边黑字的文字标牌：支持 1–3 个字母或数字，输入统一为大写，自动缩放并居中；牌面位置与杆子安装方式分别设置，物品图标显示 A。
 - 信号机支架扩展为 (1)、(2)、两种双侧版本及 (1) 左/右护板。(1) 和护板版本支持 16 方位，其余支持四方位；修正斜向朝向并补齐护板旋转模型。

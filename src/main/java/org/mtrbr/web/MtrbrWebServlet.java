@@ -15,6 +15,7 @@ public final class MtrbrWebServlet extends HttpServlet {
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		final String path = request.getPathInfo() == null || request.getPathInfo().equals("/") ? "/index.html" : request.getPathInfo();
 		 switch (path) {
+            case "/api/sensors" -> send(response, "application/json; charset=UTF-8", org.mtrbr.server.SensorManager.published());
 			case "/api/topology" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.topologyJson());
 			case "/api/state" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.stateJson());
 			case "/api/lines" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.linesJson());
@@ -23,7 +24,7 @@ public final class MtrbrWebServlet extends HttpServlet {
 				send(response, "application/json; charset=UTF-8", "{\"canDispatch\":" + session.canDispatch() + ",\"invalidationReason\":\"" + session.invalidationReason() + "\"}");
 			}
 			case "/api/contract" -> send(response, "application/json; charset=UTF-8", WebApiContract.json());
-			case "/index.html", "/app.css", "/app.js" -> sendResource(response, path);
+			case "/index.html", "/app.css", "/app.js", "/sensors.js" -> sendResource(response, path);
 			case "/Terminus-Regular.ttf" -> sendBinaryResource(response, path, "font/ttf");
 			default -> response.sendError(HttpServletResponse.SC_NOT_FOUND);
 		}
@@ -31,7 +32,12 @@ public final class MtrbrWebServlet extends HttpServlet {
 
 	@Override
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
-		if ("/api/lines/preview-nodes".equals(request.getPathInfo())) {
+		if ("/api/sensors/save".equals(request.getPathInfo())) {
+            try {
+                final JsonObject result = SensorWebService.save(token(request), deviceId(request), JsonParser.parseReader(request.getReader()).getAsJsonObject());
+                send(response, result.get("ok").getAsBoolean() ? 200 : 400, "application/json; charset=UTF-8", result.toString());
+            } catch (RuntimeException e) { send(response, 400, "application/json; charset=UTF-8", "{\"ok\":false,\"reason\":\"INVALID_REQUEST\"}"); }
+        } else if ("/api/lines/preview-nodes".equals(request.getPathInfo())) {
 			final JsonObject body = JsonParser.parseReader(request.getReader()).getAsJsonObject();
 			final JsonObject result = DepotPathEditorService.previewNodes(WebTopologySnapshot.server(), token(request), deviceId(request), body);
 			send(response, result.get("ok").getAsBoolean() ? HttpServletResponse.SC_OK : HttpServletResponse.SC_CONFLICT, "application/json; charset=UTF-8", result.toString());

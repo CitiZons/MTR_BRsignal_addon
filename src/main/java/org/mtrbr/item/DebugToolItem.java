@@ -58,6 +58,10 @@ public final class DebugToolItem extends Item {
 		if (context.getLevel().isClientSide() && context.getPlayer() != null) {
 			final BlockPos clickedPos = context.getClickedPos();
 			final boolean isShift = context.isSecondaryUseActive();
+            if (org.mtrbr.server.SensorManager.isSensor(context.getLevel().getBlockState(clickedPos))) {
+                Network.CHANNEL.sendToServer(new org.mtrbr.network.SensorPacket(clickedPos, ""));
+                return InteractionResult.SUCCESS;
+            }
 
 			if (context.getLevel().getBlockState(clickedPos).getBlock() instanceof org.mtrbr.block.SpeedSignBlock sign) {
 				var state = context.getLevel().getBlockState(clickedPos);

@@ -100,5 +100,18 @@
   "block.mtr_brsignal_addon.signal_bracket_1_left": "Signal Bracket (1) (Left Guard)",
   "screen.mtr_brsignal_addon.speed_sign.pole.hanging": "Hanging",
   "screen.mtr_brsignal_addon.speed_sign.pole.center": "Center",
-  "screen.mtr_brsignal_addon.speed_sign.pole.bottom": "Bottom"
+  "screen.mtr_brsignal_addon.speed_sign.pole.bottom": "Bottom",
+  "screen.mtr_brsignal_addon.sensor.title": "Redstone Sensor",
+  "screen.mtr_brsignal_addon.sensor.name": "Name",
+  "screen.mtr_brsignal_addon.sensor.readonly": "Name / Read Only",
+  "screen.mtr_brsignal_addon.sensor.native": "Native Detection",
+  "screen.mtr_brsignal_addon.sensor.advanced": "BR Authority",
+  "screen.mtr_brsignal_addon.sensor.pulse": "Pulse",
+  "screen.mtr_brsignal_addon.sensor.continuous": "Continuous",
+  "screen.mtr_brsignal_addon.sensor.ticks": "Pulse Length (Ticks)",
+  "screen.mtr_brsignal_addon.sensor.bind": "Bind / Web",
+  "screen.mtr_brsignal_addon.sensor.save": "Save",
+  "screen.mtr_brsignal_addon.sensor.close": "Close",
+  "screen.mtr_brsignal_addon.sensor.summary": "Approach: %s   Targets: %s",
+  "screen.mtr_brsignal_addon.sensor.invalid": "Pulse length must be 1-1200 ticks"
 }

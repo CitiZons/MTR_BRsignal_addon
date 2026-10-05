@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,6 +27,9 @@
       <h2>DISPLAY</h2>
       <button id="fit">FIT NETWORK</button>
       <button id="reset">RESET VIEW</button>
+      <h2>SENSORS</h2>
+      <input id="sensor-search" placeholder="Search sensors" aria-label="Search sensors">
+      <div id="sensor-list"></div>
       <h2>PLAYERS</h2>
       <div id="player-list" class="player-list"></div>
       <p>STATUS: LIVE</p>
@@ -42,6 +45,20 @@
       <div id="line-list" class="line-list"></div>
     </aside>
     <section class="diagram-wrap">
+      <aside id="sensor-editor" hidden>
+        <div class="drawer-heading"><h2>REDSTONE SENSOR</h2><button id="sensor-close" type="button">CLOSE</button></div>
+        <p id="sensor-position"></p>
+        <label>Name<input id="sensor-name" maxlength="40"></label>
+        <label>Detection<select id="sensor-mode"><option value="native">NATIVE DETECTION</option><option value="advanced">BR AUTHORITY</option></select></label>
+        <label>Output<select id="sensor-output"><option value="continuous">CONTINUOUS</option><option value="pulse">PULSE</option></select></label>
+        <label>Pulse length (ticks)<input id="sensor-ticks" type="number" min="1" max="1200" value="20"></label>
+        <h3>APPROACH SECTIONS</h3><div id="sensor-approach-list"></div>
+        <button id="sensor-approach-bind" type="button">BIND</button><button id="sensor-approach-clear" type="button">CLEAR ALL</button>
+        <h3>TARGETED SECTIONS</h3><div id="sensor-targets-list"></div>
+        <button id="sensor-targets-bind" type="button">BIND</button><button id="sensor-targets-clear" type="button">CLEAR ALL</button>
+        <div class="sensor-actions"><button id="sensor-cancel" type="button" hidden>CANCEL</button><button id="sensor-save" type="button">SAVE</button></div>
+        <p id="sensor-status" role="status"></p>
+      </aside>
       <canvas id="diagram" aria-label="Rail topology map"></canvas>
 	  <form id="signal-name-form" class="signal-name-form" hidden><input id="signal-name" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,39}" autocomplete="off"><button type="submit">SAVE</button></form>
       <div id="vehicle-delete-form" class="vehicle-delete-form" hidden><button id="vehicle-quarantine" type="button">QUARANTINE</button><button id="vehicle-delete" type="button" disabled>DELETE</button><button id="vehicle-delete-confirm" type="button" disabled>CONFIRM</button></div>
@@ -76,5 +93,6 @@
   </main>
   <footer><span>TOPOLOGY SNAPSHOT</span><span id="updated">--:--:--</span></footer>
   <script src="app.js"></script>
+  <script src="sensors.js"></script>
 </body>
 </html>

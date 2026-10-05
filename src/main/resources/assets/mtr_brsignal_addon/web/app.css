@@ -1,4 +1,18 @@
 @font-face { font-family: "Terminus"; src: url("Terminus-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+#sensor-editor { position: absolute; z-index: 8; top: 8px; right: 8px; width: min(320px, calc(100% - 16px)); max-height: calc(100% - 16px); overflow: auto; padding: 12px; background: #111416; border: 1px solid #39c5a3; }
+#sensor-editor[hidden] { display: none; }
+#sensor-editor [hidden] { display: none; }
+#sensor-editor label { display: block; margin-top: 10px; font-size: 14px; }
+#sensor-editor input, #sensor-editor select, #sensor-search { display: block; width: 100%; min-width: 0; margin-top: 4px; padding: 5px; background: #080b0c; color: #e3e7e8; border: 1px solid #687378; font: inherit; }
+#sensor-editor h3 { font-size: 14px; margin: 14px 0 6px; }
+#sensor-editor p { overflow-wrap: anywhere; }
+#sensor-editor button { width: auto; display: inline-block; margin: 4px 2px; }
+.sensor-section-row { display: flex; align-items: center; gap: 6px; }
+.sensor-section-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+#sensor-approach-list, #sensor-targets-list { max-height: 100px; overflow: auto; }
+#sensor-list { max-height: 220px; overflow: auto; }
+#sensor-list button { white-space: normal; overflow-wrap: anywhere; font-size: 13px; }
+.sidebar { overflow-y: auto; }
 :root { color-scheme: dark; font-family: "Terminus", "Microsoft YaHei", sans-serif; background: #050708; color: #d7dcde; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 720px; overflow: hidden; background: #050708; }

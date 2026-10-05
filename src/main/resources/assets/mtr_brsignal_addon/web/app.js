@@ -2,6 +2,12 @@ const canvas = document.querySelector('#diagram');
 const ctx = canvas.getContext('2d');
 const view = { x: 0, y: 0, scale: 1, dragging: false, lastX: 0, lastY: 0, fitted: false };
 let topology = null;
+let sensors = [];
+let sensorDraft = null;
+let sensorBaseline = null;
+let sensorBinding = null;
+let sensorSelection = new Set();
+let sensorOpenedFromLink = false;
 let state = null;
 let lines = null;
 const token = new URLSearchParams(window.location.search).get('token') || '';
@@ -385,6 +391,11 @@ function draw() {
         : sectionColor(section);
     ctx.lineWidth = Math.max(.72, .544 / view.scale);
     drawRail(rail.points);
+    if (sensorDraft && (sensorSelection.has(rail.id) || sensorDraft.approach.includes(rail.id) || sensorDraft.targets.includes(rail.id))) {
+      ctx.save();
+      ctx.strokeStyle = sensorBinding && sensorSelection.has(rail.id) ? '#ffffff' : sensorDraft.targets.includes(rail.id) ? '#17c4ae' : '#e1af31';
+      ctx.lineWidth = Math.max(1.5, 3 / view.scale); drawRail(rail.points); ctx.restore();
+    }
     if (!line && section && section.vehicles && section.vehicles.length) {
       const midpoint = railMidpoint(rail.points);
       section.vehicles.forEach((code, index) => {
@@ -466,6 +477,7 @@ function draw() {
     drawLineNodes(line);
   }
 
+  if (typeof drawSensors === 'function') drawSensors();
   ctx.restore();
   positionVehicleDeleteForm();
   document.querySelector('#scale-label').textContent = `${Math.round(100 / view.scale)} m`;
@@ -1017,6 +1029,7 @@ async function refresh() {
     state = await stateResponse.json();
     const session = sessionResponse.ok ? await sessionResponse.json() : { canDispatch: false, invalidationReason: '' };
     canDispatch = session.canDispatch === true;
+    await refreshSensors();
     updateInvalidation(session.invalidationReason);
     const data = selectedDimension();
     if (!lineMode()) document.querySelector('#status').textContent = 'LIVE SNAPSHOT';
@@ -1036,6 +1049,8 @@ async function refresh() {
 }
 
 canvas.addEventListener('pointerdown', event => {
+  if (event.button === 2) return;
+  if (sensorBinding && event.button === 0 && sensorSectionAt(event)) return;
   if (lineMode()) {
     if (nodeChangeMode) {
       nodeCandidate = graphNodeAt(event);
@@ -1118,12 +1133,15 @@ canvas.addEventListener('mouseleave', () => {
   }
 });
 canvas.addEventListener('click', event => {
+  if (sensorBinding) { selectSensorSection(event); return; }
+  if (sensorAt(event)) { openSensor(sensorAt(event)); return; }
   if (lineMode()) return;
   if (signalAt(event)) return;
   const vehicle = vehicleAt(event);
   if (vehicle?.vehicleId !== null && vehicle?.vehicleId !== undefined) openVehicleDelete(vehicle.vehicleId);
 });
 canvas.addEventListener('pointerup', event => {
+  if (!signalDrag && !lineNodePress && !view.dragging) return;
   if (signalDrag) {
     const dragged = signalDrag;
     signalDrag = null;

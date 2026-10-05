@@ -206,6 +206,7 @@ public final class MTRBR {
 
 	private static void onServerTick(TickEvent.ServerTickEvent event) {
 		if (event.phase == TickEvent.Phase.END && event.getServer() != null) {
+            org.mtrbr.server.SensorManager.tick(event.getServer());
 			if (event.getServer().getTickCount() % 10 == 0) {
 				final boolean fullSync = event.getServer().getTickCount() % 20 == 0;
 				event.getServer().getAllLevels().forEach(level -> {

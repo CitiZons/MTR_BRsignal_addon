@@ -143,6 +143,15 @@ tasks.register("webSessionRegression", JavaExec) {
 }
 tasks.named("check") { dependsOn "webSessionRegression" }
 
+tasks.register("sensorRegression", JavaExec) {
+    group = "verification"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "org.mtrbr.server.SensorRegression"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+}
+tasks.named("check") { dependsOn "sensorRegression" }
+
 tasks.register("resourceRegression", Exec) {
     group = "verification"
     description = "Checks authored models, textures, fonts and mounts without regenerating resources"

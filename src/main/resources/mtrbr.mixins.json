@@ -5,6 +5,8 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "mtrbr.refmap.json",
   "mixins": [
+    "TrainSensorPowerMixin",
+    "TrainSensorInteractionMixin",
     "DataMixin",
 	"MainWebserverMixin",
     "SimulatorMixin",

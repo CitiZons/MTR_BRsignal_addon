@@ -28,6 +28,20 @@ public final class WebSessionManager {
 		return issue(player.getUUID(), player.hasPermissions(2),
 				org.mtrbr.data.WebTokenPermissionsSavedData.get(player.server).isEnabled(player.getUUID()));
 	}
+    public static IssueResult issueForSensor(ServerPlayer player) {
+        if (!player.hasPermissions(2)) return new IssueResult("", "Operator permission is required.");
+        if (!org.mtrbr.data.WebTokenPermissionsSavedData.get(player.server).isEnabled(player.getUUID()))
+            return new IssueResult("", "Web token generation has been disabled for this player.");
+        synchronized (LOCK) {
+            expireTokens(System.currentTimeMillis());
+            final List<String> tokens = TOKENS_BY_OPERATOR.getOrDefault(player.getUUID(), List.of());
+            for (int i = tokens.size() - 1; i >= 0; i--) {
+                Session session = SESSIONS.get(tokens.get(i));
+                if (session != null && session.status == Status.ACTIVE) return new IssueResult(tokens.get(i), "");
+            }
+        }
+        return issue(player);
+    }
 
 	static IssueResult issue(UUID playerId, boolean operator, boolean enabled) {
 		if (!operator) return new IssueResult("", "Operator permission is required.");

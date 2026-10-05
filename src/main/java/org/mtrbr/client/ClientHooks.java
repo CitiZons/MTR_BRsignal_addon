@@ -23,6 +23,9 @@ public final class ClientHooks {
 		MinecraftForge.EVENT_BUS.addListener(CenterToast::onRenderGui);
 		MinecraftForge.EVENT_BUS.addListener(TooltipRenderer::onTooltipPre);
 	}
+    public static void openSensorScreen(org.mtrbr.network.SensorViewPacket view) {
+        Minecraft.getInstance().setScreen(new org.mtrbr.screen.SensorScreen(view));
+    }
 
 	public static void openSignalDebugScreen(BlockPos signalPos) {
 		Minecraft.getInstance().setScreen(new SignalDebugScreen(signalPos));

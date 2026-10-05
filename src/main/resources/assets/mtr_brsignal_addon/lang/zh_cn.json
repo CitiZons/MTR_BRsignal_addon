@@ -100,5 +100,18 @@
   "block.mtr_brsignal_addon.signal_bracket_1_left": "信号机支架(1)(左护板)",
   "screen.mtr_brsignal_addon.speed_sign.pole.hanging": "上挂",
   "screen.mtr_brsignal_addon.speed_sign.pole.center": "中间",
-  "screen.mtr_brsignal_addon.speed_sign.pole.bottom": "下触"
+  "screen.mtr_brsignal_addon.speed_sign.pole.bottom": "下触",
+  "screen.mtr_brsignal_addon.sensor.title": "红石感应器",
+  "screen.mtr_brsignal_addon.sensor.name": "名称",
+  "screen.mtr_brsignal_addon.sensor.readonly": "名称 / 只读",
+  "screen.mtr_brsignal_addon.sensor.native": "原生列车检测",
+  "screen.mtr_brsignal_addon.sensor.advanced": "BR 进路授权检测",
+  "screen.mtr_brsignal_addon.sensor.pulse": "脉冲输出",
+  "screen.mtr_brsignal_addon.sensor.continuous": "持续输出",
+  "screen.mtr_brsignal_addon.sensor.ticks": "脉冲长度（游戏刻）",
+  "screen.mtr_brsignal_addon.sensor.bind": "绑定 / Web",
+  "screen.mtr_brsignal_addon.sensor.save": "保存",
+  "screen.mtr_brsignal_addon.sensor.close": "关闭",
+  "screen.mtr_brsignal_addon.sensor.summary": "接近区间：%s   目标区间：%s",
+  "screen.mtr_brsignal_addon.sensor.invalid": "脉冲长度必须为 1-1200 游戏刻"
 }

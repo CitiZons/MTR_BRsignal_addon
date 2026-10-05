@@ -48,6 +48,9 @@ public final class MTRBRCommands {
 				.then(Commands.literal("requests")
 						.executes(context -> listRequests(context.getSource().getLevel(), context.getSource())))
 				.then(Commands.literal("web_token")
+                        .then(Commands.literal("open_sensor")
+                                .then(Commands.argument("request_id", UuidArgument.uuid())
+                                        .executes(context -> issueWebToken(context.getSource(), UuidArgument.getUuid(context, "request_id"), true))))
 						.then(Commands.literal("generate")
 								.executes(context -> issueWebToken(context.getSource(), null))
 								.then(Commands.literal("open")
@@ -96,6 +99,10 @@ public final class MTRBRCommands {
 	}
 
 	private static int issueWebToken(net.minecraft.commands.CommandSourceStack source, java.util.UUID openRequest) {
+        return issueWebToken(source, openRequest, false);
+    }
+
+    private static int issueWebToken(net.minecraft.commands.CommandSourceStack source, java.util.UUID openRequest, boolean sensor) {
 		final var player = source.getPlayer();
 		if (player == null) {
 			source.sendFailure(Component.literal("This command must be run by an in-game operator."));
@@ -116,7 +123,7 @@ public final class MTRBRCommands {
 		} else {
 			host = "localhost";
 		}
-		final org.mtrbr.web.WebSessionManager.IssueResult issued = org.mtrbr.web.WebSessionManager.issue(player);
+		final org.mtrbr.web.WebSessionManager.IssueResult issued = sensor ? org.mtrbr.web.WebSessionManager.issueForSensor(player) : org.mtrbr.web.WebSessionManager.issue(player);
 		if (!issued.issued()) {
 			player.sendSystemMessage(Component.literal(issued.error()));
 			return 0;

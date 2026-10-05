@@ -18,6 +18,7 @@ MTR BR Signal Addon gives MTR a working signalling layer: trains occupy real sec
 | **Route authority** — bind signals to MTR nodes and authorize only the safe prefix of a requested path. | **进路授权**——将信号绑定到 MTR 节点，只授权申请路径中安全的部分。 |
 | **British displays** — colour-light signals, LED route indicators, repeaters and current-layout position lights. | **英式显示设备**——色灯信号、LED 进路指示器、复示信号机和 current 布局调车信号。 |
 | **Dispatcher tools** — an in-game console, searchable Web UI and private token administration. | **调度工具**——游戏内调度台、可搜索的 Web UI 和私有 token 管理。 |
+| **Redstone train sensors** — server-authoritative BR route detection with approach/target section filters and continuous or pulse output. | **红石列车感应器**——服务端权威的 BR 进路检测，支持接近/目标区间筛选以及持续或脉冲输出。 |
 | **Decorative signs** — PSR/AWI speed signs with editable lettering, smooth artwork and MTR pole materials. | **装饰标牌**——可编辑文字、平滑图案并使用 MTR 杆材质的 PSR/AWI 限速牌。 |
 
 The signalling engine is separated from the display layer through public device, face, authority and display interfaces. This keeps movement authority independent from the shape, lamp arrangement and artwork of a signal.
@@ -26,9 +27,9 @@ The signalling engine is separated from the display layer through public device,
 
 ## Install / 安装
 
-需要 Minecraft 1.20.1、Forge 47.4.18 和 MTR Forge 4.0.3。将 `mtr_brsignal_addon-0.1.2.jar` 与 MTR 一起放入客户端或服务器的 `mods/` 文件夹。
+需要 Minecraft 1.20.1、Forge 47.4.18 和 MTR Forge 4.0.3。将 `mtr_brsignal_addon-0.2.0.jar` 与 MTR 一起放入客户端或服务器的 `mods/` 文件夹。
 
-Requires Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3. Put `mtr_brsignal_addon-0.1.2.jar` in the `mods/` folder alongside MTR.
+Requires Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3. Put `mtr_brsignal_addon-0.2.0.jar` in the `mods/` folder alongside MTR.
 
 ## First setup / 初次设置
 
@@ -78,6 +79,21 @@ A position-light shunt must be bound to a main signal and a matching `shunt=` ro
 
 Signals recalculate every 10 ticks, synchronize changes immediately, and perform a 20-tick fallback sync. Removing the last position-light device disables shunt mode.
 
+## Redstone train sensors
+
+The MTR `mtr:train_sensor` can run in its native mode or in the addon’s BR authority mode. Native mode keeps MTR’s ordinary nearby-train detection. To open the addon settings, use the signal debug tool on the sensor; an ordinary right-click does not open this screen.
+
+BR mode is configured in the in-game screen and in the English Web UI. The sensor may be placed anywhere, including away from the track. The game screen controls the name, detection mode, output mode and pulse length. Select `BIND / WEB` to open the Web UI for map-based section selection.
+
+Each sensor has two independent binding groups:
+
+- `Approach Sections` define the distance at which a train can trigger the sensor.
+- `Targeted Sections` optionally restrict the trigger to trains whose current forward path passes one of these sections. Every targeted section must also be an approach section.
+
+The server evaluates one train at a time. A trigger requires that the train’s currently open BR authorization overlaps an approach section. When targeted sections are configured, the same train’s forward immutable path must also contain a targeted section after its current position. A branch that only shares the approach section does not trigger the sensor; a future reverse occurrence does not trigger it either.
+
+Output can be `CONTINUOUS`, which remains powered while the condition is true, or `PULSE`, which emits one configurable pulse on each rising condition edge. Web binding requires an authenticated operator token and permission level 2. The Web UI lists sensor names, dimensions, coordinates, loaded state and current output, and supports `BIND`, `CONFIRM`, `CANCEL`, `UNBIND` and `CLEAR ALL`. Holding Ctrl while selecting map sections adds or removes multiple sections.
+
 ## Speed signs / 限速牌
 
 PSR 是红色圆牌，AWI 是黄色三角牌；两者都有单行、双行和左/双向/右箭头版本。牌面文字可编辑，支持置中、触底、触顶安装，箭头支持触底和触顶安装。它们只改变外观，不改变列车速度、寻路或闭塞。
@@ -98,7 +114,7 @@ Brackets come in types (1), (2), their double-sided versions and type (1) left/r
 
 本次开发版本使用网络协议 `10`，客户端与服务器需同步更新。旧 `signal_bracket` 注册名改为 `signal_bracket_1`，尚无旧存档自动迁移。
 
-This development build uses network protocol `10`; update server and clients together. The old `signal_bracket` registry ID is now `signal_bracket_1`, with no automatic migration for existing worlds.
+This 0.2.0 build uses network protocol `11`; update server and clients together. The old `signal_bracket` registry ID is now `signal_bracket_1`, with no automatic migration for existing worlds.
 
 ## Dispatcher and Web UI / 调度台与 Web 界面
 
@@ -154,9 +170,9 @@ See [内容说明.md](内容说明.md) for architecture, data models, resource c
 
 ## Compatibility and licences / 兼容性与许可
 
-本模组不修改 MTR 源码或原始 JAR，而是通过 addon 侧扩展和 Mixin 接入 MTR。网络协议为 `9`；客户端与服务器必须使用同一构建，即使版本号相同也不要混用更早的 JAR。
+本模组不修改 MTR 源码或原始 JAR，而是通过 addon 侧扩展和 Mixin 接入 MTR。网络协议为 `11`；客户端与服务器必须使用同一构建，即使版本号相同也不要混用更早的 JAR。
 
-The addon does not modify MTR source code or its original JAR. It integrates through addon-side extensions and Mixins. Network protocol `9` is used; clients and servers must run the same build.
+The addon does not modify MTR source code or its original JAR. It integrates through addon-side extensions and Mixins. Network protocol `11` is used; clients and servers must run the same build.
 
 源代码采用 [MIT License](LICENSE)。Alte DIN 1451 Mittelschrift Regular 和 Terminus Regular 字体采用 SIL OFL 1.1；字体、MTR 信号杆材质及其来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
