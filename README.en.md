@@ -25,7 +25,7 @@ The signalling engine is separated from the display layer through public device,
 
 ## Install
 
-Requires Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3. Put `mtr_brsignal_addon-0.2.0.jar` in the `mods/` folder on both the client and server.
+Requires Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3. Put `mtr_brsignal_addon-0.2.1.jar` in the `mods/` folder on both the client and server.
 
 This build uses network protocol `11`; clients and servers must use the same addon build.
 

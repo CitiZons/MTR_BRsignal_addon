@@ -30,7 +30,7 @@ public final class PathSnapshot {
 	private final Map<String, FaceTraversalPoints> faceTraversalPoints = new HashMap<>();
 	private static final Map<Vehicle, CachedSnapshot> VEHICLE_CACHE = Collections.synchronizedMap(new java.util.WeakHashMap<>());
 
-	private PathSnapshot(List<PathSection> sections, String fingerprint) {
+	PathSnapshot(List<PathSection> sections, String fingerprint) {
 		this(sections, fingerprint, Double.NaN);
 	}
 

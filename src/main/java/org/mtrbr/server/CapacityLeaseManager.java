@@ -123,6 +123,11 @@ public final class CapacityLeaseManager {
 	public static boolean areZonesAvailable(Simulator simulator, List<String> zoneIds, String requestId) {
 		final State state = state(simulator);
 		for (final String zoneId : zoneIds) {
+			if (!state.zones.containsKey(zoneId)) {
+				MtrbrDebugLog.event("MTRBR-SINGLE-LINE-ZONE", "action=WAIT_MAPPING zone=" + zoneId
+						+ " request=" + requestId + " reason=ZONE_DEFINITION_MISSING");
+				return false;
+			}
 			final ZoneLease lease = state.zoneLeases.get(zoneId);
 			if (lease != null && !requestId.equals(lease.requestId)) {
 				MtrbrDebugLog.event("MTRBR-SINGLE-LINE-ZONE", "action=CONFLICT zone=" + zoneId

@@ -39,11 +39,21 @@ public final class RouteBindingsSavedData extends SavedData {
 
 	public static RouteBindingsSavedData get(ServerLevel level) {
 		final RouteBindingsSavedData data = level.getDataStorage().computeIfAbsent(RouteBindingsSavedData::load, RouteBindingsSavedData::new, NAME);
-		if (data.dimension == null) {
-			data.dimension = level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath();
-			data.publishShuntConfiguration();
-		}
+		data.attachDimension(level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath());
 		return data;
+	}
+
+	/** Attach loaded binding data before publishing its simulation snapshot. */
+	public void attachDimension(String dimension) {
+		java.util.Objects.requireNonNull(dimension);
+		if (this.dimension != null) {
+			if (!this.dimension.equals(dimension)) {
+				throw new IllegalStateException("Route bindings already attached to " + this.dimension);
+			}
+			return;
+		}
+		this.dimension = dimension;
+		publishShuntConfiguration();
 	}
 
 	@Override public void setDirty() {
@@ -79,7 +89,7 @@ public final class RouteBindingsSavedData extends SavedData {
 		return changed;
 	}
 
-	private static RouteBindingsSavedData load(CompoundTag tag) {
+	public static RouteBindingsSavedData load(CompoundTag tag) {
 		final RouteBindingsSavedData data = new RouteBindingsSavedData();
 		final CompoundTag bindingsTag = tag.getCompound(KEY_BINDINGS);
 		for (final String key : bindingsTag.getAllKeys()) {

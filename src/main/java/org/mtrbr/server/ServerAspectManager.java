@@ -168,6 +168,11 @@ public final class ServerAspectManager {
 				lastAspectDebugMillis = now;
 			}
 		}
+		return publishDisplays(dimension, next);
+	}
+
+	/** Atomic server-to-simulation publication for one dimension. */
+	static boolean publishDisplays(String dimension, Map<String, SignalDisplay> next) {
 		synchronized (ASPECTS) {
 			final Map<String, SignalDisplay> oldAspects = new HashMap<>(ASPECTS);
 			for (final Map.Entry<String, SignalDisplay> entry : next.entrySet()) {
@@ -261,7 +266,7 @@ public final class ServerAspectManager {
 		}
 	}
 
-	private record SignalDisplay(ServerAspect aspect, String authorizationId, String routeContent, long revision, boolean shuntClear) {
+	record SignalDisplay(ServerAspect aspect, String authorizationId, String routeContent, long revision, boolean shuntClear) {
 		SignalDisplay(ServerAspect aspect, String authorizationId, String routeContent, long revision) {
 			this(aspect, authorizationId, routeContent, revision, false);
 		}
@@ -275,7 +280,7 @@ public final class ServerAspectManager {
 	}
 
 
-	private static void publishFaces(String dimension, Map<String, SignalFace> faces, long registryRevision) {
+	static void publishFaces(String dimension, Map<String, SignalFace> faces, long registryRevision) {
 		final FaceSnapshot old = FACE_SNAPSHOTS.get(dimension);
 		final Map<String, FaceSnapshot> next = new HashMap<>(FACE_SNAPSHOTS);
 		final FaceSnapshot published = old != null && old.faces().equals(faces) ? old : new FaceSnapshot(faces, old == null ? 1 : old.revision() + 1);
@@ -287,7 +292,7 @@ public final class ServerAspectManager {
 	}
 
 
-	private static PathSnapshot.FaceTraversal coveredFaceTraversal(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, SignalFace face) {
+	static PathSnapshot.FaceTraversal coveredFaceTraversal(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, SignalFace face) {
 		return authorization.path().getFaceTraversals(dimension, topology).stream()
 				.filter(point -> point.faceId().equals(face.id()))
 				.filter(PathSnapshot::isDirectionMatched)
@@ -341,7 +346,7 @@ public final class ServerAspectManager {
 	}
 
 	/** Resolves indications through the directed protection boundary of each active SignalFace. */
-	private static ServerAspect resolveAspect(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, PathSnapshot.FaceTraversal faceTraversal, Set<String> visited) {
+	static ServerAspect resolveAspect(String dimension, FaceSnapshot topology, RouteRequestManager.AuthorizedPath authorization, PathSnapshot.FaceTraversal faceTraversal, Set<String> visited) {
 		if (!ShuntSignalPolicy.route(dimension, authorization.path(), faceTraversal).isEmpty()) return ServerAspect.RED;
 		final String visitKey = faceTraversal.key().toString();
 		if (!visited.add(visitKey)) {

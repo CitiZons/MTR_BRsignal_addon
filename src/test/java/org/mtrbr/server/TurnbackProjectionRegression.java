@@ -10,7 +10,6 @@ import org.mtrbr.data.SignalBlockSavedData;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -260,9 +259,7 @@ public final class TurnbackProjectionRegression {
 			distance = end; return this;
 		}
 		PathSnapshot build(String fingerprint) throws Exception {
-			final Constructor<PathSnapshot> constructor = PathSnapshot.class.getDeclaredConstructor(List.class, String.class);
-			constructor.setAccessible(true);
-			return constructor.newInstance(sections, fingerprint);
+			return new PathSnapshot(sections, fingerprint);
 		}
 	}
 }

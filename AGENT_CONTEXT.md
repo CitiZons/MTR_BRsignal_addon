@@ -12,7 +12,14 @@ MTR `immutablePath` is the physical source of truth. Requests describe the compl
 
 ## Important files
 
-- `src/main/java/org/mtrbr/server/RouteRequestManager.java`: request, authorization, lifecycle, dispatcher snapshots.
+- `src/main/java/org/mtrbr/server/RouteRequestManager.java`: public facade and tick/arbitration coordinator. Preserve its public signatures and nested public record types.
+- `src/main/java/org/mtrbr/server/RouteRuntime.java`: typed simulation state shared by package-internal route services. Integration fixtures use these types directly.
+- `src/main/java/org/mtrbr/server/RouteAuthorizationPlanner.java` and `RouteAuthorizationLifecycle.java`: separate read-only clearance planning from authorization mutation and retirement.
+- `src/main/java/org/mtrbr/server/RouteTurnback.java`, `RouteMovementControl.java`, `RouteOverride.java`, `RouteDispatchSnapshots.java`, `RouteDiagnostics.java`, `RouteVehicleCodes.java`: phase projection, gate boundaries, permit lifetime, immutable projections, diagnostics and synchronized vehicle-code ownership. Reversal completion stays in the coordinator to avoid a service dependency cycle.
+- `src/main/java/org/mtrbr/server/RetainedProtection.java`: encapsulated physical protection retained after authorization retirement; exact-owner and shared-resource release.
+- `src/main/java/org/mtrbr/server/AuthorizationResources.java`: resource acquisition and rollback of only newly acquired resources.
+- `src/main/java/org/mtrbr/server/TurnbackHandoff.java`: native reversal handoff phases and separate termination/reacquisition clocks.
+- `docs/interlocking-contracts.md`: component boundaries, invariants and verification commands. `interlockingRegression` runs direct component tests as part of `check`/`build`; lifecycle and turnback-projection fixtures use typed services and publication boundaries without reflection.
 - `src/main/java/org/mtrbr/server/SectionStateManager.java`: physical occupancy and section lifecycle.
 - `src/main/java/org/mtrbr/server/PathSnapshot.java`: immutablePath projection and boundaries.
 - `src/main/java/org/mtrbr/server/MovementGate.java`: runtime movement veto.
@@ -26,7 +33,7 @@ MTR `immutablePath` is the physical source of truth. Requests describe the compl
 
 ## Current release and resources
 
-The current 0.1.2 development build uses network protocol 10 (sign-edit packets include pole mounting). Update both server and clients, including when replacing an older 0.1.2 JAR. See `CHANGELOG.md` and `内容说明.md` for current behavior. `build_deploy_alpha4.ps1` is local-only and ignored; keep it on disk but out of commits.
+The current build is 0.2.1 and uses network protocol 11. Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3 requirements are unchanged. Install the same addon build on server and clients. See `CHANGELOG.md` and `内容说明.md` for current behavior. `build_deploy_alpha4.ps1` is local-only and ignored; keep it on disk but out of commits.
 
 `tools/generate_speed_signs.py` uses the bundled Alte DIN 1451 Mittelschrift Regular font (OFL 1.1) and rewrites only speed-sign resources and `build/previews/speed_signs.png`. `tools/check_speed_signs.py` needs Pillow. Do not regenerate unrelated hand-edited LED or position-light source models to prepare a release.
 
@@ -41,3 +48,9 @@ Signal aspects are evaluated every 10 server ticks; changed displays synchronize
 Use `MTRBR-*` diagnostics, especially `MTRBR-MTR-PATH-*`, `MTRBR-OCCUPANCY-*`, `MTRBR-REQUEST-*`, `MTRBR-AUTH-*`, `MTRBR-GATE-*`, and `MTRBR-TURNBACK-*`; correlate by vehicle ID and absolute timestamp.
 
 Avoid changes to MTR core, SectionCheck, FCFS policy, or manual route editing unless explicitly required.
+
+## Follow-up runtime contracts
+
+Terminal requests must not be reactivated by topology refresh or dispatcher commands. Retained occupied resources still clear after physical clearance, including when the old path topology no longer matches. Manual approval follows the existing request transition table and validates topology before changing state or acquiring resources.
+
+Junction owner metadata must be reclaimed when no reservation/lock references its request; pending physical locks keep the mapping alive. Dispatcher audit history retains only the latest 256 entries and reuses its immutable snapshot until changed. `routeReviewRegression` covers these behaviors and runs with `check`/`build`.

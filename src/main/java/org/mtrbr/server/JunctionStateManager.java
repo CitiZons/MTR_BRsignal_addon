@@ -41,12 +41,16 @@ public final class JunctionStateManager {
 	static void transferRequestOwner(Simulator simulator, String previous, String next, long vehicleId) {
 		registerOwner(simulator, next, vehicleId);
 		final Map<String, JunctionRecord> state = STATES.get(simulator);
-		if (state == null) return;
+		if (state == null) {
+			REQUEST_VEHICLES.remove(simulator);
+			return;
+		}
 		synchronized (state) {
 			for (final JunctionRecord record : state.values()) {
 				if (previous.equals(record.reservedBy)) record.reservedBy = next;
 				if (previous.equals(record.lockedBy)) record.lockedBy = next;
 			}
+			pruneOwners(simulator, state);
 		}
 	}
 
@@ -103,7 +107,10 @@ public final class JunctionStateManager {
 	/** Removes only resources absent from both Authorization and pending physical leases. */
 	public static void releaseStale(Simulator simulator, Set<String> activeRequestIds, Map<String, Set<String>> retainedOwnersByResource) {
 		final Map<String, JunctionRecord> state = STATES.get(simulator);
-		if (state == null) return;
+		if (state == null) {
+			REQUEST_VEHICLES.remove(simulator);
+			return;
+		}
 		final long tick = SectionStateManager.getCurrentTick();
 		synchronized (state) {
 			for (final JunctionRecord record : state.values().toArray(JunctionRecord[]::new)) {
@@ -119,6 +126,7 @@ public final class JunctionStateManager {
 				if (owner != null) record.lastValidatedTick = tick;
 				if (record.reservedBy == null && record.lockedBy == null) state.remove(record.key);
 			}
+			pruneOwners(simulator, state);
 		}
 	}
 
@@ -126,22 +134,26 @@ public final class JunctionStateManager {
 		final Map<String, JunctionRecord> state = STATES.computeIfAbsent(simulator, ignored -> new HashMap<>());
 		synchronized (state) {
 			for (final String resource : resources) {
-				final JunctionRecord record = state.computeIfAbsent(resource, JunctionRecord::new);
+				final JunctionRecord record = state.get(resource);
+				if (record == null) continue;
 				if (record.reservedBy != null && !record.reservedBy.equals(owner)) {
+					pruneOwners(simulator, state);
 					return false;
 				}
 				if (record.lockedBy != null && !record.lockedBy.equals(owner)) {
+					pruneOwners(simulator, state);
 					return false;
 				}
 			}
 			for (final String resource : resources) {
-				final JunctionRecord record = state.get(resource);
+				final JunctionRecord record = state.computeIfAbsent(resource, JunctionRecord::new);
 				record.reservedBy = owner;
 				record.ownerVehicle = ownerVehicle(simulator, owner);
 				record.lastValidatedTick = SectionStateManager.getCurrentTick();
 				MtrbrDebugLog.event("MTRBR-JUNCTION-OWNER", "resource=" + resource + " ownerVehicle=" + ownerVehicle(simulator, owner) + " ownerRequest=" + owner
 						+ " phase=RESERVE createdTick=" + record.createdTick + " lastValidatedTick=" + record.lastValidatedTick);
 			}
+			pruneOwners(simulator, state);
 		}
 		return true;
 	}
@@ -152,6 +164,7 @@ public final class JunctionStateManager {
 			for (final String resource : resources) {
 				final JunctionRecord record = state.get(resource);
 				if (record == null || !owner.equals(record.reservedBy) || (record.lockedBy != null && !owner.equals(record.lockedBy))) {
+					pruneOwners(simulator, state);
 					return false;
 				}
 			}
@@ -163,6 +176,7 @@ public final class JunctionStateManager {
 				MtrbrDebugLog.event("MTRBR-JUNCTION-OWNER", "resource=" + resource + " ownerVehicle=" + ownerVehicle(simulator, owner) + " ownerRequest=" + owner
 						+ " phase=LOCK createdTick=" + record.createdTick + " lastValidatedTick=" + record.lastValidatedTick);
 			}
+			pruneOwners(simulator, state);
 		}
 		return true;
 	}
@@ -170,6 +184,7 @@ public final class JunctionStateManager {
 	public static void release(Simulator simulator, List<String> resources, String owner) {
 		final Map<String, JunctionRecord> state = STATES.get(simulator);
 		if (state == null) {
+			REQUEST_VEHICLES.remove(simulator);
 			return;
 		}
 		synchronized (state) {
@@ -182,9 +197,24 @@ public final class JunctionStateManager {
 					if (owner.equals(record.lockedBy)) {
 						record.lockedBy = null;
 					}
+					if (record.reservedBy == null && record.lockedBy == null) state.remove(resource);
 				}
 			}
+			pruneOwners(simulator, state);
 		}
+	}
+
+	/** Call while holding state: pending physical leases remain represented by their locks. */
+	private static void pruneOwners(Simulator simulator, Map<String, JunctionRecord> state) {
+		final Map<String, Long> owners = REQUEST_VEHICLES.get(simulator);
+		if (owners == null) return;
+		final Set<String> held = new java.util.HashSet<>();
+		for (final JunctionRecord record : state.values()) {
+			if (record.reservedBy != null) held.add(record.reservedBy);
+			if (record.lockedBy != null) held.add(record.lockedBy);
+		}
+		owners.keySet().removeIf(owner -> !held.contains(owner));
+		if (owners.isEmpty()) REQUEST_VEHICLES.remove(simulator);
 	}
 
 	public static void resetAll() {
@@ -192,7 +222,7 @@ public final class JunctionStateManager {
 		REQUEST_VEHICLES.clear();
 	}
 
-	private static long ownerVehicle(Simulator simulator, String requestId) {
+	static long ownerVehicle(Simulator simulator, String requestId) {
 		return REQUEST_VEHICLES.getOrDefault(simulator, Map.of()).getOrDefault(requestId, Long.MIN_VALUE);
 	}
 

@@ -88,6 +88,30 @@ tasks.register("turnbackRegression", JavaExec) {
 }
 tasks.named("check") { dependsOn "turnbackRegression" }
 
+tasks.register("interlockingRegression", JavaExec) {
+    group = "verification"
+    description = "Checks physical protection, acquisition rollback and native reversal state without private-state reflection"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "org.mtrbr.server.InterlockingRegression"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+    workingDir = layout.buildDirectory.dir("retained-protection-regression").get().asFile
+    doFirst { workingDir.mkdirs() }
+}
+tasks.named("check") { dependsOn "interlockingRegression" }
+
+tasks.register("routeReviewRegression", JavaExec) {
+    group = "verification"
+    description = "Checks terminal invalidation, junction-owner cleanup and bounded audit snapshots"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "org.mtrbr.server.RouteReviewRegression"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+    workingDir = layout.buildDirectory.dir("route-review-regression").get().asFile
+    doFirst { workingDir.mkdirs() }
+}
+tasks.named("check") { dependsOn "routeReviewRegression" }
+
 // LINE editing must preserve native directed paths and persisted overlays.
 tasks.register("depotPathRegression", JavaExec) {
     group = "verification"

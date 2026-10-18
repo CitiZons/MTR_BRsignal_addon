@@ -94,6 +94,14 @@ public final class RouteRequest {
 		this.manualPriority = manualPriority;
 	}
 
+	boolean canTransitionTo(RequestState next) {
+		return isTransitionAllowed(state, next);
+	}
+
+	void transitionIfChanged(RequestState next, String reason) {
+		if (state != next) transitionTo(next, reason);
+	}
+
 	public void transitionTo(RequestState next, String reason) {
 		if (!isTransitionAllowed(state, next)) {
 			final String detail = "[MTRBR-INVALID-TRANSITION] vehicleId=" + vehicleId

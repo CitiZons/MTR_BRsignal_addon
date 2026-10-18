@@ -38,6 +38,10 @@ public final class SectionStateManager {
 	private SectionStateManager() {
 	}
 
+	static SimulationState simulationState(Simulator simulator) {
+		return STATES.get(simulator);
+	}
+
 	public static void beginSimulation(Simulator simulator) {
 		final SimulationState state = STATES.computeIfAbsent(simulator, ignored -> new SimulationState(simulator));
 		state.beginTick();
@@ -64,7 +68,7 @@ public final class SectionStateManager {
 	}
 
 	public static void endSimulation(Simulator simulator) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		if (state != null) {
 			state.endTick();
 		}
@@ -114,18 +118,18 @@ public final class SectionStateManager {
 	}
 
 	public static long getTopologyRevision(Simulator simulator) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state == null ? 0 : state.topologyRevision;
 	}
 
 	/** Monotonic revision for occupancy, reservation, lock and topology changes. */
 	public static long getStateRevision(Simulator simulator) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state == null ? 0 : state.stateRevision;
 	}
 
 	public static Map<String, SectionSnapshot> getSections(Simulator simulator) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state == null ? Map.of() : state.snapshot();
 	}
 
@@ -136,64 +140,64 @@ public final class SectionStateManager {
 
 	/** Snapshot only the Sections required by one request; never clone the whole network for a check. */
 	public static Map<String, SectionSnapshot> getSections(Simulator simulator, Collection<String> sectionIds) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state == null ? Map.of() : state.snapshot(sectionIds);
 	}
 
 	/** Checks the current physical facts without scanning vehicles. */
 	public static boolean areSectionsAvailable(Simulator simulator, Collection<String> sectionIds, String ownerId, long vehicleId, boolean manualDrivingOverride) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state != null && state.areSectionsAvailable(sectionIds, ownerId, vehicleId, false);
 	}
 
 	/** Adds a request reservation. This method must be called on the simulation thread. */
 	public static boolean reserveSections(Simulator simulator, Collection<String> sectionIds, String ownerId, long vehicleId, boolean manualDrivingOverride) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state != null && state.reserveSections(sectionIds, ownerId, vehicleId, false);
 	}
 
 	/** Promotes a reservation to a route lock. */
 	public static boolean lockSections(Simulator simulator, Collection<String> sectionIds, String ownerId) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state != null && state.lockSections(sectionIds, ownerId);
 	}
 
 	/** Block resources are independent from physical Section IDs. */
 	public static boolean areBlocksAvailable(Simulator simulator, Collection<String> blockIds, String ownerId) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state != null && state.areBlocksAvailable(blockIds, ownerId);
 	}
 
 	public static boolean reserveBlocks(Simulator simulator, Collection<String> blockIds, String ownerId) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state != null && state.reserveBlocks(blockIds, ownerId);
 	}
 
 	public static boolean lockBlocks(Simulator simulator, Collection<String> blockIds, String ownerId) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state != null && state.lockBlocks(blockIds, ownerId);
 	}
 
 	/** True only when this owner still holds both the reservation and lock for every Block resource. */
 	public static boolean areBlocksReservedAndLockedBy(Simulator simulator, Collection<String> blockIds, String ownerId) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state != null && state.areBlocksReservedAndLockedBy(blockIds, ownerId);
 	}
 
 	public static void releaseBlocks(Simulator simulator, Collection<String> blockIds, String ownerId) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		if (state != null) {
 			state.releaseBlocks(blockIds, ownerId);
 		}
 	}
 
 	public static boolean isBlockConflicted(Simulator simulator, String blockId, String ownerId) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return state == null || !state.isBlockAvailable(blockId, ownerId);
 	}
 
 	public static void releaseSections(Simulator simulator, Collection<String> sectionIds, String ownerId) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		if (state != null) {
 			state.releaseSections(sectionIds, ownerId);
 		}
@@ -211,7 +215,7 @@ public final class SectionStateManager {
 	/** Resource-level stale cleanup for Section and Block leases. */
 	public static void releaseStaleReservations(Simulator simulator, Collection<String> activeRequestIds,
 			Map<String, Set<String>> retainedSectionOwners, Map<String, Set<String>> retainedBlockOwners) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		if (state != null) {
 			state.releaseStaleReservations(activeRequestIds == null ? Set.of() : Set.copyOf(activeRequestIds), retainedSectionOwners, retainedBlockOwners);
 		}
@@ -219,14 +223,14 @@ public final class SectionStateManager {
 
 	/** Resources already held by this request must survive a failed extension. */
 	static List<String> unownedBlocks(Simulator simulator, List<String> ids, String owner) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		return ids.stream().filter(id -> state == null || (!state.blockReservedBy.getOrDefault(id, Set.of()).contains(owner)
 				&& !state.blockLockedBy.getOrDefault(id, Set.of()).contains(owner))).toList();
 	}
 
 	/** Simulation-thread handover between generations of the same live train. */
 	static void transferRequestOwner(Simulator simulator, String previous, String next) {
-		final SimulationState state = STATES.get(simulator);
+		final SimulationState state = simulationState(simulator);
 		if (state == null || previous.equals(next)) return;
 		for (final SectionRecord section : state.sections.values()) {
 			if (section.reservedBy.remove(previous)) section.reservedBy.add(next);
@@ -257,24 +261,24 @@ public final class SectionStateManager {
 		}
 	}
 
-	private static final class SectionRecord {
+	static final class SectionRecord {
 		private final String sectionId;
-		private boolean exists;
+		boolean exists;
 		private long topologyRevision;
 		private String topologyFingerprint = "";
-		private final Set<Long> occupiedBy = new HashSet<>();
+		final Set<Long> occupiedBy = new HashSet<>();
 		private final Set<Long> manualOverrideBy = new HashSet<>();
 		private final Set<String> reservedBy = new HashSet<>();
 		private final Set<String> lockedBy = new HashSet<>();
 
-		private SectionRecord(String sectionId) {
+		SectionRecord(String sectionId) {
 			this.sectionId = sectionId;
 		}
 	}
 
-	private static final class SimulationState {
+	static final class SimulationState {
 		private final Simulator simulator;
-		private final Map<String, SectionRecord> sections = new HashMap<>();
+		final Map<String, SectionRecord> sections = new HashMap<>();
 		private final Map<String, Set<String>> blockReservedBy = new HashMap<>();
 		private final Map<String, Set<String>> blockLockedBy = new HashMap<>();
 		private final Map<Long, Set<String>> vehicleSections = new HashMap<>();

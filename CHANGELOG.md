@@ -1,5 +1,48 @@
 # 更新记录 / Changelog
 
+## 0.2.1 (2026-10-18)
+
+Minecraft 1.20.1、Forge 47.4.18、MTR Forge 4.0.3 及网络协议 `11` 不变；客户端与服务端使用 `mtr_brsignal_addon-0.2.1.jar`。
+
+Minecraft, Forge, MTR requirements and network protocol `11` are unchanged. Install `mtr_brsignal_addon-0.2.1.jar` on both client and server.
+
+### 新增与调整 / Added and Updated
+
+- `RouteRequestManager` 从同时处理规划、授权和诊断的控制器拆为协调入口；`RouteRuntime` 保存运行状态，`RouteAuthorizationPlanner` 计算授权范围，`RouteAuthorizationLifecycle` 执行资源与授权变更，`RouteTurnback`、`RouteMovementControl`、`RouteOverride`、`RouteDispatchSnapshots`、`RouteDiagnostics` 分别负责折返、停车边界、越红灯许可、快照和诊断。保留原有 public static 方法签名及公共 record 类型。
+- 资源申请与保留保护分别交由 `AuthorizationResources` 和 `RetainedProtection` 管理；折返阶段及计时交由 `TurnbackHandoff` 管理。原生终到阶段等待上限为 1200 tick，观察到反向后另起 200 tick 的重新授权计时，停车开门时间不计入后者。
+- 车辆短码的分配、反查、释放和重置统一由同步的 `RouteVehicleCodes` 管理；并发调用为同一车辆返回同一码，不同车辆不共用短码。
+- 调度审计由无上限列表改为 `RouteAuditLog`：每个模拟器只保留最近 256 条，按旧到新排列；新增记录时淘汰最旧记录，未新增时复用同一不可变快照，旧快照不会随后续写入改变。
+
+Route management is split into named planning, lifecycle, turnback, gate, permit, snapshot and diagnostic components without changing the public facade signatures. Resource acquisition, retained protection and handoff clocks have separate owners. Native termination and post-reversal reacquisition use independent 1200/200-tick deadlines. Vehicle-code operations are synchronized. Audit history changes from unbounded storage to the latest 256 entries per simulator, with immutable snapshots reused until the next event.
+
+### 修复 / Fixed
+
+- **终态遇到拓扑变化**：旧路径拓扑失配时，原先会尝试将 `CANCELED` 等终态改为 `INVALID` 并抛出非法转换异常。`invalidateAuthorization` 现在保留 `CANCELED / REVOKED / INVALID / PASSED / RELEASED`；tick 在检查旧路径拓扑前处理终态清理，物理占用清空后可进入 `RELEASED`，不再被旧拓扑阻断。
+- **调度命令修改终态请求**：撤销原先可能先清除授权、再因状态转换非法而抛异常。撤销和人工批准现在先返回 `request_terminal`，不修改已有授权；`NONE / APPROACHING` 状态返回 `request_state`。人工批准遇到失配拓扑返回 `topology_changed`；可重试请求沿 `CHECKING -> WAITING -> AUTHORIZED` 取得锁闭，无可用区段时进入 `DENIED`。一次性越红灯入口及许可有效性检查也拒绝终态请求。
+- **占用保护与资源交接**：授权失效、运行距离重置或请求替换后，以仍占用的 Section 集合保留整个 Block 的区段、canonical Block、occurrence 和道岔锁。释放时使用记录的原所有者；同车请求先转移所有者再参与仲裁，旧所有者不能解锁新所有者的资源。共享 canonical Block 和道岔仅在最后一个 active/pending 引用清除后释放，不能仅凭路径终点距离释放。
+- **申请失败回滚**：`AuthorizationResources.reserveAndLock` 先记录已有资源；区段、闭塞、道岔或单线区申请失败时只释放本次新增资源，保留同一请求此前持有的预留与锁闭。
+- **移除清理与维度顺序**：MTR 确认移除、人工移除、隔离确认共用 `cleanupConfirmedRemoval`；保留已终结请求状态，取消仍存活的请求并释放资源。若确认移除事件对应的车辆仍由另一模拟器跟踪，当前维度不消费该事件，由所属模拟器清理，避免先 tick 的无关维度丢弃事件。
+- **关闭后的重试残留**：`RouteRequestManager.resetAll` 现在同时清空 `PENDING_MAPPING_RETRIES`，避免上次运行排队的保护映射重试带入下一次运行。
+- **缺失单线区定义**：`CapacityLeaseManager.areZonesAvailable` 查询不存在的 zone ID 时返回不可用，替代解引用缺失定义导致的空指针异常；申请被拒绝且不取得资源。
+- **道岔所有者记录泄漏**：`JunctionStateManager.REQUEST_VEHICLES` 原先只在全局重置时清空。现在在部分/全部释放、所有者交接、过期清理及空/失败申请后，按实际 `reservedBy / lockedBy` 引用回收记录；最后一份资源释放即删除映射，仍有保留物理锁时保留映射。失败预检查不再创建空道岔资源记录。
+
+Topology invalidation no longer attempts illegal transitions on terminal requests, and stale paths no longer prevent their physical cleanup. Dispatcher rejection occurs before authorization mutation, with explicit `request_terminal`, `request_state` and `topology_changed` results. Retained resources use physical occupancy and recorded ownership; shared keys survive until their final reference clears. Failed acquisition rolls back only new resources. Removal events remain queued for the simulator tracking the vehicle. Reset clears pending mapping retries, missing zone definitions reject acquisition, and junction owner metadata is reclaimed when no reservation or lock references it.
+
+### 验证 / Validation
+
+下列回归直接对应上述行为，均随 `check` / `build` 执行：
+
+| 检查入口 | 可追溯的用例与断言 |
+|---|---|
+| `routeReviewRegression` — [RouteReviewRegression](src/test/java/org/mtrbr/server/RouteReviewRegression.java)，15 项 | `terminalInvalidation / terminalTick`：5 种终态遇到失效与旧拓扑；`terminalRevoke / terminalApprove / terminalOverride / prematureCommands / staleApproval / manualApproval`：命令拒绝不修改授权、合法批准实际取得锁闭；`ownerRelease / ownerTransfer / ownerSweep / ownerFailure`：所有者清理；`auditBound / auditSnapshots`：写入 1024 条后仅保留第 768–1023 条、复用及冻结快照。 |
+| `interlockingRegression` — [RetainedProtectionRegression](src/test/java/org/mtrbr/server/RetainedProtectionRegression.java)，7 项 | 整个 Block 占用保护、共享资源最后引用释放、active 授权保护、交接后清理、错误所有者不能解锁、确认移除释放。 |
+| `interlockingRegression` — [InterlockingRegression](src/test/java/org/mtrbr/server/InterlockingRegression.java) | 4 项折返交接计时；6 项申请/回滚（含缺失 zone 和保留旧 zone 锁）；512 次并发分配覆盖 64 辆车，校验短码唯一性、反查与释放。 |
+| `turnbackRegression` — [LifecycleRegression](src/test/java/org/mtrbr/server/LifecycleRegression.java)，15 项 | 短授权保护整个 Block、占用失效后的交接与清理、运行距离重置、共享 Block、距离与占用不一致、3 种移除入口 × 6 种请求状态、跨维度移除顺序、关闭后映射重试清空；另执行 13 项折返投影回归。 |
+
+0.2.1 验证命令：`.\gradlew.bat build --offline --no-daemon`、`.\tools\check_regressions.ps1`、`git diff --check`，均通过。完整构建同时通过 22 项 LINE 路径、3 项 Web token、传感器、标牌及 26 项 Python 资源检查。构建日志：`build/release-0.2.1-build.log`；成品 `META-INF/mods.toml` 的版本字段已核对为 `0.2.1`。
+
+The table maps each changed behavior to its regression source and fixture methods. The versioned full build, static checks and whitespace checks pass, including the existing LINE, Web, sensor, sign and resource checks. The built JAR metadata reports version `0.2.1`.
+
 ## 0.2.0 (2026-10-05)
 
 Added a server-authoritative BR mode to the MTR `mtr:train_sensor`. The signal debug tool opens its settings; ordinary right-click interaction remains unavailable for this configuration screen.
