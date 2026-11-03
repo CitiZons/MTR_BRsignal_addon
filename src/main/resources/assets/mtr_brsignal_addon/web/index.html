@@ -20,6 +20,7 @@
   </header>
   <main class="workspace">
     <aside class="sidebar">
+      <div id="sidebar-ui">
       <h1>SIGNAL DESK</h1>
       <div class="metric"><span>SECTIONS</span><b id="rail-count">0</b></div>
       <div class="metric"><span>SIGNAL FACES</span><b id="signal-count">0</b></div>
@@ -33,6 +34,9 @@
       <h2>PLAYERS</h2>
       <div id="player-list" class="player-list"></div>
       <p>STATUS: LIVE</p>
+      <div id="language-switcher" class="language-switcher" aria-label="Language"><button type="button" data-language="en">English</button><button type="button" data-language="zh-Hans">简体中文</button><button type="button" data-language="zh-Hant">繁體中文</button><button type="button" data-language="ja">日本語</button></div>
+      <label class="ui-scale-control" for="ui-scale"><span id="ui-scale-label">UI SCALE</span><output id="ui-scale-value">100%</output><input id="ui-scale" type="range" min="50" max="200" step="5" value="100"></label>
+      </div>
     </aside>
     <button id="vehicle-toggle" class="vehicle-toggle" title="Vehicle requests">REQUESTS</button>
     <aside id="vehicle-drawer" class="vehicle-drawer" aria-hidden="true">

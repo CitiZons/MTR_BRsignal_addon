@@ -151,7 +151,7 @@ public final class WebTopologySnapshot {
 		if ("quarantine".equals(action) || "release".equals(action) || "delete_pending".equals(action) || "cancel_delete".equals(action)) {
 			synchronized (QUARANTINE_STATES) {
 				final QuarantineState state = QUARANTINE_STATES.get(vehicleId);
-				final boolean exists = true;
+				final boolean exists = java.util.stream.StreamSupport.stream(current.getAllLevels().spliterator(), false).map(level -> SectionStateManager.getSimulator(level.dimension().location().getNamespace() + "/" + level.dimension().location().getPath())).filter(java.util.Objects::nonNull).anyMatch(sim -> RouteRequestManager.getVehicleSnapshots(sim).stream().anyMatch(entry -> entry.vehicleId() == vehicleId));
 				final boolean accepted;
 				switch (action) {
 					case "quarantine" -> { accepted = exists && state == null; if (accepted) QUARANTINE_STATES.put(vehicleId, QuarantineState.QUARANTINED); }

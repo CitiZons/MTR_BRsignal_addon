@@ -71,3 +71,8 @@ Follow-up acceptance: `gradlew.bat build --offline --no-daemon` passed with all 
 ## 0.2.1 verification — 2026-10-18
 
 The maintainer reported no obvious issues in an in-game check of the preceding fixes. Version 0.2.1 keeps network protocol 11 and the existing Minecraft/Forge/MTR requirements. The versioned full build passed, including all 15 follow-up review cases and the existing regression suite (`build/release-0.2.1-build.log`); static regression checks passed as well.
+
+
+## 0.2.2 documentation and Web UI update — 2026-11-03
+
+Version 0.2.2 keeps Minecraft 1.20.1, Forge 47.4.18, MTR Forge 4.0.3 and network protocol 11. The Web UI now includes fixed-name language buttons for English, Simplified Chinese, Traditional Chinese and Japanese; Sarasa Gothic CL/HC/J regular fonts; a two-row language selector; and a 50%–200% interface scale that excludes the map canvas. Current metadata names `7icence1Z` as the author. These changes were checked with resource processing, JavaScript syntax checks and `git diff --check`.

@@ -3,7 +3,7 @@ function drawSensors() {
     ctx.save(); ctx.translate(sensor.x, sensor.z); ctx.scale(1 / view.scale, 1 / view.scale);
     ctx.fillStyle = sensor.loaded ? (sensor.powered ? '#ec4949' : '#39c5a3') : '#899196';
     ctx.fillRect(-5, -5, 10, 10); ctx.strokeStyle = '#ffffff'; ctx.strokeRect(-5, -5, 10, 10);
-    if (sensorDraft?.id === sensor.id) { ctx.font = '12px sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(sensor.name || 'SENSOR', 9, -8); }
+    if (sensorDraft?.id === sensor.id) { ctx.font = '12px sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(sensor.name || tr('SENSOR'), 9, -8); }
     ctx.restore();
   }
 }
@@ -28,7 +28,7 @@ function openSensor(sensor) {
   if (dimension) topology.dimensions = [dimension, ...topology.dimensions.filter(d => d !== dimension)];
   selectedLineId = null; nodeChangeMode = false;
   document.querySelector('#sensor-editor').hidden = false;
-  document.querySelector('#sensor-position').textContent = `${sensor.dimension} / ${sensor.x}, ${sensor.y}, ${sensor.z} / ${sensor.loaded ? 'LOADED' : 'UNLOADED'}`;
+  document.querySelector('#sensor-position').textContent = `${sensor.dimension} / ${sensor.x}, ${sensor.y}, ${sensor.z} / ${sensor.loaded ? tr('LOADED') : tr('UNLOADED')}`;
   document.querySelector('#sensor-name').value = sensor.name;
   document.querySelector('#sensor-mode').value = sensor.enabled ? 'advanced' : 'native';
   document.querySelector('#sensor-output').value = sensor.pulse ? 'pulse' : 'continuous';
@@ -64,7 +64,7 @@ function renderSensorEditor() {
   document.querySelector('#sensor-cancel').hidden = !sensorBinding;
   document.querySelector('#sensor-save').disabled = !canDispatch || !!sensorBinding;
 }
-function sensorMessage(text) { document.querySelector('#sensor-status').textContent = text; }
+function sensorMessage(text) { document.querySelector('#sensor-status').textContent = tr(text); }
 function bindSensor(group) {
   if (!canDispatch || !sensorDraft) return;
   if (sensorBinding === group) {
@@ -98,8 +98,8 @@ async function refreshSensors() {
 function renderSensorList() {
   const box = document.querySelector('#sensor-list'), search = document.querySelector('#sensor-search').value.toLowerCase(); box.replaceChildren();
   for (const sensor of sensors.filter(s => `${s.name} ${s.dimension} ${s.x} ${s.y} ${s.z}`.toLowerCase().includes(search))) {
-    const button = document.createElement('button'); button.textContent = `${sensor.name || 'SENSOR'} / ${sensor.x}, ${sensor.y}, ${sensor.z}`;
-    button.title = `${sensor.dimension} / ${sensor.loaded ? 'LOADED' : 'UNLOADED'} / ${sensor.powered ? 'ON' : 'OFF'}`;
+    const button = document.createElement('button'); button.textContent = `${sensor.name || tr('SENSOR')} / ${sensor.x}, ${sensor.y}, ${sensor.z}`;
+    button.title = `${sensor.dimension} / ${sensor.loaded ? tr('LOADED') : tr('UNLOADED')} / ${sensor.powered ? tr('ON') : tr('OFF')}`;
     button.onclick = () => openSensor(sensor); button.oncontextmenu = e => { e.preventDefault(); openSensor(sensor); }; box.append(button);
   }
 }

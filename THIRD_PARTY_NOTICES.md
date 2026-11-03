@@ -88,3 +88,10 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+## Sarasa Gothic 1.0.43
+
+Source: https://github.com/be5invis/Sarasa-Gothic
+
+The Web UI bundles Sarasa Gothic CL (Simplified Chinese), HC (Hong Kong Traditional Chinese) and J (Japanese) regular fonts for its language modes. Sarasa Gothic is distributed under the SIL Open Font License, Version 1.1; the upstream license and notices apply.

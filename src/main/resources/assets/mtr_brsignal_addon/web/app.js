@@ -1,3 +1,42 @@
+
+const LANGUAGE_LABELS = { en: { en: 'English', 'zh-Hans': 'Simplified Chinese', 'zh-Hant': 'Traditional Chinese', ja: 'Japanese' }, 'zh-Hans': { en: '英文', 'zh-Hans': '简体中文', 'zh-Hant': '繁体中文', ja: '日文' }, 'zh-Hant': { en: '英文', 'zh-Hans': '簡體中文', 'zh-Hant': '繁體中文', ja: '日文' }, ja: { en: '英語', 'zh-Hans': '簡体字中国語', 'zh-Hant': '繁体字中国語', ja: '日本語' } };
+const I18N = {
+  en: { 'SIGNAL DESK':'SIGNAL DESK','SECTIONS':'SECTIONS','SIGNAL FACES':'SIGNAL FACES','DISPLAY':'DISPLAY','FIT NETWORK':'FIT NETWORK','RESET VIEW':'RESET VIEW','SENSORS':'SENSORS','Search sensors':'Search sensors','PLAYERS':'PLAYERS','STATUS: LIVE':'STATUS: LIVE','REQUESTS':'REQUESTS','REQUEST QUEUE':'REQUEST QUEUE','LINE':'LINE','REFRESH':'REFRESH','REDSTONE SENSOR':'REDSTONE SENSOR','CLOSE':'CLOSE','Name':'Name','Detection':'Detection','NATIVE DETECTION':'NATIVE DETECTION','BR AUTHORITY':'BR AUTHORITY','Output':'Output','CONTINUOUS':'CONTINUOUS','PULSE':'PULSE','Pulse length (ticks)':'Pulse length (ticks)','APPROACH SECTIONS':'APPROACH SECTIONS','TARGETED SECTIONS':'TARGETED SECTIONS','BIND':'BIND','CLEAR ALL':'CLEAR ALL','CANCEL':'CANCEL','SAVE':'SAVE','TOPOLOGY // ':'TOPOLOGY // ','PATH EDIT':'PATH EDIT','CHANGE':'CHANGE','ADD':'ADD','CONFIRM':'CONFIRM','ABANDON':'ABANDON','DELETE':'DELETE','INDICATIONS':'INDICATIONS','TRACK':'TRACK','SIGNAL':'SIGNAL','PLATFORM':'PLATFORM','OCCUPIED':'OCCUPIED','LOCKED':'LOCKED','CONNECTING':'CONNECTING','APPROVE':'APPROVE','REVOKE':'REVOKE','OVERRIDE':'OVERRIDE','TOPOLOGY SNAPSHOT':'TOPOLOGY SNAPSHOT','READ ONLY / LIVE':'READ ONLY / LIVE','UNNAMED DEPOT':'UNNAMED DEPOT','SEG':'SEG','UNBIND':'UNBIND','LOADED':'LOADED','UNLOADED':'UNLOADED','ON':'ON','OFF':'OFF','READ ONLY':'READ ONLY','SENSOR':'SENSOR','NONE':'NONE','APPROACHING':'APPROACHING','REQUESTED':'REQUESTED','CHECKING':'CHECKING','WAITING':'WAITING','AUTHORIZED':'AUTHORIZED','ACTIVE':'ACTIVE','PASSED':'PASSED','DENIED':'DENIED','REVOKED':'REVOKED','CANCELED':'CANCELED','INVALID':'INVALID','RELEASED':'RELEASED' },
+  'zh-Hans': { 'SIGNAL DESK':'信号台','SECTIONS':'区段','SIGNAL FACES':'信号面','DISPLAY':'显示','FIT NETWORK':'适应线路','RESET VIEW':'重置视图','SENSORS':'传感器','Search sensors':'搜索传感器','PLAYERS':'玩家','STATUS: LIVE':'状态：实时','REQUESTS':'请求','REQUEST QUEUE':'请求队列','LINE':'线路','REFRESH':'刷新','REDSTONE SENSOR':'红石传感器','CLOSE':'关闭','Name':'名称','Detection':'检测方式','NATIVE DETECTION':'原生检测','BR AUTHORITY':'BR授权','Output':'输出','CONTINUOUS':'持续','PULSE':'脉冲','Pulse length (ticks)':'脉冲长度（tick）','APPROACH SECTIONS':'接近区段','TARGETED SECTIONS':'目标区段','BIND':'绑定','CLEAR ALL':'全部清除','CANCEL':'取消','SAVE':'保存','TOPOLOGY // ':'拓扑 // ','PATH EDIT':'路径编辑','CHANGE':'更换','ADD':'添加','CONFIRM':'确认','ABANDON':'放弃','DELETE':'删除','INDICATIONS':'图例','TRACK':'轨道','SIGNAL':'信号','PLATFORM':'站台','OCCUPIED':'占用','LOCKED':'锁闭','CONNECTING':'连接中','APPROVE':'批准','REVOKE':'撤销','OVERRIDE':'越红灯','TOPOLOGY SNAPSHOT':'拓扑快照','READ ONLY / LIVE':'只读 / 实时','UNNAMED DEPOT':'未命名车库','SEG':'段','UNBIND':'解绑','LOADED':'已加载','UNLOADED':'未加载','ON':'开启','OFF':'关闭','READ ONLY':'只读','R':'路线','N':'下一站','D':'终点','LOADING':'加载中','SENSOR':'传感器','NONE':'无','APPROACHING':'接近中','REQUESTED':'已请求','CHECKING':'检查中','WAITING':'等待中','AUTHORIZED':'已授权','ACTIVE':'运行中','PASSED':'已通过','DENIED':'已拒绝','REVOKED':'已撤销','CANCELED':'已取消','INVALID':'已失效','RELEASED':'已释放' },
+  'zh-Hant': { 'SIGNAL DESK':'信號台','SECTIONS':'區段','SIGNAL FACES':'信號面','DISPLAY':'顯示','FIT NETWORK':'適應線路','RESET VIEW':'重設視圖','SENSORS':'感應器','Search sensors':'搜尋感應器','PLAYERS':'玩家','STATUS: LIVE':'狀態：即時','REQUESTS':'請求','REQUEST QUEUE':'請求佇列','LINE':'路線','REFRESH':'重新整理','REDSTONE SENSOR':'紅石感應器','CLOSE':'關閉','Name':'名稱','Detection':'偵測方式','NATIVE DETECTION':'原生偵測','BR AUTHORITY':'BR 授權','Output':'輸出','CONTINUOUS':'持續','PULSE':'脈衝','Pulse length (ticks)':'脈衝長度（tick）','APPROACH SECTIONS':'接近區段','TARGETED SECTIONS':'目標區段','BIND':'綁定','CLEAR ALL':'全部清除','CANCEL':'取消','SAVE':'儲存','TOPOLOGY // ':'拓撲 // ','PATH EDIT':'路徑編輯','CHANGE':'更換','ADD':'新增','CONFIRM':'確認','ABANDON':'放棄','DELETE':'刪除','INDICATIONS':'圖例','TRACK':'軌道','SIGNAL':'信號','PLATFORM':'月台','OCCUPIED':'佔用','LOCKED':'鎖閉','CONNECTING':'連線中','APPROVE':'批准','REVOKE':'撤銷','OVERRIDE':'越紅燈','TOPOLOGY SNAPSHOT':'拓撲快照','READ ONLY / LIVE':'唯讀 / 即時','UNNAMED DEPOT':'未命名車庫','SEG':'段','UNBIND':'解除綁定','LOADED':'已載入','UNLOADED':'未載入','ON':'開啟','OFF':'關閉','READ ONLY':'唯讀','R':'路線','N':'下一站','D':'終點','LOADING':'載入中','SENSOR':'感應器','NONE':'無','APPROACHING':'接近中','REQUESTED':'已請求','CHECKING':'檢查中','WAITING':'等待中','AUTHORIZED':'已授權','ACTIVE':'運行中','PASSED':'已通過','DENIED':'已拒絕','REVOKED':'已撤銷','CANCELED':'已取消','INVALID':'已失效','RELEASED':'已釋放' },
+  ja: { 'SIGNAL DESK':'信号卓','SECTIONS':'区間','SIGNAL FACES':'信号面','DISPLAY':'表示','FIT NETWORK':'ネットワークに合わせる','RESET VIEW':'表示をリセット','SENSORS':'センサー','Search sensors':'センサーを検索','PLAYERS':'プレイヤー','STATUS: LIVE':'状態：ライブ','REQUESTS':'リクエスト','REQUEST QUEUE':'リクエストキュー','LINE':'路線','REFRESH':'更新','REDSTONE SENSOR':'レッドストーンセンサー','CLOSE':'閉じる','Name':'名前','Detection':'検知方式','NATIVE DETECTION':'標準検知','BR AUTHORITY':'BR権限','Output':'出力','CONTINUOUS':'連続','PULSE':'パルス','Pulse length (ticks)':'パルス長（tick）','APPROACH SECTIONS':'接近区間','TARGETED SECTIONS':'対象区間','BIND':'割り当て','CLEAR ALL':'すべて解除','CANCEL':'キャンセル','SAVE':'保存','TOPOLOGY // ':'トポロジー // ','PATH EDIT':'経路編集','CHANGE':'変更','ADD':'追加','CONFIRM':'確認','ABANDON':'破棄','DELETE':'削除','INDICATIONS':'凡例','TRACK':'線路','SIGNAL':'信号','PLATFORM':'ホーム','OCCUPIED':'占有','LOCKED':'ロック','CONNECTING':'接続中','APPROVE':'承認','REVOKE':'取消','OVERRIDE':'信号無視','TOPOLOGY SNAPSHOT':'トポロジースナップショット','READ ONLY / LIVE':'読み取り専用 / ライブ','UNNAMED DEPOT':'名称なし車庫','SEG':'区間','UNBIND':'解除','LOADED':'読み込み済み','UNLOADED':'未読み込み','ON':'オン','OFF':'オフ','READ ONLY':'読み取り専用' }
+};
+const STATUS_TRANSLATIONS = {
+  'zh-Hans': {'LIVE SNAPSHOT':'实时快照','WAITING FOR SERVER':'等待服务器','LINE SNAPSHOT UNAVAILABLE':'线路快照不可用','COMMAND FAILED // SERVER UNAVAILABLE':'命令失败 // 服务器不可用','CHECKING NODE CANDIDATE':'检查节点候选','NO GRAPH NODE SELECTED':'未选择轨道节点','LINE PATH SAVED':'线路路径已保存','CONFIRM REJECTED // DELETE NOT PENDING':'确认拒绝 // 未处于待删除状态','CONFIRM REJECTED // VEHICLE NOT FOUND':'确认拒绝 // 未找到列车','QUARANTINED VEHICLE REMOVED':'已移除隔离列车','SELECT REPLACEMENT NODE':'选择替换节点','NODE CHANGE CONFIRMED // UNSAVED':'节点更换已确认 // 未保存','NODE CHANGE ABANDONED':'已放弃节点更换','NODE DELETED // UNSAVED':'节点已删除 // 未保存','NODE CHANGES CANCELED':'节点修改已取消','NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE':'节点候选拒绝 // 预览不可用','UNBIND':'解绑','UNBIND TARGET FIRST':'请先解绑目标区段','UNSAVED':'未保存','BINDING CONFIRMED / UNSAVED':'绑定已确认 / 未保存','SELECTING APPROACH':'正在选择接近区段','SELECTING TARGETS':'正在选择目标区段','TARGETS MUST BE A SUBSET OF APPROACH':'目标区段必须属于接近区段','CLEAR TARGETS FIRST':'请先清除目标区段','PULSE LENGTH MUST BE 1-1200 TICKS':'脉冲长度必须为 1-1200 tick'},
+  'zh-Hant': {'LIVE SNAPSHOT':'即時快照','WAITING FOR SERVER':'等待伺服器','LINE SNAPSHOT UNAVAILABLE':'路線快照不可用','COMMAND FAILED // SERVER UNAVAILABLE':'命令失敗 // 伺服器不可用','CHECKING NODE CANDIDATE':'檢查節點候選','NO GRAPH NODE SELECTED':'未選取軌道節點','LINE PATH SAVED':'路線已儲存','CONFIRM REJECTED // DELETE NOT PENDING':'確認拒絕 // 未處於待刪除狀態','CONFIRM REJECTED // VEHICLE NOT FOUND':'確認拒絕 // 找不到列車','QUARANTINED VEHICLE REMOVED':'已移除隔離列車','SELECT REPLACEMENT NODE':'選取替換節點','NODE CHANGE CONFIRMED // UNSAVED':'節點更換已確認 // 未儲存','NODE CHANGE ABANDONED':'已放棄節點更換','NODE DELETED // UNSAVED':'節點已刪除 // 未儲存','NODE CHANGES CANCELED':'節點修改已取消','NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE':'節點候選拒絕 // 預覽不可用'},
+  ja: {'LIVE SNAPSHOT':'ライブスナップショット','WAITING FOR SERVER':'サーバーを待機中','LINE SNAPSHOT UNAVAILABLE':'路線スナップショットを取得できません','COMMAND FAILED // SERVER UNAVAILABLE':'コマンド失敗 // サーバー利用不可','CHECKING NODE CANDIDATE':'ノード候補を確認中','NO GRAPH NODE SELECTED':'線路ノード未選択','LINE PATH SAVED':'路線を保存しました','CONFIRM REJECTED // DELETE NOT PENDING':'確認拒否 // 削除待ちではありません','CONFIRM REJECTED // VEHICLE NOT FOUND':'確認拒否 // 車両が見つかりません','QUARANTINED VEHICLE REMOVED':'隔離車両を削除しました','SELECT REPLACEMENT NODE':'置換ノードを選択','NODE CHANGE CONFIRMED // UNSAVED':'ノード変更を確認 // 未保存','NODE CHANGE ABANDONED':'ノード変更を破棄','NODE DELETED // UNSAVED':'ノードを削除 // 未保存','NODE CHANGES CANCELED':'ノード変更をキャンセル','NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE':'ノード候補拒否 // プレビュー不可','UNBIND':'解除','UNBIND TARGET FIRST':'先に対象区間を解除してください','UNSAVED':'未保存','BINDING CONFIRMED / UNSAVED':'割り当て確認済み / 未保存','SELECTING APPROACH':'接近区間を選択中','SELECTING TARGETS':'対象区間を選択中','TARGETS MUST BE A SUBSET OF APPROACH':'対象区間は接近区間に含めてください','CLEAR TARGETS FIRST':'対象区間を先に解除してください','PULSE LENGTH MUST BE 1-1200 TICKS':'パルス長は1-1200 tickです'}
+};
+Object.entries(STATUS_TRANSLATIONS).forEach(([lang, values]) => Object.assign(I18N[lang], values));
+Object.assign(I18N['zh-Hant'], {'UNBIND':'解除綁定','UNBIND TARGET FIRST':'請先解除目標區段','UNSAVED':'未儲存','BINDING CONFIRMED / UNSAVED':'綁定已確認 / 未儲存','SELECTING APPROACH':'正在選取接近區段','SELECTING TARGETS':'正在選取目標區段','TARGETS MUST BE A SUBSET OF APPROACH':'目標區段必須屬於接近區段','CLEAR TARGETS FIRST':'請先清除目標區段','PULSE LENGTH MUST BE 1-1200 TICKS':'脈衝長度必須為 1-1200 tick'});
+let language = localStorage.getItem('mtrbr-language') || 'en';
+function tr(value) {
+  const table = I18N[language] || I18N.en;
+  if (table[value]) return table[value];
+  const prefix = Object.keys(table).filter(key => key.length > 3 && value.startsWith(key + ' // ')).sort((a,b) => b.length-a.length)[0];
+  return prefix ? table[prefix] + value.slice(prefix.length) : value;
+}
+const uiScale = document.querySelector('#ui-scale');
+const uiScaleValue = document.querySelector('#ui-scale-value');
+function applyUiScale(value) { const clamped = Math.max(50, Math.min(200, Number(value) || 100)); document.documentElement.style.setProperty('--ui-scale', clamped / 100); uiScale.value = clamped; uiScaleValue.textContent = `${clamped}%`; localStorage.setItem('mtrbr-ui-scale', clamped); }
+uiScale.addEventListener('input', () => applyUiScale(uiScale.value));
+applyUiScale(localStorage.getItem('mtrbr-ui-scale') || '100');
+
+function applyLanguage() {
+  document.body.dataset.language = language;
+  document.querySelectorAll('#language-switcher button').forEach(button => { button.textContent = ({en:'English','zh-Hans':'简体中文','zh-Hant':'繁體中文',ja:'日本語'})[button.dataset.language]; button.classList.toggle('active', button.dataset.language === language); });
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(node => { const value = node.nodeValue.trim(); if (value && I18N.en[value]) node.nodeValue = node.nodeValue.replace(value, tr(value)); });
+  document.querySelectorAll('input[placeholder],input[aria-label]').forEach(input => { const key = input.getAttribute('placeholder') || input.getAttribute('aria-label'); if (I18N.en[key]) { input.placeholder = tr(key); input.setAttribute('aria-label', tr(key)); } });
+  renderPanels(); renderLines(); if (typeof renderSensorList === 'function') renderSensorList(); if (typeof renderSensorEditor === 'function') renderSensorEditor(); draw();
+}
+document.querySelectorAll('#language-switcher button').forEach(button => button.addEventListener('click', () => { language = button.dataset.language; localStorage.setItem('mtrbr-language', language); location.reload(); }));
+
 const canvas = document.querySelector('#diagram');
 const ctx = canvas.getContext('2d');
 const view = { x: 0, y: 0, scale: 1, dragging: false, lastX: 0, lastY: 0, fitted: false };
@@ -24,6 +63,7 @@ const requestOptions = token ? { headers: { 'X-MTRBR-Token': token, 'X-MTRBR-Dev
 let canDispatch = false;
 let invalidationReason = '';
 let dismissedInvalidationReason = '';
+let refreshInFlight = false;
 let selectedVehicleId = null;
 let hoveredVehicleId = null;
 let vehicleMarkers = [];
@@ -694,7 +734,7 @@ async function toggleVehicleQuarantine() {
 
 async function confirmVehicleDelete() {
   if (!canDispatch || deleteVehicleId === null || vehicleQuarantineStates.get(deleteVehicleId) !== 'DELETE_PENDING') {
-    document.querySelector('#status').textContent = 'CONFIRM REJECTED // DELETE NOT PENDING';
+    document.querySelector('#status').textContent = tr('CONFIRM REJECTED // DELETE NOT PENDING');
     return;
   }
   const vehicleId = deleteVehicleId;
@@ -704,12 +744,12 @@ async function confirmVehicleDelete() {
     body: JSON.stringify({ action: 'confirm_quarantine_removal', vehicleId })
   });
   if (!response.ok) {
-    document.querySelector('#status').textContent = 'CONFIRM REJECTED // VEHICLE NOT FOUND';
+    document.querySelector('#status').textContent = tr('CONFIRM REJECTED // VEHICLE NOT FOUND');
     return;
   }
   if (selectedVehicleId === vehicleId) selectedVehicleId = null;
   closeVehicleDelete();
-  document.querySelector('#status').textContent = 'QUARANTINED VEHICLE REMOVED';
+  document.querySelector('#status').textContent = tr('QUARANTINED VEHICLE REMOVED');
   await refresh();
 }
 
@@ -797,7 +837,7 @@ async function previewNodeCandidate() {
   }
   const serial = ++nodePreviewSerial;
   nodePreview = null;
-  document.querySelector('#status').textContent = 'CHECKING NODE CANDIDATE';
+  document.querySelector('#status').textContent = tr('CHECKING NODE CANDIDATE');
   renderPanels();
   draw();
   try {
@@ -815,7 +855,7 @@ async function previewNodeCandidate() {
   } catch (_) {
     if (serial !== nodePreviewSerial) return;
     nodePreview = { ok: false, error: 'PREVIEW_UNAVAILABLE' };
-    document.querySelector('#status').textContent = 'NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE';
+    document.querySelector('#status').textContent = tr('NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE');
   }
   renderPanels();
   draw();
@@ -910,7 +950,7 @@ async function dispatch(action) {
     document.querySelector('#status').textContent = `${action.toUpperCase()} SUBMITTED`;
     await refresh();
   } catch (_) {
-    document.querySelector('#status').textContent = 'COMMAND FAILED // SERVER UNAVAILABLE';
+    document.querySelector('#status').textContent = tr('COMMAND FAILED // SERVER UNAVAILABLE');
   }
 }
 
@@ -921,7 +961,7 @@ function changeNode() {
   nodeCandidate = null;
   nodePreview = null;
   nodePreviewSerial++;
-  document.querySelector('#status').textContent = 'SELECT REPLACEMENT NODE';
+  document.querySelector('#status').textContent = tr('SELECT REPLACEMENT NODE');
   renderPanels();
   draw();
 }
@@ -944,7 +984,7 @@ function confirmNodeChange() {
   nodeCandidate = null;
   nodePreview = null;
   nodePreviewSerial++;
-  document.querySelector('#status').textContent = 'NODE CHANGE CONFIRMED // UNSAVED';
+  document.querySelector('#status').textContent = tr('NODE CHANGE CONFIRMED // UNSAVED');
   renderPanels();
   draw();
 }
@@ -955,7 +995,7 @@ function abandonNodeChange() {
   nodeCandidate = null;
   nodePreview = null;
   nodePreviewSerial++;
-  document.querySelector('#status').textContent = 'NODE CHANGE ABANDONED';
+  document.querySelector('#status').textContent = tr('NODE CHANGE ABANDONED');
   renderPanels();
   draw();
 }
@@ -967,7 +1007,7 @@ function deleteNode() {
   draft.splice(selectedNodeIndex, 1);
   nodeDraft = draft;
   selectedNodeIndex = Math.min(selectedNodeIndex, draft.length - 2);
-  document.querySelector('#status').textContent = 'NODE DELETED // UNSAVED';
+  document.querySelector('#status').textContent = tr('NODE DELETED // UNSAVED');
   renderPanels();
   draw();
 }
@@ -979,7 +1019,7 @@ function cancelNodeDraft() {
 	nodeCandidate = null;
 	nodePreview = null;
 	nodePreviewSerial++;
-	document.querySelector('#status').textContent = 'NODE CHANGES CANCELED';
+	document.querySelector('#status').textContent = tr('NODE CHANGES CANCELED');
   renderPanels();
   draw();
 }
@@ -1011,13 +1051,15 @@ async function saveNodeDraft() {
   nodeAddMode = false;
   nodeCandidate = null;
   selectedNodeIndex = null;
-  document.querySelector('#status').textContent = 'LINE PATH SAVED';
+  document.querySelector('#status').textContent = tr('LINE PATH SAVED');
   renderLines();
   renderPanels();
   fit();
 }
 
 async function refresh() {
+  if (refreshInFlight) return;
+  refreshInFlight = true;
   try {
     const [topologyResponse, stateResponse, sessionResponse] = await Promise.all([
       fetch('api/topology', { cache: 'no-store', ...requestOptions }),
@@ -1032,7 +1074,7 @@ async function refresh() {
     await refreshSensors();
     updateInvalidation(session.invalidationReason);
     const data = selectedDimension();
-    if (!lineMode()) document.querySelector('#status').textContent = 'LIVE SNAPSHOT';
+    if (!lineMode()) document.querySelector('#status').textContent = tr('LIVE SNAPSHOT');
     document.querySelector('#updated').textContent = new Date().toLocaleTimeString();
     if (!data) return;
     document.querySelector('#dimension').textContent = data.id.toUpperCase();
@@ -1044,7 +1086,9 @@ async function refresh() {
     if (lines) renderLines();
     if (!view.fitted) fit(); else draw();
   } catch (_) {
-    document.querySelector('#status').textContent = 'WAITING FOR SERVER';
+    document.querySelector('#status').textContent = tr('WAITING FOR SERVER');
+  } finally {
+    refreshInFlight = false;
   }
 }
 
@@ -1056,7 +1100,7 @@ canvas.addEventListener('pointerdown', event => {
       nodeCandidate = graphNodeAt(event);
       nodePreview = null;
       if (nodeCandidate) previewNodeCandidate();
-      else document.querySelector('#status').textContent = 'NO GRAPH NODE SELECTED';
+      else document.querySelector('#status').textContent = tr('NO GRAPH NODE SELECTED');
       renderPanels();
       draw();
       return;
@@ -1194,11 +1238,11 @@ document.querySelector('#line-toggle').addEventListener('click', async () => {
   drawer.classList.toggle('open');
   drawer.setAttribute('aria-hidden', String(!drawer.classList.contains('open')));
   if (opening) {
-    try { await loadLines(); } catch (_) { document.querySelector('#status').textContent = 'LINE SNAPSHOT UNAVAILABLE'; }
+    try { await loadLines(); } catch (_) { document.querySelector('#status').textContent = tr('LINE SNAPSHOT UNAVAILABLE'); }
   }
 });
 document.querySelector('#line-refresh').addEventListener('click', async () => {
-  try { await loadLines(true); } catch (_) { document.querySelector('#status').textContent = 'LINE SNAPSHOT UNAVAILABLE'; }
+  try { await loadLines(true); } catch (_) { document.querySelector('#status').textContent = tr('LINE SNAPSHOT UNAVAILABLE'); }
 });
 document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => dispatch(button.dataset.action)));
 document.querySelector('#node-change').addEventListener('click', changeNode);
@@ -1208,7 +1252,7 @@ document.querySelector('#node-add').addEventListener('click', () => {
   nodeAddMode = true;
   nodeCandidate = null;
   nodePreview = null;
-  document.querySelector('#status').textContent = 'SELECT NODE TO INSERT';
+  document.querySelector('#status').textContent = tr('SELECT NODE TO INSERT');
   renderPanels();
   draw();
 });
@@ -1255,5 +1299,6 @@ new ResizeObserver(resize).observe(document.querySelector('.diagram-wrap'));
 window.addEventListener('resize', resize);
 resize();
 refresh();
+applyLanguage();
 setInterval(refresh, 2000);
 setInterval(draw, 420);

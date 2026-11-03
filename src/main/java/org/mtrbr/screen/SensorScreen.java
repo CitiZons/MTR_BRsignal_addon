@@ -44,6 +44,7 @@ public final class SensorScreen extends Screen {
         renderBackground(g);
         if (name != null) {
             g.drawCenteredString(font, title, width / 2, name.getY() - 30, 0xFFFFFF);
+            if (!view.editable()) g.drawCenteredString(font, label("readonly"), width / 2, name.getY() - 48, 0xFFFF5555);
             g.drawString(font, label(view.editable() ? "name" : "readonly"), name.getX(), name.getY() - 12, 0xCCCCCC);
             g.drawString(font, label("ticks"), ticks.getX(), ticks.getY() - 12, 0xCCCCCC);
             g.drawString(font, label("summary", config.approach().size(), config.targets().size()), ticks.getX(), ticks.getY() + 27, 0xCCCCCC);

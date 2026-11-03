@@ -1,5 +1,36 @@
 # 更新记录 / Changelog
 
+## 0.2.2 (2026-11-03)
+
+Minecraft 1.20.1、Forge 47.4.18、MTR Forge 4.0.3 及网络协议 `11` 不变。作者标识更新为 `7icence1Z`，客户端与服务端使用 `mtr_brsignal_addon-0.2.2.jar`。
+
+Minecraft, Forge, MTR requirements and network protocol `11` are unchanged. The author metadata is `7icence1Z`; install `mtr_brsignal_addon-0.2.2.jar` on both client and server.
+
+### 新增与调整 / Added and Updated
+
+- Web UI 左侧抽屉底部增加两行语言选择：`English`、`简体中文`、`繁體中文`、`日本語`。按钮名称固定使用对应语言名称，不随当前界面语言改名。
+- 新增 50%–200% 的 UI 缩放滑条，保存于浏览器本地设置。缩放覆盖顶部标题、左右抽屉、按钮、弹窗、图例、状态栏及地图上的 UI 覆盖层；中心地图画布、坐标和地图交互比例保持不变。
+- Web UI 中文使用 Sarasa Gothic CL，香港繁体中文使用 Sarasa Gothic HC，日语使用 Sarasa Gothic J；字体资源与上游来源记录加入第三方声明。
+- 更新中文、香港繁体中文和日语文案，统一采用区段、信号面、锁闭、授权、接近区段、目标区段和调度操作等铁路调度术语。
+
+The Web UI adds a two-row language selector with fixed native language names and a 50%–200% UI scale control. Scaling applies to interface chrome and overlays while leaving the map canvas unchanged. Sarasa Gothic CL, HC and J are bundled for Simplified Chinese, Hong Kong Traditional Chinese and Japanese. Dispatcher terminology is updated for the three localized modes.
+
+### 修复 / Fixed
+
+- 修复语言选择按钮在当前语言切换后显示成其他语言名称的问题。
+- 修复 UI 缩放时请求和线路抽屉竖条因重复计算 `left` 偏移而进入抽屉或地图的问题；抽屉与竖条现在使用同一定位基准。
+- 修复 BRsignal Web UI 只读快照接口未验证 token/device 的问题；无有效会话时返回 `AUTH_REQUIRED`。
+- 修复不存在车辆也能进入 Web 隔离流程的问题。
+- 修复 Web 快照请求重叠时旧响应覆盖新响应的问题。
+
+Language buttons retain their native names. Drawer toggles use one positioning basis at every scale. Web read-only snapshots require the existing token/device session, quarantine requires a real vehicle snapshot, and overlapping refresh requests are suppressed.
+
+### 验证 / Validation
+
+`processResources`、Java 编译、JavaScript 语法检查及 `git diff --check` 通过。字体资源为 Sarasa Gothic 1.0.43 的 CL/HC/J regular 字体，第三方许可记录已更新。未执行 commit。
+
+Resource processing, Java compilation, JavaScript syntax checks and `git diff --check` pass. Sarasa Gothic 1.0.43 CL/HC/J regular fonts are recorded in the third-party notices. No commit was created.
+
 ## 0.2.1 (2026-10-18)
 
 Minecraft 1.20.1、Forge 47.4.18、MTR Forge 4.0.3 及网络协议 `11` 不变；客户端与服务端使用 `mtr_brsignal_addon-0.2.1.jar`。

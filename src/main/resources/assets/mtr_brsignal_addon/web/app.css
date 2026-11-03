@@ -1,3 +1,8 @@
+@font-face { font-family: "SarasaSC"; src: url("fonts/SarasaSC-Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "SarasaHC"; src: url("fonts/SarasaHC-Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "SarasaJ"; src: url("fonts/SarasaJ-Regular.ttf") format("truetype"); font-weight: 400; }
+body[data-language="zh-Hans"] { font-family: "SarasaSC", sans-serif; } body[data-language="zh-Hant"] { font-family: "SarasaHC", sans-serif; } body[data-language="ja"] { font-family: "SarasaJ", sans-serif; }
+.language-switcher { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px; margin-top:10px; } .language-switcher button { margin:0; padding:5px 2px; border-left:2px solid #19dc38; font-size:11px; text-align:center; white-space:normal; line-height:1.1; } .language-switcher button.active { color:#00f0e6; border-color:#00f0e6; background:#122e16; } .ui-scale-control { display:grid; grid-template-columns:1fr auto; gap:3px 6px; margin-top:8px; padding:5px 6px; border:1px solid #176521; color:#19dc38; font-size:12px; } .ui-scale-control input { grid-column:1 / -1; width:100%; accent-color:#19dc38; } .ui-scale-control output { color:#00f0e6; }
 @font-face { font-family: "Terminus"; src: url("Terminus-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
 #sensor-editor { position: absolute; z-index: 8; top: 8px; right: 8px; width: min(320px, calc(100% - 16px)); max-height: calc(100% - 16px); overflow: auto; padding: 12px; background: #111416; border: 1px solid #39c5a3; }
 #sensor-editor[hidden] { display: none; }
@@ -12,7 +17,7 @@
 #sensor-approach-list, #sensor-targets-list { max-height: 100px; overflow: auto; }
 #sensor-list { max-height: 220px; overflow: auto; }
 #sensor-list button { white-space: normal; overflow-wrap: anywhere; font-size: 13px; }
-.sidebar { overflow-y: auto; }
+.sidebar { overflow-y: auto; } #sidebar-ui { width: 100%; }
 :root { color-scheme: dark; font-family: "Terminus", "Microsoft YaHei", sans-serif; background: #050708; color: #d7dcde; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 720px; overflow: hidden; background: #050708; }
@@ -44,3 +49,14 @@ footer { height: 24px; display: flex; justify-content: space-between; padding: 6
 .line-list { width: max-content; min-width: 100%; }
 .line-edit-prompt h2, .line-edit-prompt button { font-size: 16px; }
 .line-edit-prompt { width: fit-content; min-width: 260px; }
+
+/* UI scale excludes the map canvas; layout columns and overlays follow the scaled chrome. */
+.masthead { zoom: var(--ui-scale, 1); }
+.workspace { grid-template-columns: calc(202px * var(--ui-scale, 1)) minmax(0, 1fr) max-content; height: calc(100vh - 78px * var(--ui-scale, 1)); }
+.sidebar, .legend { zoom: var(--ui-scale, 1); }
+.vehicle-toggle, .vehicle-drawer, .line-toggle, .line-drawer { left: 202px; zoom: var(--ui-scale, 1); }
+.vehicle-drawer, .line-drawer { transform: translateX(-12px); }
+.vehicle-drawer.open, .line-drawer.open { transform: translateX(0); }
+#sensor-editor, .signal-name-form, .vehicle-delete-form, .line-edit-prompt, .token-invalidation { zoom: var(--ui-scale, 1); }
+footer { zoom: var(--ui-scale, 1); }
+.map-title, .scale { zoom: var(--ui-scale, 1); }

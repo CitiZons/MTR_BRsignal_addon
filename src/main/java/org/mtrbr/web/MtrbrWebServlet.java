@@ -15,10 +15,10 @@ public final class MtrbrWebServlet extends HttpServlet {
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		final String path = request.getPathInfo() == null || request.getPathInfo().equals("/") ? "/index.html" : request.getPathInfo();
 		 switch (path) {
-            case "/api/sensors" -> send(response, "application/json; charset=UTF-8", org.mtrbr.server.SensorManager.published());
-			case "/api/topology" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.topologyJson());
-			case "/api/state" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.stateJson());
-			case "/api/lines" -> send(response, "application/json; charset=UTF-8", WebTopologySnapshot.linesJson());
+            case "/api/sensors" -> protectedJson(response, token(request), deviceId(request), org.mtrbr.server.SensorManager.published());
+			case "/api/topology" -> protectedJson(response, token(request), deviceId(request), WebTopologySnapshot.topologyJson());
+			case "/api/state" -> protectedJson(response, token(request), deviceId(request), WebTopologySnapshot.stateJson());
+			case "/api/lines" -> protectedJson(response, token(request), deviceId(request), WebTopologySnapshot.linesJson());
 			case "/api/session" -> {
 				final WebSessionManager.SessionView session = WebTopologySnapshot.session(token(request), deviceId(request));
 				send(response, "application/json; charset=UTF-8", "{\"canDispatch\":" + session.canDispatch() + ",\"invalidationReason\":\"" + session.invalidationReason() + "\"}");
@@ -78,6 +78,12 @@ public final class MtrbrWebServlet extends HttpServlet {
 	private static String deviceId(HttpServletRequest request) {
 		return request.getHeader("X-MTRBR-Device");
 	}
+
+    private static void protectedJson(HttpServletResponse response, String token, String deviceId, String body) throws IOException {
+        if (!WebTopologySnapshot.session(token, deviceId).canDispatch()) {
+            send(response, HttpServletResponse.SC_FORBIDDEN, "application/json; charset=UTF-8", "{\"ok\":false,\"reason\":\"AUTH_REQUIRED\"}");
+        } else send(response, "application/json; charset=UTF-8", body);
+    }
 
 	private static void sendResource(HttpServletResponse response, String path) throws IOException {
 		final String resourcePath = "assets/mtr_brsignal_addon/web" + path;

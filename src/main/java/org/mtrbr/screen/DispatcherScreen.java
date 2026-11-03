@@ -71,6 +71,7 @@ public final class DispatcherScreen extends Screen {
 				List.of(Component.translatable("gui.mtr_brsignal_addon.web_token.generate"), Component.translatable("gui.mtr_brsignal_addon.web_token.list"), Component.translatable("gui.mtr_brsignal_addon.web_token.revoke")),
 				List.of(ClientWebTokenActions::generateAndOpen, () -> ClientWebTokenActions.command("list"), () -> ClientWebTokenActions.command("revocation")));
 		requestRefresh();
+        setActionButtonsEnabled(minecraft != null && minecraft.player != null && minecraft.player.hasPermissions(2));
 		refreshTicks = 20;
 		setInitialFocus(searchBox);
 	}
@@ -99,7 +100,15 @@ public final class DispatcherScreen extends Screen {
 		} else {
 			syncEntries();
 		}
+        setActionButtonsEnabled(minecraft != null && minecraft.player != null && minecraft.player.hasPermissions(2));
 	}
+
+    private void setActionButtonsEnabled(boolean enabled) {
+        for (var widget : children()) if (widget instanceof Button button) {
+            final String label = button.getMessage().getString();
+            if (label.equals("Approve") || label.equals("Revoke") || label.equals("Override")) button.active = enabled;
+        }
+    }
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
