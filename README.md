@@ -25,7 +25,7 @@ The signalling engine is separated from the display layer through public device,
 
 ## Install
 
-Requires Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3. Put `mtr_brsignal_addon-0.2.2.jar` in the `mods/` folder on both the client and server.
+Requires Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3. Put `mtr_brsignal_addon-0.2.3-dev.1.jar` in the `mods/` folder on both the client and server.
 
 This build uses network protocol `11`; clients and servers must use the same addon build.
 
@@ -120,6 +120,6 @@ python tools/preview_path_textures.py
 
 The addon does not modify MTR source code or its original JAR. It integrates through addon-side extensions and Mixins. Update client and server together whenever the addon build or network protocol changes.
 
-Source code is released under the [MIT License](LICENSE). Alte DIN 1451 Mittelschrift Regular and Terminus Regular use SIL OFL 1.1. Font, MTR signal-pole and other third-party sources are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Source code is released under the [MIT License](LICENSE). Alte DIN 1451 Mittelschrift Regular, Terminus Regular, IBM Plex Sans, IBM Plex Mono and Sarasa Gothic use SIL OFL 1.1. Font, MTR signal-pole and other third-party sources are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 This project is primarily implemented with ChatGPT.

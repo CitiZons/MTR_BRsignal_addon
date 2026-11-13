@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 public final class MtrbrWebServlet extends HttpServlet {
 	@Override
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		secure(response);
 		final String path = request.getPathInfo() == null || request.getPathInfo().equals("/") ? "/index.html" : request.getPathInfo();
 		 switch (path) {
             case "/api/sensors" -> protectedJson(response, token(request), deviceId(request), org.mtrbr.server.SensorManager.published());
@@ -25,13 +26,19 @@ public final class MtrbrWebServlet extends HttpServlet {
 			}
 			case "/api/contract" -> send(response, "application/json; charset=UTF-8", WebApiContract.json());
 			case "/index.html", "/app.css", "/app.js", "/sensors.js" -> sendResource(response, path);
-			case "/Terminus-Regular.ttf" -> sendBinaryResource(response, path, "font/ttf");
+			case "/Terminus-Regular.ttf",
+					"/fonts/IBMPlexSans-var.ttf",
+					"/fonts/IBMPlexMono-Regular.ttf",
+					"/fonts/SarasaSC-Regular.ttf",
+					"/fonts/SarasaHC-Regular.ttf",
+					"/fonts/SarasaJ-Regular.ttf" -> sendBinaryResource(response, path, "font/ttf");
 			default -> response.sendError(HttpServletResponse.SC_NOT_FOUND);
 		}
 	}
 
 	@Override
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		secure(response);
 		if ("/api/sensors/save".equals(request.getPathInfo())) {
             try {
                 final JsonObject result = SensorWebService.save(token(request), deviceId(request), JsonParser.parseReader(request.getReader()).getAsJsonObject());
@@ -69,6 +76,18 @@ public final class MtrbrWebServlet extends HttpServlet {
 		} else {
 			response.sendError(HttpServletResponse.SC_NOT_FOUND);
 		}
+	}
+
+	/** Defence in depth for the private operator console: no framing, no MIME sniffing,
+	 * no cross-origin script or style, and no referrer leakage of token URLs. */
+	private static void secure(HttpServletResponse response) {
+		response.setHeader("X-Content-Type-Options", "nosniff");
+		response.setHeader("X-Frame-Options", "DENY");
+		response.setHeader("Referrer-Policy", "no-referrer");
+		response.setHeader("Content-Security-Policy",
+				"default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; "
+						+ "img-src 'self' data: https://mc-heads.net; connect-src 'self'; "
+						+ "frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'");
 	}
 
 	private static String token(HttpServletRequest request) {

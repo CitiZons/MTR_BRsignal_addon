@@ -23,7 +23,7 @@
 
 ## 安装
 
-需要 Minecraft 1.20.1、Forge 47.4.18 和 MTR Forge 4.0.3。将 `mtr_brsignal_addon-0.2.2.jar` 放入客户端和服务端的 `mods/` 文件夹。
+需要 Minecraft 1.20.1、Forge 47.4.18 和 MTR Forge 4.0.3。将 `mtr_brsignal_addon-0.2.3-dev.1.jar` 放入客户端和服务端的 `mods/` 文件夹。
 
 本版本使用网络协议 `11`；客户端和服务端必须使用相同的模组版本。
 
@@ -122,6 +122,6 @@ See [内容说明.md](内容说明.md) for the detailed architecture and [CHANGE
 
 本模组不会修改 MTR 源码或原始 JAR，而是通过模组侧扩展和 Mixins 集成。模组版本或网络协议变化时，请同时更新客户端和服务端。
 
-源代码使用 [MIT License](LICENSE) 发布。Alte DIN 1451 Mittelschrift Regular 和 Terminus Regular 使用 SIL OFL 1.1。字体、MTR 信号柱及其他第三方来源列于 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+源代码使用 [MIT License](LICENSE) 发布。Alte DIN 1451 Mittelschrift Regular、Terminus Regular、IBM Plex Sans、IBM Plex Mono 和 Sarasa Gothic 使用 SIL OFL 1.1。字体、MTR 信号柱及其他第三方来源列于 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 本项目主要由 ChatGPT 实现。

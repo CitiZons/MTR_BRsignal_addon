@@ -1,5 +1,25 @@
 # 更新记录 / Changelog
 
+## 0.2.3-dev.1 (2026-11-13)
+
+本开发版继续使用 Minecraft 1.20.1、Forge 47.4.18、MTR Forge 4.0.3 及网络协议 `11`。客户端与服务端使用同一 `mtr_brsignal_addon-0.2.3-dev.1.jar`。
+
+This development build keeps Minecraft 1.20.1, Forge 47.4.18, MTR Forge 4.0.3 and network protocol `11`. Install the same `mtr_brsignal_addon-0.2.3-dev.1.jar` on the client and server.
+
+### Web UI 完成项 / Web UI Completion
+
+- 完成控制台风格 Web UI 重构，加入 IBM Plex Sans/Mono 字体、响应式面板、状态色、地图叠加层和可访问焦点样式。
+- 补齐英文、简体中文、繁体中文和日文的品牌、传感器绑定及车辆隔离控制文案。
+- 修复保存信号、线路节点和确认移除列车时网络错误未处理的问题。
+- 修复 UI 缩放对布局列宽的重复放大，避免高缩放比例下地图区域被压缩到不可用。
+
+The Web UI refinement now includes the control-room layout, bundled IBM Plex fonts, localized sensor and vehicle controls, resilient network error handling for editing actions, and corrected high-scale layout sizing.
+
+### 验证 / Validation
+
+`./gradlew.bat build --no-daemon`、静态回归检查、JavaScript 语法检查及 `git diff --check` 通过。传感器 Playwright QA 未执行，因为当前环境未安装 `playwright` 模块。
+
+`./gradlew.bat build --no-daemon`, static regression checks, JavaScript syntax checks and `git diff --check` pass. The sensor Playwright QA was not run because the current environment does not have the `playwright` module installed.
 ## 0.2.2 (2026-11-03)
 
 Minecraft 1.20.1、Forge 47.4.18、MTR Forge 4.0.3 及网络协议 `11` 不变。作者标识更新为 `7icence1Z`，客户端与服务端使用 `mtr_brsignal_addon-0.2.2.jar`。

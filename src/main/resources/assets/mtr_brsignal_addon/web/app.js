@@ -1,52 +1,234 @@
+'use strict';
 
-const LANGUAGE_LABELS = { en: { en: 'English', 'zh-Hans': 'Simplified Chinese', 'zh-Hant': 'Traditional Chinese', ja: 'Japanese' }, 'zh-Hans': { en: '英文', 'zh-Hans': '简体中文', 'zh-Hant': '繁体中文', ja: '日文' }, 'zh-Hant': { en: '英文', 'zh-Hans': '簡體中文', 'zh-Hant': '繁體中文', ja: '日文' }, ja: { en: '英語', 'zh-Hans': '簡体字中国語', 'zh-Hant': '繁体字中国語', ja: '日本語' } };
+const LANGUAGE_NAMES = { en: 'English', 'zh-Hans': '简体中文', 'zh-Hant': '繁體中文', ja: '日本語' };
 const I18N = {
-  en: { 'SIGNAL DESK':'SIGNAL DESK','SECTIONS':'SECTIONS','SIGNAL FACES':'SIGNAL FACES','DISPLAY':'DISPLAY','FIT NETWORK':'FIT NETWORK','RESET VIEW':'RESET VIEW','SENSORS':'SENSORS','Search sensors':'Search sensors','PLAYERS':'PLAYERS','STATUS: LIVE':'STATUS: LIVE','REQUESTS':'REQUESTS','REQUEST QUEUE':'REQUEST QUEUE','LINE':'LINE','REFRESH':'REFRESH','REDSTONE SENSOR':'REDSTONE SENSOR','CLOSE':'CLOSE','Name':'Name','Detection':'Detection','NATIVE DETECTION':'NATIVE DETECTION','BR AUTHORITY':'BR AUTHORITY','Output':'Output','CONTINUOUS':'CONTINUOUS','PULSE':'PULSE','Pulse length (ticks)':'Pulse length (ticks)','APPROACH SECTIONS':'APPROACH SECTIONS','TARGETED SECTIONS':'TARGETED SECTIONS','BIND':'BIND','CLEAR ALL':'CLEAR ALL','CANCEL':'CANCEL','SAVE':'SAVE','TOPOLOGY // ':'TOPOLOGY // ','PATH EDIT':'PATH EDIT','CHANGE':'CHANGE','ADD':'ADD','CONFIRM':'CONFIRM','ABANDON':'ABANDON','DELETE':'DELETE','INDICATIONS':'INDICATIONS','TRACK':'TRACK','SIGNAL':'SIGNAL','PLATFORM':'PLATFORM','OCCUPIED':'OCCUPIED','LOCKED':'LOCKED','CONNECTING':'CONNECTING','APPROVE':'APPROVE','REVOKE':'REVOKE','OVERRIDE':'OVERRIDE','TOPOLOGY SNAPSHOT':'TOPOLOGY SNAPSHOT','READ ONLY / LIVE':'READ ONLY / LIVE','UNNAMED DEPOT':'UNNAMED DEPOT','SEG':'SEG','UNBIND':'UNBIND','LOADED':'LOADED','UNLOADED':'UNLOADED','ON':'ON','OFF':'OFF','READ ONLY':'READ ONLY','SENSOR':'SENSOR','NONE':'NONE','APPROACHING':'APPROACHING','REQUESTED':'REQUESTED','CHECKING':'CHECKING','WAITING':'WAITING','AUTHORIZED':'AUTHORIZED','ACTIVE':'ACTIVE','PASSED':'PASSED','DENIED':'DENIED','REVOKED':'REVOKED','CANCELED':'CANCELED','INVALID':'INVALID','RELEASED':'RELEASED' },
-  'zh-Hans': { 'SIGNAL DESK':'信号台','SECTIONS':'区段','SIGNAL FACES':'信号面','DISPLAY':'显示','FIT NETWORK':'适应线路','RESET VIEW':'重置视图','SENSORS':'传感器','Search sensors':'搜索传感器','PLAYERS':'玩家','STATUS: LIVE':'状态：实时','REQUESTS':'请求','REQUEST QUEUE':'请求队列','LINE':'线路','REFRESH':'刷新','REDSTONE SENSOR':'红石传感器','CLOSE':'关闭','Name':'名称','Detection':'检测方式','NATIVE DETECTION':'原生检测','BR AUTHORITY':'BR授权','Output':'输出','CONTINUOUS':'持续','PULSE':'脉冲','Pulse length (ticks)':'脉冲长度（tick）','APPROACH SECTIONS':'接近区段','TARGETED SECTIONS':'目标区段','BIND':'绑定','CLEAR ALL':'全部清除','CANCEL':'取消','SAVE':'保存','TOPOLOGY // ':'拓扑 // ','PATH EDIT':'路径编辑','CHANGE':'更换','ADD':'添加','CONFIRM':'确认','ABANDON':'放弃','DELETE':'删除','INDICATIONS':'图例','TRACK':'轨道','SIGNAL':'信号','PLATFORM':'站台','OCCUPIED':'占用','LOCKED':'锁闭','CONNECTING':'连接中','APPROVE':'批准','REVOKE':'撤销','OVERRIDE':'越红灯','TOPOLOGY SNAPSHOT':'拓扑快照','READ ONLY / LIVE':'只读 / 实时','UNNAMED DEPOT':'未命名车库','SEG':'段','UNBIND':'解绑','LOADED':'已加载','UNLOADED':'未加载','ON':'开启','OFF':'关闭','READ ONLY':'只读','R':'路线','N':'下一站','D':'终点','LOADING':'加载中','SENSOR':'传感器','NONE':'无','APPROACHING':'接近中','REQUESTED':'已请求','CHECKING':'检查中','WAITING':'等待中','AUTHORIZED':'已授权','ACTIVE':'运行中','PASSED':'已通过','DENIED':'已拒绝','REVOKED':'已撤销','CANCELED':'已取消','INVALID':'已失效','RELEASED':'已释放' },
-  'zh-Hant': { 'SIGNAL DESK':'信號台','SECTIONS':'區段','SIGNAL FACES':'信號面','DISPLAY':'顯示','FIT NETWORK':'適應線路','RESET VIEW':'重設視圖','SENSORS':'感應器','Search sensors':'搜尋感應器','PLAYERS':'玩家','STATUS: LIVE':'狀態：即時','REQUESTS':'請求','REQUEST QUEUE':'請求佇列','LINE':'路線','REFRESH':'重新整理','REDSTONE SENSOR':'紅石感應器','CLOSE':'關閉','Name':'名稱','Detection':'偵測方式','NATIVE DETECTION':'原生偵測','BR AUTHORITY':'BR 授權','Output':'輸出','CONTINUOUS':'持續','PULSE':'脈衝','Pulse length (ticks)':'脈衝長度（tick）','APPROACH SECTIONS':'接近區段','TARGETED SECTIONS':'目標區段','BIND':'綁定','CLEAR ALL':'全部清除','CANCEL':'取消','SAVE':'儲存','TOPOLOGY // ':'拓撲 // ','PATH EDIT':'路徑編輯','CHANGE':'更換','ADD':'新增','CONFIRM':'確認','ABANDON':'放棄','DELETE':'刪除','INDICATIONS':'圖例','TRACK':'軌道','SIGNAL':'信號','PLATFORM':'月台','OCCUPIED':'佔用','LOCKED':'鎖閉','CONNECTING':'連線中','APPROVE':'批准','REVOKE':'撤銷','OVERRIDE':'越紅燈','TOPOLOGY SNAPSHOT':'拓撲快照','READ ONLY / LIVE':'唯讀 / 即時','UNNAMED DEPOT':'未命名車庫','SEG':'段','UNBIND':'解除綁定','LOADED':'已載入','UNLOADED':'未載入','ON':'開啟','OFF':'關閉','READ ONLY':'唯讀','R':'路線','N':'下一站','D':'終點','LOADING':'載入中','SENSOR':'感應器','NONE':'無','APPROACHING':'接近中','REQUESTED':'已請求','CHECKING':'檢查中','WAITING':'等待中','AUTHORIZED':'已授權','ACTIVE':'運行中','PASSED':'已通過','DENIED':'已拒絕','REVOKED':'已撤銷','CANCELED':'已取消','INVALID':'已失效','RELEASED':'已釋放' },
-  ja: { 'SIGNAL DESK':'信号卓','SECTIONS':'区間','SIGNAL FACES':'信号面','DISPLAY':'表示','FIT NETWORK':'ネットワークに合わせる','RESET VIEW':'表示をリセット','SENSORS':'センサー','Search sensors':'センサーを検索','PLAYERS':'プレイヤー','STATUS: LIVE':'状態：ライブ','REQUESTS':'リクエスト','REQUEST QUEUE':'リクエストキュー','LINE':'路線','REFRESH':'更新','REDSTONE SENSOR':'レッドストーンセンサー','CLOSE':'閉じる','Name':'名前','Detection':'検知方式','NATIVE DETECTION':'標準検知','BR AUTHORITY':'BR権限','Output':'出力','CONTINUOUS':'連続','PULSE':'パルス','Pulse length (ticks)':'パルス長（tick）','APPROACH SECTIONS':'接近区間','TARGETED SECTIONS':'対象区間','BIND':'割り当て','CLEAR ALL':'すべて解除','CANCEL':'キャンセル','SAVE':'保存','TOPOLOGY // ':'トポロジー // ','PATH EDIT':'経路編集','CHANGE':'変更','ADD':'追加','CONFIRM':'確認','ABANDON':'破棄','DELETE':'削除','INDICATIONS':'凡例','TRACK':'線路','SIGNAL':'信号','PLATFORM':'ホーム','OCCUPIED':'占有','LOCKED':'ロック','CONNECTING':'接続中','APPROVE':'承認','REVOKE':'取消','OVERRIDE':'信号無視','TOPOLOGY SNAPSHOT':'トポロジースナップショット','READ ONLY / LIVE':'読み取り専用 / ライブ','UNNAMED DEPOT':'名称なし車庫','SEG':'区間','UNBIND':'解除','LOADED':'読み込み済み','UNLOADED':'未読み込み','ON':'オン','OFF':'オフ','READ ONLY':'読み取り専用' }
+  en: {
+    'SKIP TO MAP': 'SKIP TO MAP', 'DISMISS': 'DISMISS', 'SIGNAL DESK': 'SIGNAL DESK', 'DIMENSION': 'DIMENSION', 'REVISION': 'REVISION',
+    'OVERVIEW': 'OVERVIEW', 'SECTIONS': 'SECTIONS', 'SIGNAL FACES': 'SIGNAL FACES', 'VEHICLES': 'VEHICLES',
+    'FIT': 'FIT', 'RESET': 'RESET', 'DRAG HINT': 'DRAG TO PAN · SCROLL TO ZOOM', 'SENSORS': 'SENSORS',
+    'Search sensors': 'Search sensors', 'PLAYERS': 'PLAYERS', 'SETTINGS': 'SETTINGS', 'UI SCALE': 'UI SCALE',
+    'REQUESTS': 'REQUESTS', 'REQUEST QUEUE': 'REQUEST QUEUE', 'LINE': 'LINE', 'REFRESH': 'REFRESH',
+    'TOPOLOGY': 'TOPOLOGY', 'DEPOT PATH': 'DEPOT PATH', 'SIGNAL NAME': 'SIGNAL NAME',
+    'REDSTONE SENSOR': 'REDSTONE SENSOR', 'CLOSE': 'CLOSE', 'Name': 'Name', 'Detection': 'Detection',
+    'NATIVE DETECTION': 'NATIVE DETECTION', 'BR AUTHORITY': 'BR AUTHORITY', 'Output': 'Output',
+    'CONTINUOUS': 'CONTINUOUS', 'PULSE': 'PULSE', 'Pulse length (ticks)': 'Pulse length (ticks)',
+    'APPROACH SECTIONS': 'APPROACH SECTIONS', 'TARGETED SECTIONS': 'TARGETED SECTIONS',
+    'BIND': 'BIND', 'CONFIRM': 'CONFIRM', 'UNBIND': 'UNBIND', 'CLEAR ALL': 'CLEAR ALL',
+    'CANCEL': 'CANCEL', 'SAVE': 'SAVE', 'QUARANTINE': 'QUARANTINE', 'RELEASE': 'RELEASE', 'PATH EDIT': 'PATH EDIT', 'CHANGE': 'CHANGE', 'ADD': 'ADD',
+    'ABANDON': 'ABANDON', 'DELETE': 'DELETE', 'INDICATIONS': 'INDICATIONS', 'TRACK': 'TRACK',
+    'SIGNAL': 'SIGNAL', 'PLATFORM': 'PLATFORM', 'OCCUPIED': 'OCCUPIED', 'LOCKED': 'LOCKED',
+    'RESERVED': 'RESERVED', 'STATUS': 'STATUS', 'SELECTED': 'SELECTED', 'APPROVE': 'APPROVE',
+    'REVOKE': 'REVOKE', 'OVERRIDE': 'OVERRIDE', 'SHORTCUTS': 'SHORTCUTS',
+    'SHORTCUT HINT': 'F FIT · R RESET · / SEARCH · ESC CLOSE', 'TOPOLOGY SNAPSHOT': 'TOPOLOGY SNAPSHOT',
+    'CONNECTING': 'CONNECTING', 'LIVE SNAPSHOT': 'LIVE SNAPSHOT', 'WAITING FOR SERVER': 'WAITING FOR SERVER',
+    'READ ONLY': 'READ ONLY', 'DISPATCH ENABLED': 'DISPATCH ENABLED',
+    'LINE SNAPSHOT UNAVAILABLE': 'LINE SNAPSHOT UNAVAILABLE', 'UNNAMED DEPOT': 'UNNAMED DEPOT',
+    'SEG': 'SEG', 'LOADED': 'LOADED', 'UNLOADED': 'UNLOADED', 'ON': 'ON', 'OFF': 'OFF',
+    'SENSOR': 'SENSOR', 'NONE': 'NONE', 'SAVED': 'SAVED', 'UNSAVED': 'UNSAVED',
+    'COMMAND FAILED // SERVER UNAVAILABLE': 'COMMAND FAILED // SERVER UNAVAILABLE',
+    'CHECKING NODE CANDIDATE': 'CHECKING NODE CANDIDATE', 'NO GRAPH NODE SELECTED': 'NO GRAPH NODE SELECTED',
+    'LINE PATH SAVED': 'LINE PATH SAVED', 'SELECT REPLACEMENT NODE': 'SELECT REPLACEMENT NODE',
+    'SELECT NODE TO INSERT': 'SELECT NODE TO INSERT',
+    'NODE CHANGE CONFIRMED // UNSAVED': 'NODE CHANGE CONFIRMED // UNSAVED',
+    'NODE CHANGE ABANDONED': 'NODE CHANGE ABANDONED', 'NODE DELETED // UNSAVED': 'NODE DELETED // UNSAVED',
+    'NODE CHANGES CANCELED': 'NODE CHANGES CANCELED',
+    'NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE': 'NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE',
+    'UNBIND TARGET FIRST': 'UNBIND TARGET FIRST', 'BINDING CONFIRMED / UNSAVED': 'BINDING CONFIRMED / UNSAVED',
+    'SELECTING APPROACH': 'SELECTING APPROACH', 'SELECTING TARGETS': 'SELECTING TARGETS',
+    'TARGETS MUST BE A SUBSET OF APPROACH': 'TARGETS MUST BE A SUBSET OF APPROACH',
+    'TARGET MUST BELONG TO APPROACH': 'TARGET MUST BELONG TO APPROACH',
+    'CLEAR TARGETS FIRST': 'CLEAR TARGETS FIRST',
+    'PULSE LENGTH MUST BE 1-1200 TICKS': 'PULSE LENGTH MUST BE 1-1200 TICKS',
+    'QUARANTINED VEHICLE REMOVED': 'QUARANTINED VEHICLE REMOVED',
+    'CONFIRM REJECTED // DELETE NOT PENDING': 'CONFIRM REJECTED // DELETE NOT PENDING',
+    'CONFIRM REJECTED // VEHICLE NOT FOUND': 'CONFIRM REJECTED // VEHICLE NOT FOUND',
+    'LINE SNAPSHOT': 'LINE SNAPSHOT', 'SAVE FAILED': 'SAVE FAILED'
+  },
+  'zh-Hans': {
+    'SKIP TO MAP': '跳到地图', 'DISMISS': '关闭', 'SIGNAL DESK': '信号调度台', 'DIMENSION': '维度', 'REVISION': '修订',
+    'OVERVIEW': '总览', 'SECTIONS': '区段', 'SIGNAL FACES': '信号面', 'VEHICLES': '列车',
+    'FIT': '适应', 'RESET': '重置', 'DRAG HINT': '拖拽平移 · 滚轮缩放', 'SENSORS': '传感器',
+    'Search sensors': '搜索传感器', 'PLAYERS': '玩家', 'SETTINGS': '设置', 'UI SCALE': '界面缩放',
+    'REQUESTS': '请求', 'REQUEST QUEUE': '请求队列', 'LINE': '线路', 'REFRESH': '刷新',
+    'TOPOLOGY': '拓扑', 'DEPOT PATH': '车库路径', 'SIGNAL NAME': '信号名称',
+    'REDSTONE SENSOR': '红石传感器', 'CLOSE': '关闭', 'Name': '名称', 'Detection': '检测方式',
+    'NATIVE DETECTION': '原生检测', 'BR AUTHORITY': 'BR 授权', 'Output': '输出',
+    'CONTINUOUS': '持续', 'PULSE': '脉冲', 'Pulse length (ticks)': '脉冲长度（tick）',
+    'APPROACH SECTIONS': '接近区段', 'TARGETED SECTIONS': '目标区段',
+    'BIND': '绑定', 'CONFIRM': '确认', 'UNBIND': '解绑', 'CLEAR ALL': '全部清除',
+    'CANCEL': '取消', 'SAVE': '保存', 'QUARANTINE': '隔离', 'RELEASE': '释放隔离', 'PATH EDIT': '路径编辑', 'CHANGE': '更换', 'ADD': '添加',
+    'ABANDON': '放弃', 'DELETE': '删除', 'INDICATIONS': '图例', 'TRACK': '轨道',
+    'SIGNAL': '信号', 'PLATFORM': '站台', 'OCCUPIED': '占用', 'LOCKED': '锁闭',
+    'RESERVED': '预留', 'STATUS': '状态', 'SELECTED': '已选', 'APPROVE': '批准',
+    'REVOKE': '撤销', 'OVERRIDE': '越红灯', 'SHORTCUTS': '快捷键',
+    'SHORTCUT HINT': 'F 适应 · R 重置 · / 搜索 · ESC 关闭', 'TOPOLOGY SNAPSHOT': '拓扑快照',
+    'CONNECTING': '连接中', 'LIVE SNAPSHOT': '实时快照', 'WAITING FOR SERVER': '等待服务器',
+    'READ ONLY': '只读', 'DISPATCH ENABLED': '调度已启用',
+    'LINE SNAPSHOT UNAVAILABLE': '线路快照不可用', 'UNNAMED DEPOT': '未命名车库',
+    'SEG': '段', 'LOADED': '已加载', 'UNLOADED': '未加载', 'ON': '开启', 'OFF': '关闭',
+    'SENSOR': '传感器', 'NONE': '无', 'SAVED': '已保存', 'UNSAVED': '未保存',
+    'COMMAND FAILED // SERVER UNAVAILABLE': '命令失败 // 服务器不可用',
+    'CHECKING NODE CANDIDATE': '检查节点候选', 'NO GRAPH NODE SELECTED': '未选择轨道节点',
+    'LINE PATH SAVED': '线路路径已保存', 'SELECT REPLACEMENT NODE': '选择替换节点',
+    'SELECT NODE TO INSERT': '选择要插入的节点',
+    'NODE CHANGE CONFIRMED // UNSAVED': '节点更换已确认 // 未保存',
+    'NODE CHANGE ABANDONED': '已放弃节点更换', 'NODE DELETED // UNSAVED': '节点已删除 // 未保存',
+    'NODE CHANGES CANCELED': '节点修改已取消',
+    'NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE': '节点候选拒绝 // 预览不可用',
+    'UNBIND TARGET FIRST': '请先解绑目标区段', 'BINDING CONFIRMED / UNSAVED': '绑定已确认 / 未保存',
+    'SELECTING APPROACH': '正在选择接近区段', 'SELECTING TARGETS': '正在选择目标区段',
+    'TARGETS MUST BE A SUBSET OF APPROACH': '目标区段必须属于接近区段',
+    'TARGET MUST BELONG TO APPROACH': '目标必须属于接近区段',
+    'CLEAR TARGETS FIRST': '请先清除目标区段',
+    'PULSE LENGTH MUST BE 1-1200 TICKS': '脉冲长度必须为 1-1200 tick',
+    'QUARANTINED VEHICLE REMOVED': '已移除隔离列车',
+    'CONFIRM REJECTED // DELETE NOT PENDING': '确认拒绝 // 未处于待删除状态',
+    'CONFIRM REJECTED // VEHICLE NOT FOUND': '确认拒绝 // 未找到列车',
+    'LINE SNAPSHOT': '线路快照', 'SAVE FAILED': '保存失败'
+  },
+  'zh-Hant': {
+    'SKIP TO MAP': '跳至地圖', 'DISMISS': '關閉', 'SIGNAL DESK': '信號調度台', 'DIMENSION': '維度', 'REVISION': '修訂',
+    'OVERVIEW': '總覽', 'SECTIONS': '區段', 'SIGNAL FACES': '信號面', 'VEHICLES': '列車',
+    'FIT': '適應', 'RESET': '重設', 'DRAG HINT': '拖曳平移 · 滾輪縮放', 'SENSORS': '感應器',
+    'Search sensors': '搜尋感應器', 'PLAYERS': '玩家', 'SETTINGS': '設定', 'UI SCALE': '介面縮放',
+    'REQUESTS': '請求', 'REQUEST QUEUE': '請求佇列', 'LINE': '路線', 'REFRESH': '重新整理',
+    'TOPOLOGY': '拓撲', 'DEPOT PATH': '車庫路徑', 'SIGNAL NAME': '信號名稱',
+    'REDSTONE SENSOR': '紅石感應器', 'CLOSE': '關閉', 'Name': '名稱', 'Detection': '偵測方式',
+    'NATIVE DETECTION': '原生偵測', 'BR AUTHORITY': 'BR 授權', 'Output': '輸出',
+    'CONTINUOUS': '持續', 'PULSE': '脈衝', 'Pulse length (ticks)': '脈衝長度（tick）',
+    'APPROACH SECTIONS': '接近區段', 'TARGETED SECTIONS': '目標區段',
+    'BIND': '綁定', 'CONFIRM': '確認', 'UNBIND': '解除綁定', 'CLEAR ALL': '全部清除',
+    'CANCEL': '取消', 'SAVE': '儲存', 'QUARANTINE': '隔離', 'RELEASE': '解除隔離', 'PATH EDIT': '路徑編輯', 'CHANGE': '更換', 'ADD': '新增',
+    'ABANDON': '放棄', 'DELETE': '刪除', 'INDICATIONS': '圖例', 'TRACK': '軌道',
+    'SIGNAL': '信號', 'PLATFORM': '月台', 'OCCUPIED': '佔用', 'LOCKED': '鎖閉',
+    'RESERVED': '預留', 'STATUS': '狀態', 'SELECTED': '已選', 'APPROVE': '批准',
+    'REVOKE': '撤銷', 'OVERRIDE': '越紅燈', 'SHORTCUTS': '快速鍵',
+    'SHORTCUT HINT': 'F 適應 · R 重設 · / 搜尋 · ESC 關閉', 'TOPOLOGY SNAPSHOT': '拓撲快照',
+    'CONNECTING': '連線中', 'LIVE SNAPSHOT': '即時快照', 'WAITING FOR SERVER': '等待伺服器',
+    'READ ONLY': '唯讀', 'DISPATCH ENABLED': '調度已啟用',
+    'LINE SNAPSHOT UNAVAILABLE': '路線快照不可用', 'UNNAMED DEPOT': '未命名車庫',
+    'SEG': '段', 'LOADED': '已載入', 'UNLOADED': '未載入', 'ON': '開啟', 'OFF': '關閉',
+    'SENSOR': '感應器', 'NONE': '無', 'SAVED': '已儲存', 'UNSAVED': '未儲存',
+    'COMMAND FAILED // SERVER UNAVAILABLE': '命令失敗 // 伺服器不可用',
+    'CHECKING NODE CANDIDATE': '檢查節點候選', 'NO GRAPH NODE SELECTED': '未選取軌道節點',
+    'LINE PATH SAVED': '路線已儲存', 'SELECT REPLACEMENT NODE': '選取替換節點',
+    'SELECT NODE TO INSERT': '選取要插入的節點',
+    'NODE CHANGE CONFIRMED // UNSAVED': '節點更換已確認 // 未儲存',
+    'NODE CHANGE ABANDONED': '已放棄節點更換', 'NODE DELETED // UNSAVED': '節點已刪除 // 未儲存',
+    'NODE CHANGES CANCELED': '節點修改已取消',
+    'NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE': '節點候選拒絕 // 預覽不可用',
+    'UNBIND TARGET FIRST': '請先解除目標區段', 'BINDING CONFIRMED / UNSAVED': '綁定已確認 / 未儲存',
+    'SELECTING APPROACH': '正在選取接近區段', 'SELECTING TARGETS': '正在選取目標區段',
+    'TARGETS MUST BE A SUBSET OF APPROACH': '目標區段必須屬於接近區段',
+    'TARGET MUST BELONG TO APPROACH': '目標必須屬於接近區段',
+    'CLEAR TARGETS FIRST': '請先清除目標區段',
+    'PULSE LENGTH MUST BE 1-1200 TICKS': '脈衝長度必須為 1-1200 tick',
+    'QUARANTINED VEHICLE REMOVED': '已移除隔離列車',
+    'CONFIRM REJECTED // DELETE NOT PENDING': '確認拒絕 // 未處於待刪除狀態',
+    'CONFIRM REJECTED // VEHICLE NOT FOUND': '確認拒絕 // 找不到列車',
+    'LINE SNAPSHOT': '路線快照', 'SAVE FAILED': '儲存失敗'
+  },
+  ja: {
+    'SKIP TO MAP': 'マップへ移動', 'DISMISS': '閉じる', 'SIGNAL DESK': '信号指令卓', 'DIMENSION': 'ディメンション', 'REVISION': 'リビジョン',
+    'OVERVIEW': '概要', 'SECTIONS': '区間', 'SIGNAL FACES': '信号面', 'VEHICLES': '車両',
+    'FIT': '全体表示', 'RESET': 'リセット', 'DRAG HINT': 'ドラッグで移動 · スクロールでズーム', 'SENSORS': 'センサー',
+    'Search sensors': 'センサーを検索', 'PLAYERS': 'プレイヤー', 'SETTINGS': '設定', 'UI SCALE': 'UI スケール',
+    'REQUESTS': 'リクエスト', 'REQUEST QUEUE': 'リクエストキュー', 'LINE': '路線', 'REFRESH': '更新',
+    'TOPOLOGY': 'トポロジー', 'DEPOT PATH': '車庫経路', 'SIGNAL NAME': '信号名',
+    'REDSTONE SENSOR': 'レッドストーンセンサー', 'CLOSE': '閉じる', 'Name': '名前', 'Detection': '検知方式',
+    'NATIVE DETECTION': '標準検知', 'BR AUTHORITY': 'BR 権限', 'Output': '出力',
+    'CONTINUOUS': '連続', 'PULSE': 'パルス', 'Pulse length (ticks)': 'パルス長（tick）',
+    'APPROACH SECTIONS': '接近区間', 'TARGETED SECTIONS': '対象区間',
+    'BIND': '割り当て', 'CONFIRM': '確認', 'UNBIND': '解除', 'CLEAR ALL': 'すべて解除',
+    'CANCEL': 'キャンセル', 'SAVE': '保存', 'QUARANTINE': '隔離', 'RELEASE': '隔離解除', 'PATH EDIT': '経路編集', 'CHANGE': '変更', 'ADD': '追加',
+    'ABANDON': '破棄', 'DELETE': '削除', 'INDICATIONS': '凡例', 'TRACK': '線路',
+    'SIGNAL': '信号', 'PLATFORM': 'ホーム', 'OCCUPIED': '占有', 'LOCKED': 'ロック',
+    'RESERVED': '予約', 'STATUS': '状態', 'SELECTED': '選択中', 'APPROVE': '承認',
+    'REVOKE': '取消', 'OVERRIDE': '信号無視', 'SHORTCUTS': 'ショートカット',
+    'SHORTCUT HINT': 'F 全体表示 · R リセット · / 検索 · ESC 閉じる', 'TOPOLOGY SNAPSHOT': 'トポロジースナップショット',
+    'CONNECTING': '接続中', 'LIVE SNAPSHOT': 'ライブスナップショット', 'WAITING FOR SERVER': 'サーバーを待機中',
+    'READ ONLY': '読み取り専用', 'DISPATCH ENABLED': '運行管理有効',
+    'LINE SNAPSHOT UNAVAILABLE': '路線スナップショットを取得できません', 'UNNAMED DEPOT': '名称なし車庫',
+    'SEG': '区間', 'LOADED': '読み込み済み', 'UNLOADED': '未読み込み', 'ON': 'オン', 'OFF': 'オフ',
+    'SENSOR': 'センサー', 'NONE': 'なし', 'SAVED': '保存しました', 'UNSAVED': '未保存',
+    'COMMAND FAILED // SERVER UNAVAILABLE': 'コマンド失敗 // サーバー利用不可',
+    'CHECKING NODE CANDIDATE': 'ノード候補を確認中', 'NO GRAPH NODE SELECTED': '線路ノード未選択',
+    'LINE PATH SAVED': '路線を保存しました', 'SELECT REPLACEMENT NODE': '置換ノードを選択',
+    'SELECT NODE TO INSERT': '挿入するノードを選択',
+    'NODE CHANGE CONFIRMED // UNSAVED': 'ノード変更を確認 // 未保存',
+    'NODE CHANGE ABANDONED': 'ノード変更を破棄', 'NODE DELETED // UNSAVED': 'ノードを削除 // 未保存',
+    'NODE CHANGES CANCELED': 'ノード変更をキャンセル',
+    'NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE': 'ノード候補拒否 // プレビュー不可',
+    'UNBIND TARGET FIRST': '先に対象区間を解除してください', 'BINDING CONFIRMED / UNSAVED': '割り当て確認済み / 未保存',
+    'SELECTING APPROACH': '接近区間を選択中', 'SELECTING TARGETS': '対象区間を選択中',
+    'TARGETS MUST BE A SUBSET OF APPROACH': '対象区間は接近区間に含めてください',
+    'TARGET MUST BELONG TO APPROACH': '対象は接近区間に含めてください',
+    'CLEAR TARGETS FIRST': '対象区間を先に解除してください',
+    'PULSE LENGTH MUST BE 1-1200 TICKS': 'パルス長は1-1200 tickです',
+    'QUARANTINED VEHICLE REMOVED': '隔離車両を削除しました',
+    'CONFIRM REJECTED // DELETE NOT PENDING': '確認拒否 // 削除待ちではありません',
+    'CONFIRM REJECTED // VEHICLE NOT FOUND': '確認拒否 // 車両が見つかりません',
+    'LINE SNAPSHOT': '路線スナップショット', 'SAVE FAILED': '保存失敗'
+  }
 };
-const STATUS_TRANSLATIONS = {
-  'zh-Hans': {'LIVE SNAPSHOT':'实时快照','WAITING FOR SERVER':'等待服务器','LINE SNAPSHOT UNAVAILABLE':'线路快照不可用','COMMAND FAILED // SERVER UNAVAILABLE':'命令失败 // 服务器不可用','CHECKING NODE CANDIDATE':'检查节点候选','NO GRAPH NODE SELECTED':'未选择轨道节点','LINE PATH SAVED':'线路路径已保存','CONFIRM REJECTED // DELETE NOT PENDING':'确认拒绝 // 未处于待删除状态','CONFIRM REJECTED // VEHICLE NOT FOUND':'确认拒绝 // 未找到列车','QUARANTINED VEHICLE REMOVED':'已移除隔离列车','SELECT REPLACEMENT NODE':'选择替换节点','NODE CHANGE CONFIRMED // UNSAVED':'节点更换已确认 // 未保存','NODE CHANGE ABANDONED':'已放弃节点更换','NODE DELETED // UNSAVED':'节点已删除 // 未保存','NODE CHANGES CANCELED':'节点修改已取消','NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE':'节点候选拒绝 // 预览不可用','UNBIND':'解绑','UNBIND TARGET FIRST':'请先解绑目标区段','UNSAVED':'未保存','BINDING CONFIRMED / UNSAVED':'绑定已确认 / 未保存','SELECTING APPROACH':'正在选择接近区段','SELECTING TARGETS':'正在选择目标区段','TARGETS MUST BE A SUBSET OF APPROACH':'目标区段必须属于接近区段','CLEAR TARGETS FIRST':'请先清除目标区段','PULSE LENGTH MUST BE 1-1200 TICKS':'脉冲长度必须为 1-1200 tick'},
-  'zh-Hant': {'LIVE SNAPSHOT':'即時快照','WAITING FOR SERVER':'等待伺服器','LINE SNAPSHOT UNAVAILABLE':'路線快照不可用','COMMAND FAILED // SERVER UNAVAILABLE':'命令失敗 // 伺服器不可用','CHECKING NODE CANDIDATE':'檢查節點候選','NO GRAPH NODE SELECTED':'未選取軌道節點','LINE PATH SAVED':'路線已儲存','CONFIRM REJECTED // DELETE NOT PENDING':'確認拒絕 // 未處於待刪除狀態','CONFIRM REJECTED // VEHICLE NOT FOUND':'確認拒絕 // 找不到列車','QUARANTINED VEHICLE REMOVED':'已移除隔離列車','SELECT REPLACEMENT NODE':'選取替換節點','NODE CHANGE CONFIRMED // UNSAVED':'節點更換已確認 // 未儲存','NODE CHANGE ABANDONED':'已放棄節點更換','NODE DELETED // UNSAVED':'節點已刪除 // 未儲存','NODE CHANGES CANCELED':'節點修改已取消','NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE':'節點候選拒絕 // 預覽不可用'},
-  ja: {'LIVE SNAPSHOT':'ライブスナップショット','WAITING FOR SERVER':'サーバーを待機中','LINE SNAPSHOT UNAVAILABLE':'路線スナップショットを取得できません','COMMAND FAILED // SERVER UNAVAILABLE':'コマンド失敗 // サーバー利用不可','CHECKING NODE CANDIDATE':'ノード候補を確認中','NO GRAPH NODE SELECTED':'線路ノード未選択','LINE PATH SAVED':'路線を保存しました','CONFIRM REJECTED // DELETE NOT PENDING':'確認拒否 // 削除待ちではありません','CONFIRM REJECTED // VEHICLE NOT FOUND':'確認拒否 // 車両が見つかりません','QUARANTINED VEHICLE REMOVED':'隔離車両を削除しました','SELECT REPLACEMENT NODE':'置換ノードを選択','NODE CHANGE CONFIRMED // UNSAVED':'ノード変更を確認 // 未保存','NODE CHANGE ABANDONED':'ノード変更を破棄','NODE DELETED // UNSAVED':'ノードを削除 // 未保存','NODE CHANGES CANCELED':'ノード変更をキャンセル','NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE':'ノード候補拒否 // プレビュー不可','UNBIND':'解除','UNBIND TARGET FIRST':'先に対象区間を解除してください','UNSAVED':'未保存','BINDING CONFIRMED / UNSAVED':'割り当て確認済み / 未保存','SELECTING APPROACH':'接近区間を選択中','SELECTING TARGETS':'対象区間を選択中','TARGETS MUST BE A SUBSET OF APPROACH':'対象区間は接近区間に含めてください','CLEAR TARGETS FIRST':'対象区間を先に解除してください','PULSE LENGTH MUST BE 1-1200 TICKS':'パルス長は1-1200 tickです'}
-};
-Object.entries(STATUS_TRANSLATIONS).forEach(([lang, values]) => Object.assign(I18N[lang], values));
-Object.assign(I18N['zh-Hant'], {'UNBIND':'解除綁定','UNBIND TARGET FIRST':'請先解除目標區段','UNSAVED':'未儲存','BINDING CONFIRMED / UNSAVED':'綁定已確認 / 未儲存','SELECTING APPROACH':'正在選取接近區段','SELECTING TARGETS':'正在選取目標區段','TARGETS MUST BE A SUBSET OF APPROACH':'目標區段必須屬於接近區段','CLEAR TARGETS FIRST':'請先清除目標區段','PULSE LENGTH MUST BE 1-1200 TICKS':'脈衝長度必須為 1-1200 tick'});
+
 let language = localStorage.getItem('mtrbr-language') || 'en';
 function tr(value) {
   const table = I18N[language] || I18N.en;
   if (table[value]) return table[value];
-  const prefix = Object.keys(table).filter(key => key.length > 3 && value.startsWith(key + ' // ')).sort((a,b) => b.length-a.length)[0];
+  const prefix = Object.keys(table).filter(key => key.length > 3 && value.startsWith(key + ' // ')).sort((a, b) => b.length - a.length)[0];
   return prefix ? table[prefix] + value.slice(prefix.length) : value;
 }
+
+/* ── interface scale ─────────────────────────────────────── */
 const uiScale = document.querySelector('#ui-scale');
 const uiScaleValue = document.querySelector('#ui-scale-value');
-function applyUiScale(value) { const clamped = Math.max(50, Math.min(200, Number(value) || 100)); document.documentElement.style.setProperty('--ui-scale', clamped / 100); uiScale.value = clamped; uiScaleValue.textContent = `${clamped}%`; localStorage.setItem('mtrbr-ui-scale', clamped); }
+function applyUiScale(value) {
+  const clamped = Math.max(50, Math.min(200, Number(value) || 100));
+  document.documentElement.style.setProperty('--ui-scale', clamped / 100);
+  uiScale.value = clamped;
+  uiScaleValue.textContent = `${clamped}%`;
+  localStorage.setItem('mtrbr-ui-scale', clamped);
+}
 uiScale.addEventListener('input', () => applyUiScale(uiScale.value));
 applyUiScale(localStorage.getItem('mtrbr-ui-scale') || '100');
 
+/* ── language ────────────────────────────────────────────── */
 function applyLanguage() {
+  document.documentElement.lang = language;
   document.body.dataset.language = language;
-  document.querySelectorAll('#language-switcher button').forEach(button => { button.textContent = ({en:'English','zh-Hans':'简体中文','zh-Hant':'繁體中文',ja:'日本語'})[button.dataset.language]; button.classList.toggle('active', button.dataset.language === language); });
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
-  nodes.forEach(node => { const value = node.nodeValue.trim(); if (value && I18N.en[value]) node.nodeValue = node.nodeValue.replace(value, tr(value)); });
-  document.querySelectorAll('input[placeholder],input[aria-label]').forEach(input => { const key = input.getAttribute('placeholder') || input.getAttribute('aria-label'); if (I18N.en[key]) { input.placeholder = tr(key); input.setAttribute('aria-label', tr(key)); } });
-  renderPanels(); renderLines(); if (typeof renderSensorList === 'function') renderSensorList(); if (typeof renderSensorEditor === 'function') renderSensorEditor(); draw();
+  document.querySelectorAll('#language-switcher button').forEach(button => {
+    button.textContent = LANGUAGE_NAMES[button.dataset.language];
+    button.classList.toggle('active', button.dataset.language === language);
+  });
+  document.querySelectorAll('[data-i18n]').forEach(element => {
+    element.textContent = tr(element.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(input => {
+    const key = input.dataset.i18nPlaceholder;
+    input.placeholder = tr(key);
+    input.setAttribute('aria-label', tr(key));
+  });
+  renderPanels();
+  renderLines();
+  if (typeof renderSensorList === 'function') renderSensorList();
+  if (typeof renderSensorEditor === 'function') renderSensorEditor();
+  draw();
 }
-document.querySelectorAll('#language-switcher button').forEach(button => button.addEventListener('click', () => { language = button.dataset.language; localStorage.setItem('mtrbr-language', language); location.reload(); }));
+document.querySelectorAll('#language-switcher button').forEach(button => button.addEventListener('click', () => {
+  language = button.dataset.language;
+  localStorage.setItem('mtrbr-language', language);
+  location.reload();
+}));
 
+/* ── state ───────────────────────────────────────────────── */
 const canvas = document.querySelector('#diagram');
 const ctx = canvas.getContext('2d');
+const SANS = '"Plex Sans", "SarasaSC", "Microsoft YaHei", system-ui, sans-serif';
+const MONO = '"Plex Mono", "SarasaSC", ui-monospace, monospace';
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const view = { x: 0, y: 0, scale: 1, dragging: false, lastX: 0, lastY: 0, fitted: false };
 let topology = null;
-let sensors = [];
-let sensorDraft = null;
-let sensorBaseline = null;
-let sensorBinding = null;
-let sensorSelection = new Set();
-let sensorOpenedFromLink = false;
 let state = null;
 let lines = null;
 const token = new URLSearchParams(window.location.search).get('token') || '';
@@ -83,18 +265,43 @@ let nodePreviewSerial = 0;
 let lineNodePress = null;
 const signalOffsets = JSON.parse(localStorage.getItem('mtrbr-signal-offsets') || '{}');
 
-function currentRequests() { return (selectedState()?.requests || []).map(request => ({ ...request, vehicleId: String(request.vehicleId) })); }
-function highlightedRequest() { return currentRequests().find(request => request.vehicleId === (hoveredVehicleId ?? selectedVehicleId)); }
-function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]); }
-function requestStateClass(stateName) {
-  const state = String(stateName || '').toUpperCase();
-  if (['ACTIVE', 'AUTHORIZED', 'APPROACHING', 'REQUESTED', 'CHECKING', 'PASSED'].includes(state)) return 'state-green';
-  if (state === 'WAITING') return 'state-yellow';
-  if (['DENIED', 'INVALID', 'REVOKED', 'CANCELED', 'RELEASED'].includes(state)) return 'state-red';
-  if (['OVERRIDE', 'NONE'].includes(state)) return 'state-blue';
-  return 'state-white';
+/* ── helpers ─────────────────────────────────────────────── */
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    cache: 'no-store',
+    ...requestOptions,
+    ...options,
+    headers: { ...(requestOptions.headers || {}), ...(options.headers || {}) }
+  });
+  if (response.status === 403) canDispatch = false;
+  return response;
 }
-
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
+function setStatus(text, tone = '') {
+  const element = document.querySelector('#status');
+  element.textContent = tr(text);
+  element.dataset.tone = tone;
+}
+function setConn(stateName, text) {
+  document.querySelector('#conn').dataset.state = stateName;
+  document.querySelector('#conn-text').textContent = tr(text);
+}
+let toastTimer = null;
+function flash(text, tone = '') {
+  const element = document.querySelector('#toast');
+  element.textContent = tr(text);
+  element.dataset.tone = tone;
+  element.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { element.hidden = true; }, 2600);
+}
+function setMapTitle(key) {
+  const element = document.querySelector('#map-title-text');
+  element.dataset.i18n = key;
+  element.textContent = tr(key);
+}
 function shortCodeCompare(left, right) {
   const first = String(left || '').toUpperCase();
   const second = String(right || '').toUpperCase();
@@ -123,21 +330,21 @@ function updateInvalidation(reason) {
       ? 'TOKEN INVALIDATION: PLAYER OFFLINE'
       : `TOKEN INVALIDATION: ${invalidationReason}`;
   modal.hidden = false;
+  document.querySelector('#token-invalidation-close').focus();
 }
 
+/* ── geometry ────────────────────────────────────────────── */
 function resize() {
   const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.floor(rect.width * devicePixelRatio);
-  canvas.height = Math.floor(rect.height * devicePixelRatio);
+  canvas.width = Math.max(1, Math.floor(rect.width * devicePixelRatio));
+  canvas.height = Math.max(1, Math.floor(rect.height * devicePixelRatio));
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   draw();
 }
-
 function canvasPoint(event) {
   const rect = canvas.getBoundingClientRect();
   return { x: (event.clientX - rect.left - view.x) / view.scale, z: (event.clientY - rect.top - view.y) / view.scale };
 }
-
 function selectedDimension() { return topology && topology.dimensions && topology.dimensions[0]; }
 function selectedState() {
   const data = selectedDimension();
@@ -145,7 +352,7 @@ function selectedState() {
 }
 function selectedLineDimension() {
   const data = selectedDimension();
-  return data && lines?.dimensions?.find(item => item.id === data.id);
+  return data && lines && lines.dimensions && lines.dimensions.find(item => item.id === data.id);
 }
 function selectedLine() { return selectedLineDimension()?.depots?.find(line => line.id === selectedLineId) || null; }
 function lineMode() { return selectedLine() !== null; }
@@ -169,17 +376,39 @@ function fit() {
   draw();
 }
 
+/* ── map palette ─────────────────────────────────────────── */
+const COLOR = {
+  track: '#5b6b75',
+  trackDim: '#3d4a52',
+  occupied: '#d24a4a',
+  locked: '#e8eef1',
+  reserved: '#e0a33c',
+  platform: '#e0a33c',
+  signalStem: '#6b7d88',
+  signalRing: '#05080a',
+  repeater: 'rgba(90, 169, 230, .5)',
+  vehicle: '#5aa9e6',
+  vehicleBg: '#06090b',
+  line: '#5aa9e6',
+  linePlatform: '#e0a33c',
+  lineBroken: '#e05252',
+  node: '#9bd0f5',
+  nodeSelected: '#e0a33c',
+  candidateOk: '#f4e07a',
+  candidateBad: '#e05252',
+  highlight: '#e0a33c',
+  label: '#dfe7ec',
+  halo: '#06090b'
+};
+const ASPECT_COLOR = { GREEN: '#3ecf8e', RED: '#e05252', YELLOW: '#e0a33c', DOUBLE_YELLOW: '#f2cd6b', UNKNOWN: '#5b6b75' };
+
 function sectionColor(section) {
-  if (section && section.occupied) return '#c82424';
-  if (section && section.locked) return '#f7f7f7';
-  if (section && section.reserved) return '#f0b42e';
-  return '#969da0';
+  if (section && section.occupied) return COLOR.occupied;
+  if (section && section.locked) return COLOR.locked;
+  if (section && section.reserved) return COLOR.reserved;
+  return COLOR.track;
 }
-
-function signalColor(aspect) {
-  return { GREEN: '#15ed6b', RED: '#c82424', YELLOW: '#d88900', DOUBLE_YELLOW: '#ffd452' }[aspect] || '#5a6a70';
-}
-
+function signalColor(aspect) { return ASPECT_COLOR[aspect] || ASPECT_COLOR.UNKNOWN; }
 function signalOffset(signal) { return signalOffsets[signal.id] || { x: 0, z: 0 }; }
 function signalPosition(signal) {
   const offset = signalOffset(signal);
@@ -203,33 +432,13 @@ function railMidpoint(points) {
       const ratio = segments[i - 1] ? remaining / segments[i - 1] : 0;
       const dx = points[i][0] - points[i - 1][0];
       const dz = points[i][1] - points[i - 1][1];
-      return {
-        x: points[i - 1][0] + dx * ratio,
-        z: points[i - 1][1] + dz * ratio,
-        dx,
-        dz
-      };
+      return { x: points[i - 1][0] + dx * ratio, z: points[i - 1][1] + dz * ratio, dx, dz };
     }
     remaining -= segments[i - 1];
   }
   const last = points.length - 1;
   return { x: points[last][0], z: points[last][1], dx: 1, dz: 0 };
 }
-
-function drawRail(points, trimDistance = .4312) {
-  const visiblePoints = trimRail(points, trimDistance);
-  if (visiblePoints.length < 2) return;
-  ctx.beginPath();
-  visiblePoints.forEach((point, index) => index ? ctx.lineTo(point[0], point[1]) : ctx.moveTo(point[0], point[1]));
-  ctx.stroke();
-}
-
-function drawPlatform(platform) {
-  ctx.strokeStyle = '#ff9900';
-  ctx.lineWidth = Math.max(1.536, 1.088 / view.scale);
-  drawRail(offsetRail(platform.points, platform.side || 1, 2.6), 0);
-}
-
 function offsetRail(points, side, distance) {
   return points.map((point, index) => {
     const previous = points[Math.max(0, index - 1)];
@@ -239,57 +448,6 @@ function offsetRail(points, side, distance) {
     return [point[0] - dz / length * side * distance, point[1] + dx / length * side * distance];
   });
 }
-
-function drawStationLabel(platforms) {
-  if (!platforms.length || !platforms[0].name) return;
-  const marker = railMidpoint(platforms[0].points);
-  const horizontal = Math.abs(marker.dx) >= Math.abs(marker.dz);
-  const candidates = platforms.map(platform => ({ platform, marker: railMidpoint(platform.points) }));
-  const chosen = candidates.reduce((best, candidate) => horizontal
-    ? candidate.marker.z > best.marker.z ? candidate : best
-    : candidate.marker.x > best.marker.x ? candidate : best);
-  const labelX = chosen.marker.x + (horizontal ? 0 : 4);
-  const labelZ = chosen.marker.z + (horizontal ? 4 : 0);
-  ctx.save();
-  ctx.translate(labelX, labelZ);
-  ctx.scale(1 / view.scale, 1 / view.scale);
-  ctx.font = '700 18px "Terminus", "Microsoft YaHei", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#f2f4f4';
-  ctx.fillText(platforms[0].name, 0, 0);
-  ctx.restore();
-}
-
-function drawPlatformNumber(platform) {
-  if (!platform.number) return;
-  const points = offsetRail(platform.points, platform.side || 1, 2.6);
-  ctx.save();
-  ctx.scale(1 / view.scale, 1 / view.scale);
-  ctx.font = '700 10px "Terminus", "Microsoft YaHei", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#f7f7f7';
-  const inset = ctx.measureText(platform.number).width / view.scale;
-  const ends = [pointAlongRail(points, inset), pointAlongRail([...points].reverse(), inset)];
-  for (const end of ends) ctx.fillText(platform.number, end[0] * view.scale, end[1] * view.scale);
-  ctx.restore();
-}
-
-function pointAlongRail(points, distance) {
-  let remaining = distance;
-  for (let index = 1; index < points.length; index++) {
-    const start = points[index - 1], end = points[index];
-    const length = Math.hypot(end[0] - start[0], end[1] - start[1]);
-    if (length >= remaining) {
-      const ratio = length ? remaining / length : 0;
-      return [start[0] + (end[0] - start[0]) * ratio, start[1] + (end[1] - start[1]) * ratio];
-    }
-    remaining -= length;
-  }
-  return points[points.length - 1];
-}
-
 function trimRail(points, trimDistance) {
   const result = points.map(point => [point[0], point[1]]);
   let remaining = trimDistance;
@@ -306,29 +464,86 @@ function trimRail(points, trimDistance) {
   }
   return result;
 }
-
+function drawRail(points, trimDistance = .4312) {
+  const visiblePoints = trimRail(points, trimDistance);
+  if (visiblePoints.length < 2) return;
+  ctx.beginPath();
+  visiblePoints.forEach((point, index) => index ? ctx.lineTo(point[0], point[1]) : ctx.moveTo(point[0], point[1]));
+  ctx.stroke();
+}
+function pointAlongRail(points, distance) {
+  let remaining = distance;
+  for (let index = 1; index < points.length; index++) {
+    const start = points[index - 1], end = points[index];
+    const length = Math.hypot(end[0] - start[0], end[1] - start[1]);
+    if (length >= remaining) {
+      const ratio = length ? remaining / length : 0;
+      return [start[0] + (end[0] - start[0]) * ratio, start[1] + (end[1] - start[1]) * ratio];
+    }
+    remaining -= length;
+  }
+  return points[points.length - 1];
+}
+function drawPlatform(platform) {
+  ctx.strokeStyle = COLOR.platform;
+  ctx.lineWidth = Math.max(1.536, 1.088 / view.scale);
+  drawRail(offsetRail(platform.points, platform.side || 1, 2.6), 0);
+}
+function drawStationLabel(platforms) {
+  if (!platforms.length || !platforms[0].name) return;
+  const marker = railMidpoint(platforms[0].points);
+  const horizontal = Math.abs(marker.dx) >= Math.abs(marker.dz);
+  const candidates = platforms.map(platform => ({ platform, marker: railMidpoint(platform.points) }));
+  const chosen = candidates.reduce((best, candidate) => horizontal
+    ? candidate.marker.z > best.marker.z ? candidate : best
+    : candidate.marker.x > best.marker.x ? candidate : best);
+  const labelX = chosen.marker.x + (horizontal ? 0 : 4);
+  const labelZ = chosen.marker.z + (horizontal ? 4 : 0);
+  ctx.save();
+  ctx.translate(labelX, labelZ);
+  ctx.scale(1 / view.scale, 1 / view.scale);
+  ctx.font = `600 17px ${SANS}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = COLOR.label;
+  ctx.fillText(platforms[0].name, 0, 0);
+  ctx.restore();
+}
+function drawPlatformNumber(platform) {
+  if (!platform.number) return;
+  const points = offsetRail(platform.points, platform.side || 1, 2.6);
+  ctx.save();
+  ctx.scale(1 / view.scale, 1 / view.scale);
+  ctx.font = `500 10px ${MONO}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#cfd8dd';
+  const inset = ctx.measureText(platform.number).width / view.scale;
+  const ends = [pointAlongRail(points, inset), pointAlongRail([...points].reverse(), inset)];
+  for (const end of ends) ctx.fillText(platform.number, end[0] * view.scale, end[1] * view.scale);
+  ctx.restore();
+}
 function drawVehicle(code, marker, index) {
   ctx.save();
   ctx.translate(marker.x, marker.z);
   if (Math.abs(marker.dz) > Math.abs(marker.dx)) ctx.rotate(Math.PI / 2);
   ctx.scale(1 / view.scale, 1 / view.scale);
-  ctx.font = '700 14.4px "Terminus", "Microsoft YaHei", sans-serif';
+  ctx.font = `600 12.5px ${MONO}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#39d8ff';
-  ctx.shadowColor = '#001820';
-  ctx.shadowBlur = 3;
-  const width = ctx.measureText(code).width + 4;
-  const y = index * -18;
-  ctx.fillStyle = '#030506';
-  ctx.shadowBlur = 0;
-  ctx.fillRect(-width / 2, y - 9, width, 18);
-  ctx.fillStyle = '#39d8ff';
-  ctx.shadowBlur = 3;
+  const width = ctx.measureText(code).width + 8;
+  const y = index * -17;
+  ctx.fillStyle = COLOR.vehicleBg;
+  ctx.globalAlpha = .92;
+  ctx.fillRect(-width / 2, y - 8, width, 16);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(90, 169, 230, .55)';
+  ctx.lineWidth = .8;
+  ctx.strokeRect(-width / 2, y - 8, width, 16);
+  ctx.fillStyle = COLOR.vehicle;
   ctx.fillText(code, 0, y);
   ctx.restore();
 }
-
 function drawArrow(point, dx, dz, color) {
   const angle = Math.atan2(dz, dx);
   ctx.save();
@@ -340,37 +555,31 @@ function drawArrow(point, dx, dz, color) {
   ctx.fill();
   ctx.restore();
 }
-
-function drawLineArrow(points, color) {
-  const marker = railMidpoint(points);
-  drawArrow(marker, marker.dx, marker.dz, color);
-}
-
 function drawSelectedLine(line) {
   for (const segment of line.segments) {
-    const color = segment.disconnected ? '#ef4f4f' : segment.platform ? '#ff9900' : '#39d8ff';
+    const color = segment.disconnected ? COLOR.lineBroken : segment.platform ? COLOR.linePlatform : COLOR.line;
     ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(.72, .544 / view.scale);
     drawRail(segment.points, 0);
-    drawLineArrow(segment.points, color);
+    const marker = railMidpoint(segment.points);
+    drawArrow(marker, marker.dx, marker.dz, color);
     if (segment.disconnected) {
       const start = segment.points[0];
-      ctx.fillStyle = '#ef4f4f';
+      ctx.fillStyle = COLOR.lineBroken;
       ctx.beginPath();
       ctx.arc(start[0], start[1], Math.max(1.2, 2.8 / view.scale), 0, Math.PI * 2);
       ctx.fill();
     }
   }
 }
-
 function drawLineNodes(line) {
   const nodes = nodeDraft || line.nodes || [];
+  const blinkYellow = reduceMotion || Math.floor(Date.now() / 420) % 2 === 0;
   const drawNode = (node, index, selected) => {
     const visual = lineNodePosition(line, index, node);
     ctx.save();
-    const blinkYellow = Math.floor(Date.now() / 420) % 2 === 0;
-    ctx.fillStyle = selected ? (blinkYellow ? '#f0b42e' : '#8a671b') : '#8ceaff';
-    ctx.strokeStyle = selected ? '#f0b42e' : '#003c4d';
+    ctx.fillStyle = selected ? (blinkYellow ? COLOR.nodeSelected : '#8a671b') : COLOR.node;
+    ctx.strokeStyle = selected ? COLOR.nodeSelected : '#1d3846';
     ctx.lineWidth = Math.max(.5, 1.4 / view.scale);
     ctx.beginPath();
     ctx.arc(visual.x, visual.z, Math.max(.78, 2 / view.scale), 0, Math.PI * 2);
@@ -383,7 +592,7 @@ function drawLineNodes(line) {
   if (nodeCandidate) {
     const visual = { x: nodeCandidate.displayX ?? nodeCandidate.x, z: nodeCandidate.displayZ ?? nodeCandidate.z };
     ctx.save();
-    ctx.strokeStyle = nodePreview?.ok === false ? '#ef4f4f' : '#fff36b';
+    ctx.strokeStyle = nodePreview?.ok === false ? COLOR.candidateBad : COLOR.candidateOk;
     ctx.lineWidth = Math.max(.7, 1.8 / view.scale);
     ctx.setLineDash([1, 1]);
     ctx.beginPath();
@@ -393,6 +602,7 @@ function drawLineNodes(line) {
   }
 }
 
+/* ── render ──────────────────────────────────────────────── */
 function draw() {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
@@ -411,7 +621,7 @@ function draw() {
   const line = selectedLine();
   const highlighted = line ? null : highlightedRequest();
   const highlightedSections = new Set(highlighted?.sections || []);
-  const blinkYellow = Math.floor(Date.now() / 420) % 2 === 0;
+  const blinkYellow = reduceMotion || Math.floor(Date.now() / 420) % 2 === 0;
 
   for (const platform of (data.platforms || [])) drawPlatform(platform);
 
@@ -424,17 +634,15 @@ function draw() {
   const rails = line ? data.rails : [...data.rails].sort((left, right) => sectionLayer(left) - sectionLayer(right));
   for (const rail of rails) {
     const section = sections.get(rail.id);
-    ctx.strokeStyle = line
-      ? '#969da0'
-      : section?.occupied
-        ? '#c82424'
-        : sectionColor(section);
+    ctx.strokeStyle = line ? COLOR.trackDim : section?.occupied ? COLOR.occupied : sectionColor(section);
     ctx.lineWidth = Math.max(.72, .544 / view.scale);
     drawRail(rail.points);
-    if (sensorDraft && (sensorSelection.has(rail.id) || sensorDraft.approach.includes(rail.id) || sensorDraft.targets.includes(rail.id))) {
+    if (typeof sensorDraft !== 'undefined' && sensorDraft && (sensorSelection.has(rail.id) || sensorDraft.approach.includes(rail.id) || sensorDraft.targets.includes(rail.id))) {
       ctx.save();
-      ctx.strokeStyle = sensorBinding && sensorSelection.has(rail.id) ? '#ffffff' : sensorDraft.targets.includes(rail.id) ? '#17c4ae' : '#e1af31';
-      ctx.lineWidth = Math.max(1.5, 3 / view.scale); drawRail(rail.points); ctx.restore();
+      ctx.strokeStyle = sensorBinding && sensorSelection.has(rail.id) ? '#ffffff' : sensorDraft.targets.includes(rail.id) ? '#3ecf8e' : COLOR.highlight;
+      ctx.lineWidth = Math.max(1.5, 3 / view.scale);
+      drawRail(rail.points);
+      ctx.restore();
     }
     if (!line && section && section.vehicles && section.vehicles.length) {
       const midpoint = railMidpoint(rail.points);
@@ -445,14 +653,12 @@ function draw() {
     }
   }
 
-  // Draw request highlights as a final overlay so the base free-section layer
-  // can never cover the yellow/gray selection state.
   if (!line && highlightedSections.size) {
     for (const rail of data.rails) {
       if (!highlightedSections.has(rail.id)) continue;
       const section = sections.get(rail.id);
       if (section?.occupied) continue;
-      ctx.strokeStyle = blinkYellow ? '#f0b42e' : '#969da0';
+      ctx.strokeStyle = blinkYellow ? COLOR.highlight : COLOR.track;
       ctx.lineWidth = Math.max(.72, .544 / view.scale);
       drawRail(rail.points);
     }
@@ -466,7 +672,7 @@ function draw() {
   stations.forEach(drawStationLabel);
 
   ctx.save();
-  ctx.strokeStyle = '#3d8cff';
+  ctx.strokeStyle = COLOR.repeater;
   ctx.lineWidth = Math.max(.72, .544 / view.scale);
   for (const link of (data.repeaterLinks || [])) {
     ctx.beginPath();
@@ -481,7 +687,7 @@ function draw() {
     ctx.save();
     ctx.translate(position.x, position.z);
     ctx.rotate(signal.angle * Math.PI / 180);
-    ctx.strokeStyle = '#b7bec1';
+    ctx.strokeStyle = COLOR.signalStem;
     ctx.lineWidth = .44;
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -491,22 +697,27 @@ function draw() {
     ctx.beginPath();
     ctx.arc(0, 0, .704, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = COLOR.signalRing;
+    ctx.lineWidth = .18;
+    ctx.stroke();
     ctx.restore();
-    if (signal.id === hoveredSignalId || signal.id === signalDrag?.id || signal.id === document.querySelector('#signal-name-form').dataset.signalId && !document.querySelector('#signal-name-form').hidden) {
+    const form = document.querySelector('#signal-name-form');
+    if (signal.id === hoveredSignalId || signal.id === signalDrag?.id || (signal.id === form.dataset.signalId && !form.hidden)) {
       ctx.save();
-      ctx.strokeStyle = '#747c80';
+      ctx.strokeStyle = 'rgba(107, 125, 136, .8)';
       ctx.lineWidth = .38;
-	  ctx.setLineDash([.6, .6]);
+      ctx.setLineDash([.6, .6]);
       ctx.beginPath();
       ctx.moveTo(position.x, position.z);
       ctx.lineTo(signal.nodeX, signal.nodeZ);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.scale(1 / view.scale, 1 / view.scale);
-      ctx.font = '700 13px "Terminus", "Microsoft YaHei", sans-serif';
+      ctx.font = `500 11px ${MONO}`;
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#e2e7e8';
-      ctx.fillText(signal.name || `${signal.signalX}, ${signal.signalY}, ${signal.signalZ}`, position.x * view.scale, position.z * view.scale - 15);
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = COLOR.label;
+      ctx.fillText(signal.name || `${signal.signalX}, ${signal.signalY}, ${signal.signalZ}`, position.x * view.scale, position.z * view.scale - 8);
       ctx.restore();
     }
   }
@@ -523,28 +734,52 @@ function draw() {
   document.querySelector('#scale-label').textContent = `${Math.round(100 / view.scale)} m`;
 }
 
+function currentRequests() { return (selectedState()?.requests || []).map(request => ({ ...request, vehicleId: String(request.vehicleId) })); }
+function highlightedRequest() { return currentRequests().find(request => request.vehicleId === (hoveredVehicleId ?? selectedVehicleId)); }
+function requestStateClass(stateName) {
+  const value = String(stateName || '').toUpperCase();
+  if (['ACTIVE', 'AUTHORIZED', 'APPROACHING', 'REQUESTED', 'CHECKING', 'PASSED'].includes(value)) return 'state-green';
+  if (value === 'WAITING') return 'state-yellow';
+  if (['DENIED', 'INVALID', 'REVOKED', 'CANCELED', 'RELEASED'].includes(value)) return 'state-red';
+  if (['OVERRIDE', 'NONE'].includes(value)) return 'state-blue';
+  return 'state-white';
+}
+
 function renderPanels() {
   const players = state?.players || [];
-  document.querySelector('#player-list').innerHTML = players.map(player => `<div class="player"><img src="${encodeURI(player.avatar)}" alt=""><span class="player-name">${escapeHtml(player.name)}</span><b class="player-state ${player.dispatching ? 'on' : 'off'}">${player.dispatching ? 'ON' : 'OFF'}</b></div>`).join('');
+  document.querySelector('#player-list').innerHTML = players.map(player => `<div class="player"><img src="${escapeHtml(encodeURI(player.avatar))}" alt="" loading="lazy"><span class="player-name">${escapeHtml(player.name)}</span><b class="player-state ${player.dispatching ? 'on' : 'off'}">${player.dispatching ? tr('ON') : tr('OFF')}</b></div>`).join('');
   const requests = [...currentRequests()].sort((left, right) => shortCodeCompare(left.code, right.code));
   requests.forEach(request => vehicleQuarantineStates.set(request.vehicleId, request.quarantineState || 'NORMAL'));
-  document.querySelector('#request-list').innerHTML = requests.map(request => `<div class="request ${request.vehicleId === selectedVehicleId ? 'selected' : ''}" data-vehicle-id="${request.vehicleId}"><span class="request-code">${escapeHtml(request.code)}</span><span class="request-state ${requestStateClass(request.state)}">${escapeHtml(request.state)}</span><span class="request-detail">R: ${escapeHtml(request.route || '--')} | N: ${escapeHtml(request.next || '--')} | D: ${escapeHtml(request.destination || '--')}</span></div>`).join('');
-  document.querySelectorAll('.request').forEach(row => row.addEventListener('click', () => openVehicleDelete(row.dataset.vehicleId)));
+  document.querySelector('#request-list').innerHTML = requests.map(request => `<div class="request ${request.vehicleId === selectedVehicleId ? 'selected' : ''}" role="button" tabindex="0" data-vehicle-id="${escapeHtml(request.vehicleId)}"><span class="request-code">${escapeHtml(request.code)}</span><span class="request-state ${requestStateClass(request.state)}">${escapeHtml(request.state)}</span><span class="request-detail">R: ${escapeHtml(request.route || '--')} | N: ${escapeHtml(request.next || '--')} | D: ${escapeHtml(request.destination || '--')}</span></div>`).join('');
+  document.querySelectorAll('.request').forEach(row => {
+    row.addEventListener('click', () => openVehicleDelete(row.dataset.vehicleId));
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openVehicleDelete(row.dataset.vehicleId); }
+    });
+  });
   const selected = requests.find(request => request.vehicleId === selectedVehicleId);
   const actions = document.querySelector('#action-drawer');
   actions.hidden = !(canDispatch && selected);
   document.querySelectorAll('[data-action]').forEach(button => { button.disabled = !canDispatch; });
   document.querySelector('#action-code').textContent = selected?.code || '--';
-  document.querySelector('.mode').textContent = canDispatch ? 'DISPATCH ENABLED' : 'READ ONLY / LIVE';
+  document.querySelector('#request-count').textContent = requests.length;
+  document.querySelector('#vehicle-count').textContent = requests.length;
+  const mode = document.querySelector('#mode');
+  mode.textContent = tr(canDispatch ? 'DISPATCH ENABLED' : 'READ ONLY');
+  mode.dataset.state = canDispatch ? 'dispatch' : 'readonly';
   renderLineEditPrompt();
 }
 
 function renderLineEditPrompt() {
   const prompt = document.querySelector('#line-edit-prompt');
   const line = selectedLine();
-  prompt.hidden = !line || selectedNodeIndex === null;
-  const nodeCount = lineNodes(line).length;
+  if (!line || selectedNodeIndex === null) prompt.hidden = true;
+  else prompt.hidden = false;
+  const nodeCount = line ? lineNodes(line).length : 0;
   const internal = selectedNodeIndex !== null && selectedNodeIndex > 0 && selectedNodeIndex < nodeCount - 1;
+  document.querySelector('#node-info').textContent = line && selectedNodeIndex !== null
+    ? `NODE ${selectedNodeIndex} / ${nodeCount - 1}${nodeChangeMode ? (nodeAddMode ? ' · INSERT' : ' · REPLACE') : ''}`
+    : '';
   document.querySelector('#node-change').disabled = !canDispatch || !internal || nodeChangeMode;
   document.querySelector('#node-add').disabled = !canDispatch || selectedNodeIndex === null || selectedNodeIndex >= nodeCount - 1 || nodeChangeMode;
   document.querySelector('#node-confirm').disabled = !canDispatch || !nodeChangeMode || !nodeCandidate || !nodePreview?.ok;
@@ -557,16 +792,24 @@ function renderLineEditPrompt() {
 function renderLines() {
   const lineDimension = selectedLineDimension();
   const entries = lineDimension?.depots || [];
-  document.querySelector('#line-list').innerHTML = entries.map(line => `<div class="line ${line.id === selectedLineId ? 'selected' : ''}" data-line-id="${escapeHtml(line.id)}"><span class="line-name">${escapeHtml(line.name || 'UNNAMED DEPOT')}</span><span class="line-count">${line.segments.length} SEG</span><span class="line-id">${escapeHtml(line.id)}</span></div>`).join('');
-  document.querySelectorAll('.line').forEach(row => row.addEventListener('click', () => selectLine(row.dataset.lineId)));
+  document.querySelector('#line-list').innerHTML = entries.length
+    ? entries.map(line => `<div class="line-row ${line.id === selectedLineId ? 'selected' : ''}" role="button" tabindex="0" data-line-id="${escapeHtml(line.id)}"><span class="line-name">${escapeHtml(line.name || tr('UNNAMED DEPOT'))}</span><span class="line-count">${line.segments.length} ${tr('SEG')}</span><span class="line-id">${escapeHtml(line.id)}</span></div>`).join('')
+    : `<p class="bind-empty">${escapeHtml(tr('NONE'))}</p>`;
+  document.querySelectorAll('.line-row').forEach(row => {
+    row.addEventListener('click', () => selectLine(row.dataset.lineId));
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectLine(row.dataset.lineId); }
+    });
+  });
+  document.querySelector('#line-count').textContent = entries.length;
 }
 
+/* ── vehicles ────────────────────────────────────────────── */
 function selectLine(lineId) {
   selectedLineId = selectedLineId === lineId ? null : lineId;
   selectedVehicleId = null;
   hoveredVehicleId = null;
-  document.querySelector('#vehicle-drawer').classList.remove('open');
-  document.querySelector('#vehicle-drawer').setAttribute('aria-hidden', 'true');
+  closeDrawer('vehicle');
   const line = selectedLine();
   nodeDraft = null;
   selectedNodeIndex = null;
@@ -576,66 +819,71 @@ function selectLine(lineId) {
   nodePreview = null;
   nodePreviewSerial++;
   document.body.classList.toggle('line-mode', !!line);
-  document.querySelector('#status').textContent = line ? `LINE // ${line.name || line.id}` : 'LIVE SNAPSHOT';
-  document.querySelector('.map-title').firstChild.textContent = line ? 'DEPOT PATH // ' : 'TOPOLOGY // ';
+  setMapTitle(line ? 'DEPOT PATH' : 'TOPOLOGY');
+  setStatus(line ? `LINE // ${line.name || line.id}` : 'LIVE SNAPSHOT', line ? '' : 'ok');
   renderLines();
   renderPanels();
+  draw();
   fit();
+}
+function exitLineMode() {
+  if (selectedLineId === null) return;
+  selectedLineId = null;
+  nodeDraft = null;
+  selectedNodeIndex = null;
+  nodeChangeMode = false;
+  nodeAddMode = false;
+  nodeCandidate = null;
+  nodePreview = null;
+  nodePreviewSerial++;
+  document.body.classList.remove('line-mode');
+  setMapTitle('TOPOLOGY');
+  renderLines();
 }
 
 async function loadLines(force = false) {
   if (lines && !force) return;
-  const response = await fetch('api/lines', { cache: 'no-store', ...requestOptions });
+  const response = await api('api/lines');
   if (!response.ok) throw new Error('line snapshot unavailable');
   lines = await response.json();
   if (selectedLineId && !selectedLine()) {
     selectedLineId = null;
     document.body.classList.remove('line-mode');
-    document.querySelector('.map-title').firstChild.textContent = 'TOPOLOGY // ';
+    setMapTitle('TOPOLOGY');
   }
   renderLines();
   draw();
 }
 
 function selectVehicle(vehicleId) {
-	  vehicleId = String(vehicleId ?? '');
-	  const deselected = selectedVehicleId === vehicleId;
+  vehicleId = String(vehicleId ?? '');
+  const deselected = selectedVehicleId === vehicleId;
   selectedVehicleId = deselected ? null : vehicleId;
   if (!deselected) {
-    document.querySelector('#vehicle-drawer').classList.add('open');
-    document.querySelector('#vehicle-drawer').setAttribute('aria-hidden', 'false');
-	  focusVehicle(vehicleId);
+    openDrawer('vehicle');
+    focusVehicle(vehicleId);
   }
   renderPanels();
   draw();
 }
-
-function vehicleMarker(vehicleId) {
-  return vehicleMarkers.find(marker => marker.vehicleId === vehicleId) || null;
-}
-
+function vehicleMarker(vehicleId) { return vehicleMarkers.find(marker => marker.vehicleId === vehicleId) || null; }
 function vehicleLabelPosition(vehicle) {
   const vertical = Math.abs(vehicle.marker.dz) > Math.abs(vehicle.marker.dx);
-  const offset = vehicle.index * -18;
+  const offset = vehicle.index * -17;
   return {
     x: view.x + vehicle.marker.x * view.scale + (vertical ? -offset : 0),
     z: view.y + vehicle.marker.z * view.scale + (vertical ? 0 : offset)
   };
 }
-
 function positionVehicleDeleteForm() {
   const form = document.querySelector('#vehicle-delete-form');
   if (form.hidden || deleteVehicleId === null) return;
   const marker = vehicleMarker(deleteVehicleId);
-  if (!marker) {
-    closeVehicleDelete();
-    return;
-  }
+  if (!marker) { closeVehicleDelete(); return; }
   const position = vehicleLabelPosition(marker);
   form.style.left = `${position.x}px`;
-  form.style.top = `${position.z - 16}px`;
+  form.style.top = `${position.z - 14}px`;
 }
-
 function closeVehicleDelete() {
   const form = document.querySelector('#vehicle-delete-form');
   form.hidden = true;
@@ -645,7 +893,6 @@ function closeVehicleDelete() {
   document.querySelector('#vehicle-quarantine').disabled = true;
   document.querySelector('#vehicle-delete').disabled = true;
 }
-
 function openVehicleDelete(vehicleId) {
   vehicleId = String(vehicleId ?? '');
   if (!vehicleId) return;
@@ -659,37 +906,22 @@ function openVehicleDelete(vehicleId) {
   deleteVehicleId = vehicleId;
   deleteArmed = vehicleQuarantineStates.get(vehicleId) === 'DELETE_PENDING';
   form.dataset.vehicleId = String(vehicleId);
-  const quarantineState = vehicleQuarantineStates.get(vehicleId) || 'NORMAL';
-  const quarantine = document.querySelector('#vehicle-quarantine');
-  const deleteButton = document.querySelector('#vehicle-delete');
-  const confirm = document.querySelector('#vehicle-delete-confirm');
-  quarantine.textContent = quarantineState === 'QUARANTINED' || quarantineState === 'DELETE_PENDING' ? 'RELEASE' : 'QUARANTINE';
-  deleteButton.textContent = quarantineState === 'DELETE_PENDING' ? 'CANCEL' : 'DELETE';
-  quarantine.disabled = !canDispatch || quarantineState === 'DELETE_PENDING';
-  deleteButton.disabled = !canDispatch || quarantineState === 'NORMAL';
-  confirm.disabled = !canDispatch || quarantineState !== 'DELETE_PENDING';
   form.hidden = false;
+  openVehicleDeleteControls(vehicleId);
   positionVehicleDeleteForm();
   draw();
 }
-
-function refreshVehicleDeleteForm() {
-  if (deleteVehicleId !== null && !document.querySelector('#vehicle-delete-form').hidden) openVehicleDeleteControls(deleteVehicleId);
-}
-
 function openVehicleDeleteControls(vehicleId) {
-  const form = document.querySelector('#vehicle-delete-form');
   const quarantineState = vehicleQuarantineStates.get(vehicleId) || 'NORMAL';
   const quarantine = document.querySelector('#vehicle-quarantine');
   const deleteButton = document.querySelector('#vehicle-delete');
   const confirm = document.querySelector('#vehicle-delete-confirm');
-  quarantine.textContent = quarantineState === 'QUARANTINED' || quarantineState === 'DELETE_PENDING' ? 'RELEASE' : 'QUARANTINE';
-  deleteButton.textContent = quarantineState === 'DELETE_PENDING' ? 'CANCEL' : 'DELETE';
+  quarantine.textContent = quarantineState === 'QUARANTINED' || quarantineState === 'DELETE_PENDING' ? tr('RELEASE') : tr('QUARANTINE');
+  deleteButton.textContent = quarantineState === 'DELETE_PENDING' ? tr('CANCEL') : tr('DELETE');
   quarantine.disabled = !canDispatch || quarantineState === 'DELETE_PENDING';
   deleteButton.disabled = !canDispatch || quarantineState === 'NORMAL';
   confirm.disabled = !canDispatch || quarantineState !== 'DELETE_PENDING';
 }
-
 function armVehicleDelete() {
   if (!canDispatch || deleteVehicleId === null) return;
   const current = vehicleQuarantineStates.get(deleteVehicleId) || 'NORMAL';
@@ -699,28 +931,26 @@ function armVehicleDelete() {
     action === 'delete_pending' ? 'DELETE REJECTED // VEHICLE NOT QUARANTINED' : 'CANCEL REJECTED // INVALID DELETE STATE',
     action === 'delete_pending' ? 'DELETE_PENDING' : 'QUARANTINED');
 }
-
 async function postVehicleAction(action, successText, failureText, nextState) {
   if (!canDispatch || deleteVehicleId === null) return;
   const vehicleId = deleteVehicleId;
   const buttons = [document.querySelector('#vehicle-quarantine'), document.querySelector('#vehicle-delete'), document.querySelector('#vehicle-delete-confirm')];
   buttons.forEach(button => { button.disabled = true; });
   try {
-    const response = await fetch('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json', ...requestOptions.headers }, body: JSON.stringify({ action, vehicleId }) });
+    const response = await api('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, vehicleId }) });
     if (!response.ok) {
-      document.querySelector('#status').textContent = failureText;
+      setStatus(failureText, 'error');
       openVehicleDeleteControls(vehicleId);
       return;
     }
     if (nextState) vehicleQuarantineStates.set(vehicleId, nextState);
-    document.querySelector('#status').textContent = successText;
+    setStatus(successText, 'ok');
     openVehicleDeleteControls(vehicleId);
   } catch (_) {
-    document.querySelector('#status').textContent = `${action.toUpperCase()} FAILED // SERVER UNAVAILABLE`;
+    setStatus(`${action.toUpperCase()} FAILED // SERVER UNAVAILABLE`, 'error');
     openVehicleDeleteControls(vehicleId);
   }
 }
-
 async function toggleVehicleQuarantine() {
   if (!canDispatch || deleteVehicleId === null) return;
   const vehicleId = deleteVehicleId;
@@ -731,28 +961,31 @@ async function toggleVehicleQuarantine() {
     action === 'quarantine' ? 'QUARANTINE REJECTED // VEHICLE NOT FOUND' : 'RELEASE REJECTED // INVALID STATE',
     action === 'quarantine' ? 'QUARANTINED' : 'NORMAL');
 }
-
 async function confirmVehicleDelete() {
   if (!canDispatch || deleteVehicleId === null || vehicleQuarantineStates.get(deleteVehicleId) !== 'DELETE_PENDING') {
-    document.querySelector('#status').textContent = tr('CONFIRM REJECTED // DELETE NOT PENDING');
+    setStatus('CONFIRM REJECTED // DELETE NOT PENDING', 'error');
     return;
   }
   const vehicleId = deleteVehicleId;
-  const response = await fetch('api/commands', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...requestOptions.headers },
-    body: JSON.stringify({ action: 'confirm_quarantine_removal', vehicleId })
-  });
-  if (!response.ok) {
-    document.querySelector('#status').textContent = tr('CONFIRM REJECTED // VEHICLE NOT FOUND');
-    return;
+  try {
+    const response = await api('api/commands', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'confirm_quarantine_removal', vehicleId })
+    });
+    if (!response.ok) {
+      setStatus('CONFIRM REJECTED // VEHICLE NOT FOUND', 'error');
+      return;
+    }
+    if (selectedVehicleId === vehicleId) selectedVehicleId = null;
+    closeVehicleDelete();
+    setStatus('QUARANTINED VEHICLE REMOVED', 'ok');
+    await refresh();
+  } catch (_) {
+    setStatus('COMMAND FAILED // SERVER UNAVAILABLE', 'error');
+    openVehicleDeleteControls(vehicleId);
   }
-  if (selectedVehicleId === vehicleId) selectedVehicleId = null;
-  closeVehicleDelete();
-  document.querySelector('#status').textContent = tr('QUARANTINED VEHICLE REMOVED');
-  await refresh();
 }
-
 function focusVehicle(vehicleId) {
   const vehicle = vehicleMarkers.find(marker => marker.vehicleId === vehicleId);
   if (!vehicle) return;
@@ -760,7 +993,6 @@ function focusVehicle(vehicleId) {
   view.y = canvas.clientHeight / 2 - vehicle.marker.z * view.scale;
   view.fitted = true;
 }
-
 function vehicleAt(event) {
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left, z = event.clientY - rect.top;
@@ -770,40 +1002,84 @@ function vehicleAt(event) {
   });
 }
 
-function projection(points, x, z) {
-  let best = null;
-  for (let index = 1; index < points.length; index++) {
-    const start = points[index - 1], end = points[index];
-    const dx = end[0] - start[0], dz = end[1] - start[1];
-    const lengthSquared = dx * dx + dz * dz;
-    if (!lengthSquared) continue;
-    const ratio = Math.max(0, Math.min(1, ((x - start[0]) * dx + (z - start[1]) * dz) / lengthSquared));
-    const px = start[0] + dx * ratio, pz = start[1] + dz * ratio;
-    const distanceSquared = (x - px) ** 2 + (z - pz) ** 2;
-    if (!best || distanceSquared < best.distanceSquared) best = { x: px, z: pz, dx, dz, distanceSquared };
+/* ── signals ─────────────────────────────────────────────── */
+function signalAt(event) {
+  if (lineMode()) return null;
+  const data = selectedDimension();
+  if (!data) return null;
+  const point = canvasPoint(event);
+  const tolerance = 10 / view.scale;
+  return data.signals.find(signal => {
+    const position = signalPosition(signal);
+    return Math.hypot(position.x - point.x, position.z - point.z) <= tolerance;
+  }) || null;
+}
+function openSignalName(signal) {
+  const position = signalPosition(signal);
+  const form = document.querySelector('#signal-name-form');
+  const input = document.querySelector('#signal-name');
+  if (!form.hidden && form.dataset.signalId === signal.id) {
+    form.hidden = true;
+    hoveredSignalId = null;
+    draw();
+    return;
   }
-  return best;
+  form.dataset.signalId = signal.id;
+  form.style.left = `${view.x + position.x * view.scale}px`;
+  form.style.top = `${view.y + position.z * view.scale - 26}px`;
+  input.value = signal.name || '';
+  input.disabled = !canDispatch;
+  form.querySelector('button').disabled = !canDispatch;
+  form.hidden = false;
+  input.focus();
+  input.select();
+  hoveredSignalId = signal.id;
+  draw();
+}
+async function saveSignalName(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!canDispatch || !form.dataset.signalId) return;
+  const name = document.querySelector('#signal-name').value.trim();
+  if (name && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(name)) return;
+  try {
+    const response = await api('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'name_signal', signalId: form.dataset.signalId, name }) });
+    if (response.ok) {
+      form.hidden = true;
+      await refresh();
+    } else {
+      setStatus('COMMAND REJECTED', 'error');
+    }
+  } catch (_) {
+    setStatus('COMMAND FAILED // SERVER UNAVAILABLE', 'error');
+  }
+}
+async function dispatch(action) {
+  if (!canDispatch || selectedVehicleId === null) return;
+  try {
+    const response = await api('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, vehicleId: String(selectedVehicleId) }) });
+    if (!response.ok) {
+      let reason = 'COMMAND REJECTED';
+      try { reason = `COMMAND REJECTED // ${(await response.json()).reason || response.status}`; } catch (_) { reason += ` // ${response.status}`; }
+      setStatus(reason, 'error');
+      return;
+    }
+    setStatus(`${action.toUpperCase()} SUBMITTED`, 'ok');
+    flash(`${action.toUpperCase()} SUBMITTED`, 'ok');
+    await refresh();
+  } catch (_) {
+    setStatus('COMMAND FAILED // SERVER UNAVAILABLE', 'error');
+  }
 }
 
-function lineNodes(line = selectedLine()) {
-  return nodeDraft || line?.nodes || [];
-}
-
-function lineNodePosition(line, index, node) {
-  return { x: node.displayX ?? node.x, z: node.displayZ ?? node.z };
-}
-
-function sameNode(left, right) {
-  return !!left && !!right && left.x === right.x && left.y === right.y && left.z === right.z;
-}
-
+/* ── line node editing ───────────────────────────────────── */
+function lineNodes(line = selectedLine()) { return nodeDraft || line?.nodes || []; }
+function lineNodePosition(line, index, node) { return { x: node.displayX ?? node.x, z: node.displayZ ?? node.z }; }
+function sameNode(left, right) { return !!left && !!right && left.x === right.x && left.y === right.y && left.z === right.z; }
 function repeatedNodePair(nodes) {
-  for (let index = 1; index < nodes.length; index++) {
-    if (sameNode(nodes[index - 1], nodes[index])) return [index - 1, index];
-  }
+  for (let index = 1; index < nodes.length; index++) if (sameNode(nodes[index - 1], nodes[index])) return [index - 1, index];
   return null;
 }
-
 function candidateDraft() {
   const line = selectedLine();
   if (!line || !nodeCandidate || selectedNodeIndex === null) return null;
@@ -812,7 +1088,6 @@ function candidateDraft() {
   else draft[selectedNodeIndex] = { ...nodeCandidate };
   return draft;
 }
-
 function previewFailureText(result) {
   if (Number.isInteger(result?.fromIndex) && Number.isInteger(result?.toIndex) && result.from && result.to) {
     const from = `${result.from.x},${result.from.y},${result.from.z}`;
@@ -821,7 +1096,6 @@ function previewFailureText(result) {
   }
   return result?.error || 'UNKNOWN';
 }
-
 async function previewNodeCandidate() {
   const line = selectedLine();
   const dimension = selectedDimension();
@@ -830,37 +1104,34 @@ async function previewNodeCandidate() {
   const repeated = repeatedNodePair(draft);
   if (repeated) {
     nodePreview = { ok: false, error: 'REPEATED_NODE', fromIndex: repeated[0], toIndex: repeated[1], from: draft[repeated[0]], to: draft[repeated[1]] };
-    document.querySelector('#status').textContent = `NODE CANDIDATE REJECTED // ${previewFailureText(nodePreview)}`;
+    setStatus(`NODE CANDIDATE REJECTED // ${previewFailureText(nodePreview)}`, 'error');
     renderPanels();
     draw();
     return;
   }
   const serial = ++nodePreviewSerial;
   nodePreview = null;
-  document.querySelector('#status').textContent = tr('CHECKING NODE CANDIDATE');
+  setStatus('CHECKING NODE CANDIDATE', 'warn');
   renderPanels();
   draw();
   try {
-    const response = await fetch('api/lines/preview-nodes', {
+    const response = await api('api/lines/preview-nodes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...requestOptions.headers },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dimension: dimension.id, depotId: line.id, fingerprint: line.fingerprint, nodes: draft })
     });
     const result = await response.json();
     if (serial !== nodePreviewSerial) return;
     nodePreview = result;
-    document.querySelector('#status').textContent = result.ok
-      ? 'NODE CANDIDATE VALID // CONFIRM TO APPLY'
-      : `NODE CANDIDATE REJECTED // ${previewFailureText(result)}`;
+    setStatus(result.ok ? 'NODE CANDIDATE VALID // CONFIRM TO APPLY' : `NODE CANDIDATE REJECTED // ${previewFailureText(result)}`, result.ok ? 'ok' : 'error');
   } catch (_) {
     if (serial !== nodePreviewSerial) return;
     nodePreview = { ok: false, error: 'PREVIEW_UNAVAILABLE' };
-    document.querySelector('#status').textContent = tr('NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE');
+    setStatus('NODE CANDIDATE REJECTED // PREVIEW UNAVAILABLE', 'error');
   }
   renderPanels();
   draw();
 }
-
 function nodeAt(event, nodes, line = selectedLine()) {
   const point = canvasPoint(event);
   const tolerance = 10 / view.scale;
@@ -872,7 +1143,6 @@ function nodeAt(event, nodes, line = selectedLine()) {
   });
   return best;
 }
-
 function graphNodeAt(event) {
   const data = selectedDimension();
   if (!data) return null;
@@ -887,73 +1157,6 @@ function graphNodeAt(event) {
   });
   return nodeAt(event, [...nodes.values()], null)?.node || null;
 }
-
-function signalAt(event) {
-  if (lineMode()) return null;
-  const data = selectedDimension();
-  if (!data) return null;
-  const point = canvasPoint(event);
-  const x = point.x, z = point.z;
-  const tolerance = 10 / view.scale;
-  return data.signals.find(signal => {
-    const position = signalPosition(signal);
-    return Math.hypot(position.x - x, position.z - z) <= tolerance;
-  }) || null;
-}
-
-function openSignalName(signal) {
-  const position = signalPosition(signal);
-  const form = document.querySelector('#signal-name-form');
-  const input = document.querySelector('#signal-name');
-  if (!form.hidden && form.dataset.signalId === signal.id) {
-    form.hidden = true;
-    hoveredSignalId = null;
-    draw();
-    return;
-  }
-  form.dataset.signalId = signal.id;
-  form.style.left = `${view.x + position.x * view.scale}px`;
-  form.style.top = `${view.y + position.z * view.scale - 35}px`;
-  input.value = signal.name || '';
-  input.disabled = !canDispatch;
-  form.querySelector('button').disabled = !canDispatch;
-  form.hidden = false;
-  input.focus();
-  input.select();
-  hoveredSignalId = signal.id;
-  draw();
-}
-
-async function saveSignalName(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  if (!canDispatch || !form.dataset.signalId) return;
-  const name = document.querySelector('#signal-name').value.trim();
-  if (name && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(name)) return;
-  const response = await fetch('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json', ...requestOptions.headers }, body: JSON.stringify({ action: 'name_signal', signalId: form.dataset.signalId, name }) });
-  if (response.ok) {
-    form.hidden = true;
-    refresh();
-  }
-}
-
-async function dispatch(action) {
-  if (!canDispatch || selectedVehicleId === null) return;
-  try {
-    const response = await fetch('api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json', ...requestOptions.headers }, body: JSON.stringify({ action, vehicleId: String(selectedVehicleId) }) });
-    if (!response.ok) {
-      let reason = 'COMMAND REJECTED';
-      try { reason = `COMMAND REJECTED // ${(await response.json()).reason || response.status}`; } catch (_) { reason += ` // ${response.status}`; }
-      document.querySelector('#status').textContent = reason;
-      return;
-    }
-    document.querySelector('#status').textContent = `${action.toUpperCase()} SUBMITTED`;
-    await refresh();
-  } catch (_) {
-    document.querySelector('#status').textContent = tr('COMMAND FAILED // SERVER UNAVAILABLE');
-  }
-}
-
 function changeNode() {
   if (!canDispatch || selectedNodeIndex === null) return;
   nodeChangeMode = true;
@@ -961,18 +1164,16 @@ function changeNode() {
   nodeCandidate = null;
   nodePreview = null;
   nodePreviewSerial++;
-  document.querySelector('#status').textContent = tr('SELECT REPLACEMENT NODE');
+  setStatus('SELECT REPLACEMENT NODE', 'warn');
   renderPanels();
   draw();
 }
-
 function confirmNodeChange() {
   if (!nodeChangeMode || !nodeCandidate || !nodePreview?.ok || selectedNodeIndex === null) return;
-  const line = selectedLine();
   const draft = candidateDraft();
   const repeated = repeatedNodePair(draft);
   if (repeated) {
-    document.querySelector('#status').textContent = `NODE CHANGE REJECTED // REPEATED NODE ${repeated[0]}-${repeated[1]}`;
+    setStatus(`NODE CHANGE REJECTED // REPEATED NODE ${repeated[0]}-${repeated[1]}`, 'error');
     renderPanels();
     draw();
     return;
@@ -984,22 +1185,20 @@ function confirmNodeChange() {
   nodeCandidate = null;
   nodePreview = null;
   nodePreviewSerial++;
-  document.querySelector('#status').textContent = tr('NODE CHANGE CONFIRMED // UNSAVED');
+  setStatus('NODE CHANGE CONFIRMED // UNSAVED', 'warn');
   renderPanels();
   draw();
 }
-
 function abandonNodeChange() {
   nodeChangeMode = false;
   nodeAddMode = false;
   nodeCandidate = null;
   nodePreview = null;
   nodePreviewSerial++;
-  document.querySelector('#status').textContent = tr('NODE CHANGE ABANDONED');
+  setStatus('NODE CHANGE ABANDONED', '');
   renderPanels();
   draw();
 }
-
 function deleteNode() {
   const line = selectedLine();
   if (!canDispatch || !line || selectedNodeIndex === null || selectedNodeIndex <= 0 || selectedNodeIndex >= lineNodes(line).length - 1) return;
@@ -1007,74 +1206,79 @@ function deleteNode() {
   draft.splice(selectedNodeIndex, 1);
   nodeDraft = draft;
   selectedNodeIndex = Math.min(selectedNodeIndex, draft.length - 2);
-  document.querySelector('#status').textContent = tr('NODE DELETED // UNSAVED');
+  setStatus('NODE DELETED // UNSAVED', 'warn');
   renderPanels();
   draw();
 }
-
 function cancelNodeDraft() {
-	nodeDraft = null;
-	nodeChangeMode = false;
-	nodeAddMode = false;
-	nodeCandidate = null;
-	nodePreview = null;
-	nodePreviewSerial++;
-	document.querySelector('#status').textContent = tr('NODE CHANGES CANCELED');
+  nodeDraft = null;
+  nodeChangeMode = false;
+  nodeAddMode = false;
+  nodeCandidate = null;
+  nodePreview = null;
+  nodePreviewSerial++;
+  setStatus('NODE CHANGES CANCELED', '');
   renderPanels();
   draw();
 }
-
 async function saveNodeDraft() {
   const line = selectedLine();
   const dimension = selectedDimension();
   if (!canDispatch || !line || !dimension || !nodeDraft) return;
   const repeated = repeatedNodePair(nodeDraft);
   if (repeated) {
-    document.querySelector('#status').textContent = `LINE SAVE REJECTED // REPEATED NODE ${repeated[0]}-${repeated[1]}`;
+    setStatus(`LINE SAVE REJECTED // REPEATED NODE ${repeated[0]}-${repeated[1]}`, 'error');
     return;
   }
-  const response = await fetch('api/lines/save-nodes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...requestOptions.headers },
-    body: JSON.stringify({ dimension: dimension.id, depotId: line.id, fingerprint: line.fingerprint, nodes: nodeDraft })
-  });
-  const result = await response.json();
-  if (!response.ok || !result.ok) {
-    document.querySelector('#status').textContent = `LINE SAVE FAILED // ${result.error || 'UNKNOWN'}`;
+  try {
+    const response = await api('api/lines/save-nodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dimension: dimension.id, depotId: line.id, fingerprint: line.fingerprint, nodes: nodeDraft })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      setStatus(`LINE SAVE FAILED // ${result.error || 'UNKNOWN'}`, 'error');
+      return;
+    }
+    line.segments = result.segments;
+    line.nodes = result.nodes;
+    line.fingerprint = result.fingerprint;
+  } catch (_) {
+    setStatus('LINE SAVE FAILED // SERVER UNAVAILABLE', 'error');
     return;
   }
-  line.segments = result.segments;
-  line.nodes = result.nodes;
-  line.fingerprint = result.fingerprint;
   nodeDraft = null;
   nodeChangeMode = false;
   nodeAddMode = false;
   nodeCandidate = null;
   selectedNodeIndex = null;
-  document.querySelector('#status').textContent = tr('LINE PATH SAVED');
+  setStatus('LINE PATH SAVED', 'ok');
   renderLines();
   renderPanels();
   fit();
 }
 
+/* ── refresh ─────────────────────────────────────────────── */
 async function refresh() {
   if (refreshInFlight) return;
   refreshInFlight = true;
   try {
     const [topologyResponse, stateResponse, sessionResponse] = await Promise.all([
-      fetch('api/topology', { cache: 'no-store', ...requestOptions }),
-      fetch('api/state', { cache: 'no-store', ...requestOptions }),
-      fetch('api/session', { cache: 'no-store', ...requestOptions })
+      api('api/topology'),
+      api('api/state'),
+      api('api/session')
     ]);
     if (!topologyResponse.ok || !stateResponse.ok) throw new Error('snapshot unavailable');
     topology = await topologyResponse.json();
     state = await stateResponse.json();
     const session = sessionResponse.ok ? await sessionResponse.json() : { canDispatch: false, invalidationReason: '' };
     canDispatch = session.canDispatch === true;
-    await refreshSensors();
+    if (typeof refreshSensors === 'function') await refreshSensors();
     updateInvalidation(session.invalidationReason);
+    setConn('live', 'LIVE');
     const data = selectedDimension();
-    if (!lineMode()) document.querySelector('#status').textContent = tr('LIVE SNAPSHOT');
+    if (!lineMode()) setStatus('LIVE SNAPSHOT', 'ok');
     document.querySelector('#updated').textContent = new Date().toLocaleTimeString();
     if (!data) return;
     document.querySelector('#dimension').textContent = data.id.toUpperCase();
@@ -1086,21 +1290,48 @@ async function refresh() {
     if (lines) renderLines();
     if (!view.fitted) fit(); else draw();
   } catch (_) {
-    document.querySelector('#status').textContent = tr('WAITING FOR SERVER');
+    setConn('error', 'OFFLINE');
+    setStatus('WAITING FOR SERVER', 'error');
   } finally {
     refreshInFlight = false;
   }
 }
 
+/* ── drawers ─────────────────────────────────────────────── */
+function openDrawer(kind) {
+  const drawer = document.querySelector(`#${kind}-drawer`);
+  const other = document.querySelector(kind === 'vehicle' ? '#line-drawer' : '#vehicle-drawer');
+  const toggle = document.querySelector(`#${kind}-toggle`);
+  const otherToggle = document.querySelector(kind === 'vehicle' ? '#line-toggle' : '#vehicle-toggle');
+  other.classList.remove('open');
+  other.setAttribute('aria-hidden', 'true');
+  otherToggle.setAttribute('aria-expanded', 'false');
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+  toggle.setAttribute('aria-expanded', 'true');
+}
+function closeDrawer(kind) {
+  const drawer = document.querySelector(`#${kind}-drawer`);
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden', 'true');
+  document.querySelector(`#${kind}-toggle`).setAttribute('aria-expanded', 'false');
+}
+function toggleDrawer(kind) {
+  const drawer = document.querySelector(`#${kind}-drawer`);
+  if (drawer.classList.contains('open')) closeDrawer(kind);
+  else openDrawer(kind);
+}
+
+/* ── input ───────────────────────────────────────────────── */
 canvas.addEventListener('pointerdown', event => {
   if (event.button === 2) return;
-  if (sensorBinding && event.button === 0 && sensorSectionAt(event)) return;
+  if (typeof sensorBinding !== 'undefined' && sensorBinding && event.button === 0 && sensorSectionAt(event)) return;
   if (lineMode()) {
     if (nodeChangeMode) {
       nodeCandidate = graphNodeAt(event);
       nodePreview = null;
       if (nodeCandidate) previewNodeCandidate();
-      else document.querySelector('#status').textContent = tr('NO GRAPH NODE SELECTED');
+      else setStatus('NO GRAPH NODE SELECTED', 'warn');
       renderPanels();
       draw();
       return;
@@ -1167,9 +1398,7 @@ canvas.addEventListener('mousemove', event => {
   }
 });
 canvas.addEventListener('mouseleave', () => {
-  if (lineMode()) {
-    return;
-  }
+  if (lineMode()) return;
   if (hoveredVehicleId !== null || hoveredSignalId !== null) {
     hoveredVehicleId = null;
     if (document.querySelector('#signal-name-form').hidden) hoveredSignalId = null;
@@ -1177,12 +1406,15 @@ canvas.addEventListener('mouseleave', () => {
   }
 });
 canvas.addEventListener('click', event => {
-  if (sensorBinding) { selectSensorSection(event); return; }
-  if (sensorAt(event)) { openSensor(sensorAt(event)); return; }
+  if (typeof sensorBinding !== 'undefined' && sensorBinding) { selectSensorSection(event); return; }
+  if (typeof sensorAt === 'function') {
+    const sensor = sensorAt(event);
+    if (sensor) { openSensor(sensor); return; }
+  }
   if (lineMode()) return;
   if (signalAt(event)) return;
   const vehicle = vehicleAt(event);
-  if (vehicle?.vehicleId !== null && vehicle?.vehicleId !== undefined) openVehicleDelete(vehicle.vehicleId);
+  if (vehicle && vehicle.vehicleId !== null && vehicle.vehicleId !== undefined) openVehicleDelete(vehicle.vehicleId);
 });
 canvas.addEventListener('pointerup', event => {
   if (!signalDrag && !lineNodePress && !view.dragging) return;
@@ -1204,7 +1436,7 @@ canvas.addEventListener('pointerup', event => {
     canvas.classList.remove('dragging');
     if (!pressed.moved) {
       selectedNodeIndex = selectedNodeIndex === pressed.index ? null : pressed.index;
-      document.querySelector('#status').textContent = selectedNodeIndex === null ? 'NODE SELECTION CLEARED' : `NODE ${selectedNodeIndex} SELECTED`;
+      setStatus(selectedNodeIndex === null ? 'NODE SELECTION CLEARED' : `NODE ${selectedNodeIndex} SELECTED`, '');
       renderPanels();
       draw();
     }
@@ -1218,31 +1450,26 @@ canvas.addEventListener('wheel', event => {
   event.preventDefault();
   const point = canvasPoint(event);
   const rect = canvas.getBoundingClientRect();
-  const before = { x: point.x, y: point.z };
   view.scale = Math.max(.02, Math.min(8, view.scale * (event.deltaY < 0 ? 1.12 : .89)));
-  view.x = event.clientX - rect.left - before.x * view.scale;
-  view.y = event.clientY - rect.top - before.y * view.scale;
+  view.x = event.clientX - rect.left - point.x * view.scale;
+  view.y = event.clientY - rect.top - point.z * view.scale;
   view.fitted = true;
   draw();
 }, { passive: false });
+
+/* ── buttons ─────────────────────────────────────────────── */
 document.querySelector('#fit').addEventListener('click', fit);
 document.querySelector('#reset').addEventListener('click', () => { view.fitted = false; fit(); });
-document.querySelector('#vehicle-toggle').addEventListener('click', () => {
-  const drawer = document.querySelector('#vehicle-drawer');
-  drawer.classList.toggle('open');
-  drawer.setAttribute('aria-hidden', String(!drawer.classList.contains('open')));
-});
+document.querySelector('#vehicle-toggle').addEventListener('click', () => toggleDrawer('vehicle'));
 document.querySelector('#line-toggle').addEventListener('click', async () => {
-  const drawer = document.querySelector('#line-drawer');
-  const opening = !drawer.classList.contains('open');
-  drawer.classList.toggle('open');
-  drawer.setAttribute('aria-hidden', String(!drawer.classList.contains('open')));
+  const opening = !document.querySelector('#line-drawer').classList.contains('open');
+  toggleDrawer('line');
   if (opening) {
-    try { await loadLines(); } catch (_) { document.querySelector('#status').textContent = tr('LINE SNAPSHOT UNAVAILABLE'); }
+    try { await loadLines(); } catch (_) { setStatus('LINE SNAPSHOT UNAVAILABLE', 'error'); }
   }
 });
 document.querySelector('#line-refresh').addEventListener('click', async () => {
-  try { await loadLines(true); } catch (_) { document.querySelector('#status').textContent = tr('LINE SNAPSHOT UNAVAILABLE'); }
+  try { await loadLines(true); setStatus('LINE SNAPSHOT', 'ok'); } catch (_) { setStatus('LINE SNAPSHOT UNAVAILABLE', 'error'); }
 });
 document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => dispatch(button.dataset.action)));
 document.querySelector('#node-change').addEventListener('click', changeNode);
@@ -1252,7 +1479,7 @@ document.querySelector('#node-add').addEventListener('click', () => {
   nodeAddMode = true;
   nodeCandidate = null;
   nodePreview = null;
-  document.querySelector('#status').textContent = tr('SELECT NODE TO INSERT');
+  setStatus('SELECT NODE TO INSERT', 'warn');
   renderPanels();
   draw();
 });
@@ -1266,6 +1493,7 @@ document.querySelector('#signal-name').addEventListener('keydown', event => { if
 document.querySelector('#vehicle-delete').addEventListener('click', armVehicleDelete);
 document.querySelector('#vehicle-quarantine').addEventListener('click', toggleVehicleQuarantine);
 document.querySelector('#vehicle-delete-confirm').addEventListener('click', confirmVehicleDelete);
+
 document.addEventListener('pointerdown', event => {
   const form = document.querySelector('#signal-name-form');
   if (!form.hidden && !form.contains(event.target)) {
@@ -1285,18 +1513,31 @@ document.addEventListener('pointerdown', event => {
     }
   }
 });
+
 document.addEventListener('keydown', event => {
-  if (event.key !== 'Escape') return;
-  document.querySelector('#signal-name-form').hidden = true;
-  closeVehicleDelete();
-  draw();
+  const target = event.target;
+  const typing = target instanceof HTMLElement && (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable);
+  if (event.key === 'Escape') {
+    document.querySelector('#signal-name-form').hidden = true;
+    closeVehicleDelete();
+    if (typing) target.blur();
+    draw();
+    return;
+  }
+  if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.key === 'f' || event.key === 'F') { event.preventDefault(); fit(); }
+  else if (event.key === 'r' || event.key === 'R') { event.preventDefault(); view.fitted = false; fit(); }
+  else if (event.key === '/') { event.preventDefault(); document.querySelector('#sensor-search').focus(); }
 });
+
 document.querySelector('#token-invalidation-close').addEventListener('click', () => {
   dismissedInvalidationReason = invalidationReason;
   document.querySelector('#token-invalidation').hidden = true;
 });
-new ResizeObserver(resize).observe(document.querySelector('.diagram-wrap'));
+
+new ResizeObserver(resize).observe(document.querySelector('.stage'));
 window.addEventListener('resize', resize);
+
 resize();
 refresh();
 applyLanguage();

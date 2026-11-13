@@ -1,0 +1,23 @@
+IBM Plex Sans and IBM Plex Mono
+
+Copyright © 2017 IBM Corp. with Reserved Font Name "Plex".
+
+Source: https://github.com/IBM/plex
+Distribution used: https://github.com/google/fonts/tree/main/ofl/ibmplexsans and
+https://github.com/google/fonts/tree/main/ofl/ibmplexmono
+Retrieved unchanged on 2026-11-13.
+
+Bundled files:
+- assets/mtr_brsignal_addon/web/fonts/IBMPlexSans-var.ttf
+  (upstream IBMPlexSans[wdth,wght].ttf, variable font)
+- assets/mtr_brsignal_addon/web/fonts/IBMPlexMono-Regular.ttf
+
+The font bytes are unmodified. The fonts are used by the Web UI for interface
+and tabular numerals; no glyphs are re-drawn or altered.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The complete licence is included alongside this notice as OFL-1.1.txt.
+Official text: https://openfontlicense.org/documents/OFL.md
+
+"Plex" is a Reserved Font Name. The project's MIT licence does not replace the
+font's OFL terms, and the font files remain under OFL 1.1.

@@ -3,99 +3,228 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark">
   <title>MTRBR Signal Desk</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0e11'/%3E%3Ccircle cx='16' cy='9.5' r='3.1' fill='%23e05252'/%3E%3Ccircle cx='16' cy='16' r='3.1' fill='%23e0a33c'/%3E%3Ccircle cx='16' cy='22.5' r='3.1' fill='%233ecf8e'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <div id="token-invalidation" class="token-invalidation" role="alertdialog" aria-modal="true" hidden>
-    <div class="token-invalidation-box">
-      <button id="token-invalidation-close" class="token-invalidation-close" type="button" aria-label="Close">X</button>
+  <a class="skip-link" href="#diagram" data-i18n="SKIP TO MAP">SKIP TO MAP</a>
+
+  <div id="token-invalidation" class="modal" role="alertdialog" aria-modal="true" aria-labelledby="token-invalidation-message" hidden>
+    <div class="modal-card">
+      <div class="modal-badge" aria-hidden="true">!</div>
       <p id="token-invalidation-message"></p>
+      <button id="token-invalidation-close" class="btn btn-primary" type="button" data-i18n="DISMISS">DISMISS</button>
     </div>
   </div>
-  <header class="masthead">
-    <div class="brand"><span class="brand-mark"></span><span>MTRBR</span><small>INTERLOCKING DESK</small></div>
-    <div class="readout"><span id="dimension">AWAITING TOPOLOGY</span><span id="revision">REV --</span></div>
-    <div class="mode">READ ONLY / LIVE</div>
+
+  <header class="topbar">
+    <h1 class="brand">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="brand-text">MTRBR <small data-i18n="SIGNAL DESK">SIGNAL DESK</small></span>
+    </h1>
+    <div class="topbar-readout">
+      <span class="readout"><span class="eyebrow" data-i18n="DIMENSION">DIMENSION</span><b id="dimension">AWAITING TOPOLOGY</b></span>
+      <span class="readout"><span class="eyebrow" data-i18n="REVISION">REVISION</span><b id="revision">--</b></span>
+    </div>
+    <div class="topbar-right">
+      <span id="conn" class="conn" data-state="pending"><i aria-hidden="true"></i><span id="conn-text">CONNECTING</span></span>
+      <span id="mode" class="mode-pill" data-state="readonly">READ ONLY</span>
+    </div>
   </header>
-  <main class="workspace">
-    <aside class="sidebar">
-      <div id="sidebar-ui">
-      <h1>SIGNAL DESK</h1>
-      <div class="metric"><span>SECTIONS</span><b id="rail-count">0</b></div>
-      <div class="metric"><span>SIGNAL FACES</span><b id="signal-count">0</b></div>
-      <div class="rule"></div>
-      <h2>DISPLAY</h2>
-      <button id="fit">FIT NETWORK</button>
-      <button id="reset">RESET VIEW</button>
-      <h2>SENSORS</h2>
-      <input id="sensor-search" placeholder="Search sensors" aria-label="Search sensors">
-      <div id="sensor-list"></div>
-      <h2>PLAYERS</h2>
-      <div id="player-list" class="player-list"></div>
-      <p>STATUS: LIVE</p>
-      <div id="language-switcher" class="language-switcher" aria-label="Language"><button type="button" data-language="en">English</button><button type="button" data-language="zh-Hans">简体中文</button><button type="button" data-language="zh-Hant">繁體中文</button><button type="button" data-language="ja">日本語</button></div>
-      <label class="ui-scale-control" for="ui-scale"><span id="ui-scale-label">UI SCALE</span><output id="ui-scale-value">100%</output><input id="ui-scale" type="range" min="50" max="200" step="5" value="100"></label>
+
+  <main class="layout">
+    <aside class="rail" aria-label="Console">
+      <section class="panel">
+        <header class="panel-head"><h2 data-i18n="OVERVIEW">OVERVIEW</h2></header>
+        <div class="stats">
+          <div class="stat"><span class="eyebrow" data-i18n="SECTIONS">SECTIONS</span><b id="rail-count">0</b></div>
+          <div class="stat"><span class="eyebrow" data-i18n="SIGNAL FACES">SIGNAL FACES</span><b id="signal-count">0</b></div>
+          <div class="stat"><span class="eyebrow" data-i18n="VEHICLES">VEHICLES</span><b id="vehicle-count">0</b></div>
+        </div>
+        <div class="btn-row">
+          <button id="fit" class="btn" type="button" data-i18n="FIT">FIT</button>
+          <button id="reset" class="btn" type="button" data-i18n="RESET">RESET</button>
+        </div>
+        <p class="hint" data-i18n="DRAG HINT">DRAG TO PAN · SCROLL TO ZOOM</p>
+      </section>
+
+      <section class="panel panel-grow">
+        <header class="panel-head">
+          <h2 data-i18n="SENSORS">SENSORS</h2>
+          <span id="sensor-count" class="badge">0</span>
+        </header>
+        <label class="field">
+          <span class="visually-hidden" data-i18n="Search sensors">Search sensors</span>
+          <input id="sensor-search" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="Search sensors" placeholder="Search sensors" aria-label="Search sensors">
+        </label>
+        <div id="sensor-list" class="list" role="list"></div>
+      </section>
+
+      <section class="panel">
+        <header class="panel-head"><h2 data-i18n="PLAYERS">PLAYERS</h2></header>
+        <div id="player-list" class="list player-list"></div>
+      </section>
+
+      <section class="panel">
+        <header class="panel-head"><h2 data-i18n="SETTINGS">SETTINGS</h2></header>
+        <div id="language-switcher" class="segmented" role="group" aria-label="Language">
+          <button type="button" data-language="en">English</button>
+          <button type="button" data-language="zh-Hans">简体中文</button>
+          <button type="button" data-language="zh-Hant">繁體中文</button>
+          <button type="button" data-language="ja">日本語</button>
+        </div>
+        <label class="field scale-field" for="ui-scale">
+          <span class="scale-label"><span id="ui-scale-label" data-i18n="UI SCALE">UI SCALE</span><output id="ui-scale-value">100%</output></span>
+          <input id="ui-scale" type="range" min="50" max="200" step="5" value="100">
+        </label>
+      </section>
+    </aside>
+
+    <section class="stage" aria-label="Topology">
+      <canvas id="diagram" width="1" height="1" tabindex="0" aria-label="Rail topology map" aria-describedby="map-hint"></canvas>
+      <p id="map-hint" class="visually-hidden" data-i18n="DRAG HINT">DRAG TO PAN · SCROLL TO ZOOM</p>
+
+      <div class="stage-rail">
+        <button id="vehicle-toggle" class="tab" type="button" aria-controls="vehicle-drawer" aria-expanded="false">
+          <span class="tab-label" data-i18n="REQUESTS">REQUESTS</span><span id="request-count" class="badge">0</span>
+        </button>
+        <button id="line-toggle" class="tab tab-line" type="button" aria-controls="line-drawer" aria-expanded="false">
+          <span class="tab-label" data-i18n="LINE">LINE</span><span id="line-count" class="badge">0</span>
+        </button>
       </div>
-    </aside>
-    <button id="vehicle-toggle" class="vehicle-toggle" title="Vehicle requests">REQUESTS</button>
-    <aside id="vehicle-drawer" class="vehicle-drawer" aria-hidden="true">
-      <h2>REQUEST QUEUE</h2>
-      <div id="request-list" class="request-list"></div>
-    </aside>
-    <button id="line-toggle" class="line-toggle" title="Depot paths">LINE</button>
-    <aside id="line-drawer" class="line-drawer" aria-hidden="true">
-      <div class="drawer-heading"><h2>LINE</h2><button id="line-refresh" type="button" title="Refresh depot paths">REFRESH</button></div>
-      <div id="line-list" class="line-list"></div>
-    </aside>
-    <section class="diagram-wrap">
-      <aside id="sensor-editor" hidden>
-        <div class="drawer-heading"><h2>REDSTONE SENSOR</h2><button id="sensor-close" type="button">CLOSE</button></div>
-        <p id="sensor-position"></p>
-        <label>Name<input id="sensor-name" maxlength="40"></label>
-        <label>Detection<select id="sensor-mode"><option value="native">NATIVE DETECTION</option><option value="advanced">BR AUTHORITY</option></select></label>
-        <label>Output<select id="sensor-output"><option value="continuous">CONTINUOUS</option><option value="pulse">PULSE</option></select></label>
-        <label>Pulse length (ticks)<input id="sensor-ticks" type="number" min="1" max="1200" value="20"></label>
-        <h3>APPROACH SECTIONS</h3><div id="sensor-approach-list"></div>
-        <button id="sensor-approach-bind" type="button">BIND</button><button id="sensor-approach-clear" type="button">CLEAR ALL</button>
-        <h3>TARGETED SECTIONS</h3><div id="sensor-targets-list"></div>
-        <button id="sensor-targets-bind" type="button">BIND</button><button id="sensor-targets-clear" type="button">CLEAR ALL</button>
-        <div class="sensor-actions"><button id="sensor-cancel" type="button" hidden>CANCEL</button><button id="sensor-save" type="button">SAVE</button></div>
-        <p id="sensor-status" role="status"></p>
+
+      <aside id="vehicle-drawer" class="drawer" aria-hidden="true" aria-label="Request queue">
+        <div class="drawer-head"><h2 data-i18n="REQUEST QUEUE">REQUEST QUEUE</h2></div>
+        <div id="request-list" class="list"></div>
       </aside>
-      <canvas id="diagram" aria-label="Rail topology map"></canvas>
-	  <form id="signal-name-form" class="signal-name-form" hidden><input id="signal-name" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,39}" autocomplete="off"><button type="submit">SAVE</button></form>
-      <div id="vehicle-delete-form" class="vehicle-delete-form" hidden><button id="vehicle-quarantine" type="button">QUARANTINE</button><button id="vehicle-delete" type="button" disabled>DELETE</button><button id="vehicle-delete-confirm" type="button" disabled>CONFIRM</button></div>
-      <div class="map-title">TOPOLOGY // <span id="map-dimension">--</span></div>
-      <div class="scale"><i></i><span id="scale-label">-- m</span></div>
-      <aside id="line-edit-prompt" class="line-edit-prompt" hidden>
-        <h2>PATH EDIT</h2>
-        <div class="line-node-actions">
-          <button id="node-change" type="button">CHANGE</button>
-          <button id="node-add" type="button">ADD</button>
-          <button id="node-confirm" type="button">CONFIRM</button>
-          <button id="node-abandon" type="button">ABANDON</button>
-          <button id="node-delete" type="button">DELETE</button>
-          <button id="node-cancel" type="button">CANCEL</button>
-          <button id="node-save" type="button">SAVE</button>
+
+      <aside id="line-drawer" class="drawer drawer-line" aria-hidden="true" aria-label="Depot paths">
+        <div class="drawer-head">
+          <h2 data-i18n="LINE">LINE</h2>
+          <button id="line-refresh" class="btn btn-small" type="button" data-i18n="REFRESH">REFRESH</button>
+        </div>
+        <div id="line-list" class="list"></div>
+      </aside>
+
+      <div class="map-title"><span id="map-title-text" data-i18n="TOPOLOGY">TOPOLOGY</span><span class="sep">//</span><span id="map-dimension">--</span></div>
+      <div class="scale"><i aria-hidden="true"></i><span id="scale-label">-- m</span></div>
+
+      <aside id="sensor-editor" class="editor" hidden aria-labelledby="sensor-editor-title">
+        <div class="editor-head">
+          <h2 id="sensor-editor-title" data-i18n="REDSTONE SENSOR">REDSTONE SENSOR</h2>
+          <button id="sensor-close" class="btn btn-ghost btn-small" type="button" data-i18n="CLOSE">CLOSE</button>
+        </div>
+        <p id="sensor-position" class="mono-note"></p>
+        <div class="editor-body">
+          <label class="field"><span data-i18n="Name">Name</span><input id="sensor-name" maxlength="40" autocomplete="off"></label>
+          <div class="field-grid">
+            <label class="field"><span data-i18n="Detection">Detection</span>
+              <select id="sensor-mode">
+                <option value="native" data-i18n="NATIVE DETECTION">NATIVE DETECTION</option>
+                <option value="advanced" data-i18n="BR AUTHORITY">BR AUTHORITY</option>
+              </select>
+            </label>
+            <label class="field"><span data-i18n="Output">Output</span>
+              <select id="sensor-output">
+                <option value="continuous" data-i18n="CONTINUOUS">CONTINUOUS</option>
+                <option value="pulse" data-i18n="PULSE">PULSE</option>
+              </select>
+            </label>
+          </div>
+          <label class="field"><span data-i18n="Pulse length (ticks)">Pulse length (ticks)</span><input id="sensor-ticks" type="number" inputmode="numeric" min="1" max="1200" value="20"></label>
+          <section class="bind-group">
+            <div class="bind-head"><h3 data-i18n="APPROACH SECTIONS">APPROACH SECTIONS</h3><span id="sensor-approach-count" class="badge">0</span></div>
+            <div id="sensor-approach-list" class="bind-list"></div>
+            <div class="btn-row">
+              <button id="sensor-approach-bind" class="btn btn-small" type="button">BIND</button>
+              <button id="sensor-approach-clear" class="btn btn-small btn-ghost" type="button" data-i18n="CLEAR ALL">CLEAR ALL</button>
+            </div>
+          </section>
+          <section class="bind-group">
+            <div class="bind-head"><h3 data-i18n="TARGETED SECTIONS">TARGETED SECTIONS</h3><span id="sensor-targets-count" class="badge">0</span></div>
+            <div id="sensor-targets-list" class="bind-list"></div>
+            <div class="btn-row">
+              <button id="sensor-targets-bind" class="btn btn-small" type="button">BIND</button>
+              <button id="sensor-targets-clear" class="btn btn-small btn-ghost" type="button" data-i18n="CLEAR ALL">CLEAR ALL</button>
+            </div>
+          </section>
+        </div>
+        <div class="editor-foot">
+          <button id="sensor-cancel" class="btn btn-ghost" type="button" hidden data-i18n="CANCEL">CANCEL</button>
+          <button id="sensor-save" class="btn btn-primary" type="button" data-i18n="SAVE">SAVE</button>
+        </div>
+        <p id="sensor-status" class="status-line" role="status"></p>
+      </aside>
+
+      <form id="signal-name-form" class="popover" hidden autocomplete="off">
+        <label class="visually-hidden" for="signal-name" data-i18n="SIGNAL NAME">SIGNAL NAME</label>
+        <input id="signal-name" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,39}" spellcheck="false">
+        <button type="submit" class="btn btn-small btn-primary" data-i18n="SAVE">SAVE</button>
+      </form>
+
+      <div id="vehicle-delete-form" class="popover popover-danger" hidden>
+        <button id="vehicle-quarantine" class="btn btn-small" type="button" data-i18n="QUARANTINE">QUARANTINE</button>
+        <button id="vehicle-delete" class="btn btn-small btn-warn" type="button" data-i18n="DELETE" disabled>DELETE</button>
+        <button id="vehicle-delete-confirm" class="btn btn-small btn-danger" type="button" data-i18n="CONFIRM" disabled>CONFIRM</button>
+      </div>
+
+      <aside id="line-edit-prompt" class="editor editor-line" hidden>
+        <div class="editor-head"><h2 data-i18n="PATH EDIT">PATH EDIT</h2></div>
+        <p id="node-info" class="mono-note"></p>
+        <div class="node-actions">
+          <button id="node-change" type="button" class="btn btn-small" data-i18n="CHANGE">CHANGE</button>
+          <button id="node-add" type="button" class="btn btn-small" data-i18n="ADD">ADD</button>
+          <button id="node-confirm" type="button" class="btn btn-small btn-primary" data-i18n="CONFIRM">CONFIRM</button>
+          <button id="node-abandon" type="button" class="btn btn-small btn-ghost" data-i18n="ABANDON">ABANDON</button>
+          <button id="node-delete" type="button" class="btn btn-small btn-warn" data-i18n="DELETE">DELETE</button>
+          <button id="node-cancel" type="button" class="btn btn-small btn-ghost" data-i18n="CANCEL">CANCEL</button>
+          <button id="node-save" type="button" class="btn btn-small btn-primary node-save" data-i18n="SAVE">SAVE</button>
         </div>
       </aside>
     </section>
-    <aside class="legend">
-      <h2>INDICATIONS</h2>
-      <div><i class="rail"></i>TRACK</div>
-      <div><i class="signal"></i>SIGNAL</div>
-      <div><i class="platform"></i>PLATFORM</div>
-      <div class="realtime-legend"><i class="occupied"></i>OCCUPIED</div>
-      <div class="realtime-legend"><i class="locked"></i>LOCKED</div>
-      <div class="rule"></div>
-      <p id="status">CONNECTING</p>
-      <div id="action-drawer" class="action-drawer" hidden>
-        <div id="dispatch-actions"><h2 id="action-code">--</h2><button data-action="approve">APPROVE</button><button data-action="revoke">REVOKE</button><button data-action="override">OVERRIDE</button></div>
-      </div>
+
+    <aside class="inspector" aria-label="Indications">
+      <section class="panel">
+        <header class="panel-head"><h2 data-i18n="INDICATIONS">INDICATIONS</h2></header>
+        <div class="legend">
+          <div class="legend-row"><i class="sw sw-rail" aria-hidden="true"></i><span data-i18n="TRACK">TRACK</span></div>
+          <div class="legend-row"><i class="sw sw-signal" aria-hidden="true"></i><span data-i18n="SIGNAL">SIGNAL</span></div>
+          <div class="legend-row"><i class="sw sw-platform" aria-hidden="true"></i><span data-i18n="PLATFORM">PLATFORM</span></div>
+          <div class="legend-row realtime-legend"><i class="sw sw-occupied" aria-hidden="true"></i><span data-i18n="OCCUPIED">OCCUPIED</span></div>
+          <div class="legend-row realtime-legend"><i class="sw sw-locked" aria-hidden="true"></i><span data-i18n="LOCKED">LOCKED</span></div>
+          <div class="legend-row realtime-legend"><i class="sw sw-reserved" aria-hidden="true"></i><span data-i18n="RESERVED">RESERVED</span></div>
+        </div>
+      </section>
+      <section class="panel panel-grow">
+        <header class="panel-head"><h2 data-i18n="STATUS">STATUS</h2></header>
+        <p id="status" class="status-line">CONNECTING</p>
+        <div id="action-drawer" class="actions" hidden>
+          <div class="actions-head"><span class="eyebrow" data-i18n="SELECTED">SELECTED</span><b id="action-code">--</b></div>
+          <div class="btn-stack">
+            <button data-action="approve" class="btn btn-ok" type="button" data-i18n="APPROVE">APPROVE</button>
+            <button data-action="revoke" class="btn" type="button" data-i18n="REVOKE">REVOKE</button>
+            <button data-action="override" class="btn btn-warn" type="button" data-i18n="OVERRIDE">OVERRIDE</button>
+          </div>
+        </div>
+      </section>
+      <section class="panel">
+        <header class="panel-head"><h2 data-i18n="SHORTCUTS">SHORTCUTS</h2></header>
+        <p class="hint mono-note" data-i18n="SHORTCUT HINT">F FIT · R RESET · / SEARCH · ESC CLOSE</p>
+      </section>
     </aside>
   </main>
-  <footer><span>TOPOLOGY SNAPSHOT</span><span id="updated">--:--:--</span></footer>
+
+  <footer>
+    <span data-i18n="TOPOLOGY SNAPSHOT">TOPOLOGY SNAPSHOT</span>
+    <span class="footer-hint">MTRBR · WEB DISPATCH</span>
+    <span id="updated">--:--:--</span>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
   <script src="app.js"></script>
   <script src="sensors.js"></script>
 </body>

@@ -90,6 +90,21 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+## IBM Plex Sans and IBM Plex Mono
+
+Files:
+- `src/main/resources/assets/mtr_brsignal_addon/web/fonts/IBMPlexSans-var.ttf`
+- `src/main/resources/assets/mtr_brsignal_addon/web/fonts/IBMPlexMono-Regular.ttf`
+
+Copyright © 2017 IBM Corp. with Reserved Font Name "Plex".
+
+License: SIL Open Font License, Version 1.1. The complete licence text is
+included at `LICENSES/OFL-1.1.txt`, with font-specific attribution in
+`LICENSES/IBM-Plex-NOTICE.txt`. Both are packaged with binary distributions.
+The font bytes are unchanged from the upstream Google Fonts distribution
+(retrieved 2026-11-13). The fonts remain under OFL 1.1, not the project's MIT
+licence.
+
 ## Sarasa Gothic 1.0.43
 
 Source: https://github.com/be5invis/Sarasa-Gothic
