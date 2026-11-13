@@ -13,14 +13,16 @@ This development build keeps Minecraft 1.20.1, Forge 47.4.18, MTR Forge 4.0.3 an
 - 修复保存信号、线路节点和确认移除列车时网络错误未处理的问题。
 - 修复 UI 缩放对布局列宽的重复放大，避免高缩放比例下地图区域被压缩到不可用。
 - 新增基于 lieflat-charts 纸张、墨色和细分隔线语法的白天版布局，保留原夜间版并支持一键切换；地图、传感器、信号、线路和车辆状态会同步换肤。
+- 新增 RailRoute 风格第三界面模式。它把地图作为主画布，将控制区改为左右固定仪表组、底部请求/线路工具台和重绘后的图例，不再沿用原有三栏抽屉排布；昼夜模式仍保持独立。
+- 两侧仪表组支持直接拖拽边缘调整宽度，UI SCALE 仍单独控制整体缩放；本地 `file://` 打开页面时也会安全降级存储和传感器请求。
 
-The Web UI refinement now includes the control-room layout, bundled IBM Plex fonts, localized sensor and vehicle controls, resilient network error handling for editing actions, corrected high-scale layout sizing, and a switchable lieflat-inspired daytime surface while preserving the original night surface.
+The Web UI refinement now includes the control-room layout, bundled IBM Plex fonts, localized sensor and vehicle controls, resilient network error handling for editing actions, corrected high-scale layout sizing, a switchable lieflat-inspired daytime surface, and a third RailRoute board layout with redesigned instruments and legends while preserving the original night surface. Both side rails use enlarged pointer-capture resize handles and update from the drag delta.
 
 ### 验证 / Validation
 
-`./gradlew.bat build --no-daemon`、静态回归检查、JavaScript 语法检查及 `git diff --check` 通过。传感器 Playwright QA 未执行，因为当前环境未安装 `playwright` 模块。
+`./gradlew.bat processResources jar --no-daemon`、静态回归检查、JavaScript 语法检查及 `git diff --check` 通过。完整 `build` 的回归用例本身通过，但测试清理阶段受 Windows 锁定 `build/test-results/test/binary/output.bin` 影响未能完成。传感器 Playwright QA 未执行，因为当前环境未安装 `playwright` 模块。
 
-`./gradlew.bat build --no-daemon`, static regression checks, JavaScript syntax checks and `git diff --check` pass. The sensor Playwright QA was not run because the current environment does not have the `playwright` module installed.
+`./gradlew.bat processResources jar --no-daemon`, static regression checks, JavaScript syntax checks and `git diff --check` pass. The full `build` regression cases passed, but test cleanup was blocked by Windows locking `build/test-results/test/binary/output.bin`. Sensor Playwright QA was not run because the current environment does not have the `playwright` module installed.
 
 ## 0.2.2 (2026-11-03)
 

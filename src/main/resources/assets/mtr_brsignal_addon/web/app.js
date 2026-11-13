@@ -1,9 +1,20 @@
 'use strict';
 
+const storage = (() => {
+  try {
+    const probe = '__mtrbr_storage_probe__';
+    localStorage.setItem(probe, '1');
+    localStorage.removeItem(probe);
+    return localStorage;
+  } catch (_) {
+    return { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+  }
+})();
+
 const LANGUAGE_NAMES = { en: 'English', 'zh-Hans': '简体中文', 'zh-Hant': '繁體中文', ja: '日本語' };
 const I18N = {
   en: {
-    'SKIP TO MAP': 'SKIP TO MAP', 'DISMISS': 'DISMISS', 'SIGNAL DESK': 'SIGNAL DESK', 'NIGHT MODE': 'NIGHT MODE', 'DAY MODE': 'DAY MODE', 'DIMENSION': 'DIMENSION', 'REVISION': 'REVISION',
+    'SKIP TO MAP': 'SKIP TO MAP', 'DISMISS': 'DISMISS', 'SIGNAL DESK': 'SIGNAL DESK', 'NIGHT MODE': 'NIGHT MODE', 'DAY MODE': 'DAY MODE', 'RAILROUTE MODE': 'RAILROUTE MODE', 'DRAWER WIDTH': 'DRAWER WIDTH', 'RIGHT DRAWER WIDTH': 'RIGHT DRAWER WIDTH', 'DIMENSION': 'DIMENSION', 'REVISION': 'REVISION',
     'OVERVIEW': 'OVERVIEW', 'SECTIONS': 'SECTIONS', 'SIGNAL FACES': 'SIGNAL FACES', 'VEHICLES': 'VEHICLES',
     'FIT': 'FIT', 'RESET': 'RESET', 'DRAG HINT': 'DRAG TO PAN · SCROLL TO ZOOM', 'SENSORS': 'SENSORS',
     'Search sensors': 'Search sensors', 'PLAYERS': 'PLAYERS', 'SETTINGS': 'SETTINGS', 'UI SCALE': 'UI SCALE',
@@ -45,7 +56,7 @@ const I18N = {
     'LINE SNAPSHOT': 'LINE SNAPSHOT', 'SAVE FAILED': 'SAVE FAILED'
   },
   'zh-Hans': {
-    'SKIP TO MAP': '跳到地图', 'DISMISS': '关闭', 'SIGNAL DESK': '信号调度台', 'NIGHT MODE': '切换夜间', 'DAY MODE': '切换白天', 'DIMENSION': '维度', 'REVISION': '修订',
+    'SKIP TO MAP': '跳到地图', 'DISMISS': '关闭', 'SIGNAL DESK': '信号调度台', 'NIGHT MODE': '切换夜间', 'DAY MODE': '切换白天', 'RAILROUTE MODE': '切换 Rail Route', 'DRAWER WIDTH': '侧栏宽度', 'RIGHT DRAWER WIDTH': '右栏宽度', 'DIMENSION': '维度', 'REVISION': '修订',
     'OVERVIEW': '总览', 'SECTIONS': '区段', 'SIGNAL FACES': '信号面', 'VEHICLES': '列车',
     'FIT': '适应', 'RESET': '重置', 'DRAG HINT': '拖拽平移 · 滚轮缩放', 'SENSORS': '传感器',
     'Search sensors': '搜索传感器', 'PLAYERS': '玩家', 'SETTINGS': '设置', 'UI SCALE': '界面缩放',
@@ -87,7 +98,7 @@ const I18N = {
     'LINE SNAPSHOT': '线路快照', 'SAVE FAILED': '保存失败'
   },
   'zh-Hant': {
-    'SKIP TO MAP': '跳至地圖', 'DISMISS': '關閉', 'SIGNAL DESK': '信號調度台', 'NIGHT MODE': '切換夜間', 'DAY MODE': '切換白天', 'DIMENSION': '維度', 'REVISION': '修訂',
+    'SKIP TO MAP': '跳至地圖', 'DISMISS': '關閉', 'SIGNAL DESK': '信號調度台', 'NIGHT MODE': '切換夜間', 'DAY MODE': '切換白天', 'RAILROUTE MODE': '切換 Rail Route', 'DRAWER WIDTH': '側欄寬度', 'RIGHT DRAWER WIDTH': '右欄寬度', 'DIMENSION': '維度', 'REVISION': '修訂',
     'OVERVIEW': '總覽', 'SECTIONS': '區段', 'SIGNAL FACES': '信號面', 'VEHICLES': '列車',
     'FIT': '適應', 'RESET': '重設', 'DRAG HINT': '拖曳平移 · 滾輪縮放', 'SENSORS': '感應器',
     'Search sensors': '搜尋感應器', 'PLAYERS': '玩家', 'SETTINGS': '設定', 'UI SCALE': '介面縮放',
@@ -129,7 +140,7 @@ const I18N = {
     'LINE SNAPSHOT': '路線快照', 'SAVE FAILED': '儲存失敗'
   },
   ja: {
-    'SKIP TO MAP': 'マップへ移動', 'DISMISS': '閉じる', 'SIGNAL DESK': '信号指令卓', 'NIGHT MODE': '夜間へ切替', 'DAY MODE': '昼間へ切替', 'DIMENSION': 'ディメンション', 'REVISION': 'リビジョン',
+    'SKIP TO MAP': 'マップへ移動', 'DISMISS': '閉じる', 'SIGNAL DESK': '信号指令卓', 'NIGHT MODE': '夜間へ切替', 'DAY MODE': '昼間へ切替', 'RAILROUTE MODE': 'Rail Route へ切替', 'DRAWER WIDTH': '左幅', 'RIGHT DRAWER WIDTH': '右幅', 'DIMENSION': 'ディメンション', 'REVISION': 'リビジョン',
     'OVERVIEW': '概要', 'SECTIONS': '区間', 'SIGNAL FACES': '信号面', 'VEHICLES': '車両',
     'FIT': '全体表示', 'RESET': 'リセット', 'DRAG HINT': 'ドラッグで移動 · スクロールでズーム', 'SENSORS': 'センサー',
     'Search sensors': 'センサーを検索', 'PLAYERS': 'プレイヤー', 'SETTINGS': '設定', 'UI SCALE': 'UI スケール',
@@ -172,8 +183,8 @@ const I18N = {
   }
 };
 
-let language = localStorage.getItem('mtrbr-language') || 'en';
-let theme = localStorage.getItem('mtrbr-theme') || 'day';
+let language = storage.getItem('mtrbr-language') || 'en';
+let theme = storage.getItem('mtrbr-theme') || 'day';
 function tr(value) {
   const table = I18N[language] || I18N.en;
   if (table[value]) return table[value];
@@ -189,10 +200,58 @@ function applyUiScale(value) {
   document.documentElement.style.setProperty('--ui-scale', clamped / 100);
   uiScale.value = clamped;
   uiScaleValue.textContent = `${clamped}%`;
-  localStorage.setItem('mtrbr-ui-scale', clamped);
+  storage.setItem('mtrbr-ui-scale', clamped);
 }
 uiScale.addEventListener('input', () => applyUiScale(uiScale.value));
-applyUiScale(localStorage.getItem('mtrbr-ui-scale') || '100');
+applyUiScale(storage.getItem('mtrbr-ui-scale') || '100');
+function applyRailWidth(value) {
+  const clamped = Math.max(240, Math.min(420, Number(value) || 288));
+  document.documentElement.style.setProperty('--rail-w', `${clamped}px`);
+  storage.setItem('mtrbr-rail-width', clamped);
+}
+applyRailWidth(storage.getItem('mtrbr-rail-width') || '288');
+function applyInspectorWidth(value) {
+  const clamped = Math.max(210, Math.min(360, Number(value) || 246));
+  document.documentElement.style.setProperty('--inspector-w', `${clamped}px`);
+  storage.setItem('mtrbr-inspector-width', clamped);
+}
+applyInspectorWidth(storage.getItem('mtrbr-inspector-width') || '246');
+function resizeDrawer(side, event) {
+  if (document.body.classList.contains('resizing-drawer')) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const handle = event.currentTarget;
+  const startX = event.clientX;
+  const rootStyles = getComputedStyle(document.documentElement);
+  const startWidth = Number.parseFloat(rootStyles.getPropertyValue(side === 'left' ? '--rail-w' : '--inspector-w')) || (side === 'left' ? 288 : 246);
+  const move = moveEvent => {
+    const delta = moveEvent.clientX - startX;
+    if (side === 'left') applyRailWidth(startWidth + delta);
+    else applyInspectorWidth(startWidth - delta);
+  };
+  let active = true;
+  const stop = stopEvent => {
+    if (!active) return;
+    active = false;
+    document.body.classList.remove('resizing-drawer');
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', stop);
+    document.removeEventListener('pointercancel', stop);
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', stop);
+  };
+  document.body.classList.add('resizing-drawer');
+  if (handle.setPointerCapture && event.pointerId !== undefined) handle.setPointerCapture(event.pointerId);
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', stop);
+  document.addEventListener('pointercancel', stop);
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', stop);
+}
+document.querySelector('#rail-resizer').addEventListener('pointerdown', event => resizeDrawer('left', event));
+document.querySelector('#inspector-resizer').addEventListener('pointerdown', event => resizeDrawer('right', event));
+document.querySelector('#rail-resizer').addEventListener('mousedown', event => resizeDrawer('left', event));
+document.querySelector('#inspector-resizer').addEventListener('mousedown', event => resizeDrawer('right', event));
 
 /* ── language ────────────────────────────────────────────── */
 function applyLanguage() {
@@ -211,8 +270,8 @@ function applyLanguage() {
     input.setAttribute('aria-label', tr(key));
   });
   const themeToggle = document.querySelector('#theme-toggle');
-  themeToggle.textContent = tr(theme === 'day' ? 'NIGHT MODE' : 'DAY MODE');
-  themeToggle.setAttribute('aria-pressed', theme === 'night' ? 'true' : 'false');
+  themeToggle.textContent = tr(theme === 'day' ? 'NIGHT MODE' : theme === 'night' ? 'RAILROUTE MODE' : 'DAY MODE');
+  themeToggle.setAttribute('aria-pressed', theme === 'day' ? 'false' : 'true');
   renderPanels();
   renderLines();
   if (typeof renderSensorList === 'function') renderSensorList();
@@ -221,12 +280,12 @@ function applyLanguage() {
 }
 document.querySelectorAll('#language-switcher button').forEach(button => button.addEventListener('click', () => {
   language = button.dataset.language;
-  localStorage.setItem('mtrbr-language', language);
+  storage.setItem('mtrbr-language', language);
   location.reload();
 }));
 document.querySelector('#theme-toggle').addEventListener('click', () => {
-  theme = theme === 'day' ? 'night' : 'day';
-  localStorage.setItem('mtrbr-theme', theme);
+  theme = theme === 'day' ? 'night' : theme === 'night' ? 'railroute' : 'day';
+  storage.setItem('mtrbr-theme', theme);
   applyTheme(theme);
 });
 
@@ -243,10 +302,10 @@ let lines = null;
 const token = new URLSearchParams(window.location.search).get('token') || '';
 const deviceStorageKey = 'mtrbr-web-device-id';
 const deviceId = (() => {
-  let value = localStorage.getItem(deviceStorageKey);
+  let value = storage.getItem(deviceStorageKey);
   if (!value) {
     value = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    localStorage.setItem(deviceStorageKey, value);
+    storage.setItem(deviceStorageKey, value);
   }
   return value;
 })();
@@ -272,7 +331,7 @@ let nodeDraft = null;
 let nodePreview = null;
 let nodePreviewSerial = 0;
 let lineNodePress = null;
-const signalOffsets = JSON.parse(localStorage.getItem('mtrbr-signal-offsets') || '{}');
+const signalOffsets = JSON.parse(storage.getItem('mtrbr-signal-offsets') || '{}');
 
 /* ── helpers ─────────────────────────────────────────────── */
 async function api(path, options = {}) {
@@ -411,23 +470,25 @@ const COLOR = {
 };
 const ASPECT_COLOR = { GREEN: '#3ecf8e', RED: '#e05252', YELLOW: '#e0a33c', DOUBLE_YELLOW: '#f2cd6b', UNKNOWN: '#5b6b75' };const THEME_CANVAS = {
   night: { track: '#5b6b75', trackDim: '#3d4a52', occupied: '#d24a4a', locked: '#e8eef1', reserved: '#e0a33c', platform: '#e0a33c', signalStem: '#6b7d88', signalRing: '#05080a', repeater: 'rgba(90, 169, 230, .5)', vehicle: '#5aa9e6', vehicleBg: '#06090b', line: '#5aa9e6', linePlatform: '#e0a33c', lineBroken: '#e05252', node: '#9bd0f5', nodeSelected: '#e0a33c', candidateOk: '#f4e07a', candidateBad: '#e05252', highlight: '#e0a33c', label: '#dfe7ec', halo: '#06090b' },
-  day: { track: '#8f8e88', trackDim: '#c6c5bf', occupied: '#f5572f', locked: '#1c1c1a', reserved: '#d4a017', platform: '#d4a017', signalStem: '#8f8e88', signalRing: '#f0efeb', repeater: 'rgba(31, 30, 28, .36)', vehicle: '#1c1c1a', vehicleBg: '#f0efeb', line: '#1c1c1a', linePlatform: '#d4a017', lineBroken: '#f5572f', node: '#6a6963', nodeSelected: '#f5572f', candidateOk: '#d4a017', candidateBad: '#f5572f', highlight: '#f5572f', label: '#1c1c1a', halo: '#f0efeb' }
+  day: { track: '#8f8e88', trackDim: '#c6c5bf', occupied: '#f5572f', locked: '#1c1c1a', reserved: '#d4a017', platform: '#d4a017', signalStem: '#8f8e88', signalRing: '#f0efeb', repeater: 'rgba(31, 30, 28, .36)', vehicle: '#1c1c1a', vehicleBg: '#f0efeb', line: '#1c1c1a', linePlatform: '#d4a017', lineBroken: '#f5572f', node: '#6a6963', nodeSelected: '#f5572f', candidateOk: '#d4a017', candidateBad: '#f5572f', highlight: '#f5572f', label: '#1c1c1a', halo: '#f0efeb' },
+  railroute: { track: '#cfcfcf', trackDim: '#767676', occupied: '#ff2523', locked: '#ffffff', reserved: '#fd7800', platform: '#fddc00', signalStem: '#767676', signalRing: '#01050f', repeater: 'rgba(12, 140, 211, .7)', vehicle: '#fddc00', vehicleBg: '#111111', line: '#fddc00', linePlatform: '#fddc00', lineBroken: '#ff2523', node: '#cfcfcf', nodeSelected: '#fddc00', candidateOk: '#42d800', candidateBad: '#ff2523', highlight: '#fddc00', label: '#ffffff', halo: '#01050f' }
 };
 const THEME_ASPECT = {
   night: { GREEN: '#3ecf8e', RED: '#e05252', YELLOW: '#e0a33c', DOUBLE_YELLOW: '#f2cd6b', UNKNOWN: '#5b6b75' },
-  day: { GREEN: '#43593b', RED: '#f5572f', YELLOW: '#d4a017', DOUBLE_YELLOW: '#acada0', UNKNOWN: '#8f8e88' }
+  day: { GREEN: '#43593b', RED: '#f5572f', YELLOW: '#d4a017', DOUBLE_YELLOW: '#acada0', UNKNOWN: '#8f8e88' },
+  railroute: { GREEN: '#42d800', RED: '#ff2523', YELLOW: '#fddc00', DOUBLE_YELLOW: '#fd7800', UNKNOWN: '#767676' }
 };
-function themeColor(name) { return THEME_CANVAS[theme === 'day' ? 'day' : 'night'][name]; }
+function themeColor(name) { return THEME_CANVAS[theme][name]; }
 function applyTheme(nextTheme) {
-  theme = nextTheme === 'night' ? 'night' : 'day';
+  theme = ['day', 'night', 'railroute'].includes(nextTheme) ? nextTheme : 'day';
   document.body.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme === 'day' ? 'light' : 'dark';
   Object.assign(COLOR, THEME_CANVAS[theme]);
   Object.assign(ASPECT_COLOR, THEME_ASPECT[theme]);
   const toggle = document.querySelector('#theme-toggle');
   if (toggle) {
-    toggle.textContent = tr(theme === 'day' ? 'NIGHT MODE' : 'DAY MODE');
-    toggle.setAttribute('aria-pressed', theme === 'night' ? 'true' : 'false');
+    toggle.textContent = tr(theme === 'day' ? 'NIGHT MODE' : theme === 'night' ? 'RAILROUTE MODE' : 'DAY MODE');
+    toggle.setAttribute('aria-pressed', theme === 'day' ? 'false' : 'true');
   }
   draw();
 }
@@ -444,7 +505,7 @@ function signalPosition(signal) {
   const offset = signalOffset(signal);
   return { x: signal.x + offset.x, z: signal.z + offset.z };
 }
-function saveSignalOffsets() { localStorage.setItem('mtrbr-signal-offsets', JSON.stringify(signalOffsets)); }
+function saveSignalOffsets() { storage.setItem('mtrbr-signal-offsets', JSON.stringify(signalOffsets)); }
 
 function railMidpoint(points) {
   let distance = 0;

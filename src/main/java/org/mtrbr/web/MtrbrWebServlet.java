@@ -26,6 +26,7 @@ public final class MtrbrWebServlet extends HttpServlet {
 			}
 			case "/api/contract" -> send(response, "application/json; charset=UTF-8", WebApiContract.json());
 			case "/index.html", "/app.css", "/app.js", "/sensors.js" -> sendResource(response, path);
+			case "/mtrbr-logo.png" -> sendBinaryResource(response, path, "image/png");
 			case "/Terminus-Regular.ttf",
 					"/fonts/IBMPlexSans-var.ttf",
 					"/fonts/IBMPlexMono-Regular.ttf",

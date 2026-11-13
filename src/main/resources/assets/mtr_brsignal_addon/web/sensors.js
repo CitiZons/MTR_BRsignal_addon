@@ -179,19 +179,24 @@ function selectSensorSection(event) {
 }
 
 async function refreshSensors() {
-  const response = await fetch('api/sensors', { cache: 'no-store', ...requestOptions });
-  if (!response.ok) return;
-  sensors = await response.json();
-  renderSensorList();
-  renderSensorEditor();
-  if (sensorDraft) {
-    const dimension = topology?.dimensions?.find(d => d.id === sensorDraft.dimension);
-    if (dimension) topology.dimensions = [dimension, ...topology.dimensions.filter(d => d !== dimension)];
-  }
-  const wanted = new URLSearchParams(location.search).get('sensor');
-  if (!sensorOpenedFromLink && wanted) {
-    const sensor = sensors.find(s => s.id === wanted);
-    if (sensor) { sensorOpenedFromLink = true; openSensor(sensor); view.fitted = true; }
+  try {
+    const response = await fetch('api/sensors', { cache: 'no-store', ...requestOptions });
+    if (!response.ok) return;
+    sensors = await response.json();
+    renderSensorList();
+    renderSensorEditor();
+    if (sensorDraft) {
+      const dimension = topology?.dimensions?.find(d => d.id === sensorDraft.dimension);
+      if (dimension) topology.dimensions = [dimension, ...topology.dimensions.filter(d => d !== dimension)];
+    }
+    const wanted = new URLSearchParams(location.search).get('sensor');
+    if (!sensorOpenedFromLink && wanted) {
+      const sensor = sensors.find(s => s.id === wanted);
+      if (sensor) { sensorOpenedFromLink = true; openSensor(sensor); view.fitted = true; }
+    }
+  } catch (_) {
+    sensors = [];
+    renderSensorList();
   }
 }
 

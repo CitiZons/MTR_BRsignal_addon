@@ -85,7 +85,7 @@ Brackets are available in type (1), type (2), double-sided versions and type (1)
 
 ## Dispatcher and Web UI
 
-Open the dispatcher with the console block or dispatcher tool. The Web UI provides a live topology map, section state, signal state, vehicle requests, route editing and operator controls. It includes a lieflat-inspired daytime workspace and the original night workspace with a direct theme switch. Search, status filters, sorting and full-value tooltips keep large networks manageable.
+Open the dispatcher with the console block or dispatcher tool. The Web UI provides a live topology map, section state, signal state, vehicle requests, route editing and operator controls. It includes a lieflat-inspired daytime workspace, the original night workspace and a RailRoute board workspace with a direct theme switch. Search, status filters, sorting, full-value tooltips and draggable side-rail widths keep large networks manageable.
 
 ```text
 /mtrbr requests

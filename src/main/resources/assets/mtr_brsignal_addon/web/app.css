@@ -96,6 +96,7 @@ body {
   zoom: var(--ui-scale);
 }
 .brand { display: flex; align-items: center; gap: 11px; margin: 0; font-size: 15px; font-weight: 650; letter-spacing: .02em; }
+.brand-logo { width: 28px; height: 28px; flex: none; border: 1px solid var(--line-strong); border-radius: 50%; object-fit: cover; }
 .brand-mark { display: flex; flex-direction: column; gap: 2px; padding: 4px 3px; border-radius: 5px; background: #05080a; border: 1px solid var(--line-strong); }
 .brand-mark i { display: block; width: 9px; height: 2px; border-radius: 1px; }
 .brand-mark i:nth-child(1) { background: var(--danger); }
@@ -445,6 +446,7 @@ body[data-theme="day"] .topbar {
   border-bottom: 2px solid var(--line-strong);
 }
 body[data-theme="day"] .brand { font-size: 16px; color: var(--text); letter-spacing: -.02em; }
+body[data-theme="day"] .brand-logo { width: 34px; height: 34px; border-color: var(--text); }
 body[data-theme="day"] .brand-mark { flex-direction: row; gap: 2px; padding: 4px; border: 1px solid var(--text); border-radius: 50%; background: transparent; }
 body[data-theme="day"] .brand-mark i { width: 4px; height: 10px; border-radius: 1px; }
 body[data-theme="day"] .brand-mark i:nth-child(1) { background: var(--accent); }
@@ -461,7 +463,7 @@ body[data-theme="day"] .mode-pill[data-state="dispatch"] { color: var(--ok); bor
 body[data-theme="day"] .layout {
   height: calc(100vh - var(--topbar-h) - var(--footer-h));
   height: calc(100dvh - var(--topbar-h) - var(--footer-h));
-  grid-template-columns: 286px minmax(0, 1fr) 246px;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--inspector-w);
   gap: 22px;
   padding: 22px 24px;
   background: var(--bg);
@@ -473,6 +475,7 @@ body[data-theme="day"] .inspector {
   background: transparent;
   border: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 body[data-theme="day"] .panel {
   padding: 15px 0 0;
@@ -619,7 +622,7 @@ body[data-theme="day"] .bind-row { background: transparent; border-bottom: 1px s
 body[data-theme="day"] .bind-row span { color: var(--text); }
 body[data-theme="day"] .node-actions { gap: 7px; }
 @media (max-width: 1100px) {
-  body[data-theme="day"] .layout { grid-template-columns: 242px minmax(0, 1fr) 210px; gap: 16px; padding: 16px; }
+  body[data-theme="day"] .layout { grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--inspector-w); gap: 16px; padding: 16px; }
 }
 
 /* Theme control keeps the existing night console button language and is restyled by the daytime surface below. */
@@ -639,3 +642,532 @@ body[data-theme="day"] .node-actions { gap: 7px; }
   cursor: pointer;
 }
 .theme-toggle:hover { background: #202020; border-color: #19dc38; color: #00f0e6; }
+
+/* Information hierarchy: overview counts stay available as compact context. */
+.stats {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 5px;
+}
+.stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  opacity: .78;
+}
+.stat .eyebrow { font-size: 8px; letter-spacing: .08em; }
+.stat b {
+  color: var(--text-mute);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Day typography uses the same scale control value and increases readable text in place. */
+body[data-theme="day"] {
+  font-size: 16.9px;
+}
+body[data-theme="day"] .panel-head { margin-bottom: 9px; }
+body[data-theme="day"] .panel-head h2 { font-size: 13px; letter-spacing: .12em; }
+body[data-theme="day"] .eyebrow { font-size: 11.7px; letter-spacing: .11em; }
+body[data-theme="day"] .brand { font-size: 20px; }
+body[data-theme="day"] .brand-text small { font-size: 11.7px; }
+body[data-theme="day"] .readout b { font-size: 15.6px; }
+body[data-theme="day"] .conn { font-size: 14.3px; }
+body[data-theme="day"] .mode-pill { font-size: 13.7px; }
+body[data-theme="day"] .stats { gap: 14px; margin: -2px 0 5px; }
+body[data-theme="day"] .stat { gap: 6px; opacity: .7; }
+body[data-theme="day"] .stat .eyebrow { font-size: 10.4px; }
+body[data-theme="day"] .stat b { font-size: 15.6px; font-weight: 600; }
+body[data-theme="day"] .hint { font-size: 13px; }
+body[data-theme="day"] .field { font-size: 14.3px; }
+body[data-theme="day"] .field input,
+body[data-theme="day"] .field select,
+body[data-theme="day"] .popover input { font-size: 15.6px; }
+body[data-theme="day"] .segmented button,
+body[data-theme="day"] .theme-toggle { font-size: 13px; }
+body[data-theme="day"] .btn { font-size: 13px; }
+body[data-theme="day"] .btn-small { font-size: 13.7px; }
+body[data-theme="day"] .item,
+body[data-theme="day"] .request { font-size: 15px; }
+body[data-theme="day"] .item .item-meta,
+body[data-theme="day"] .request-detail { font-size: 13px; }
+body[data-theme="day"] .player-name { font-size: 15px; }
+body[data-theme="day"] .player-state,
+body[data-theme="day"] .request-state { font-size: 12.4px; }
+body[data-theme="day"] .line-name { font-size: 15px; }
+body[data-theme="day"] .line-count,
+body[data-theme="day"] .line-id { font-size: 13px; }
+body[data-theme="day"] .drawer-head h2,
+body[data-theme="day"] .editor-head h2 { font-size: 13.7px; }
+body[data-theme="day"] .mono-note,
+body[data-theme="day"] .status-line { font-size: 13.7px; }
+body[data-theme="day"] .bind-head h3 { font-size: 13px; }
+body[data-theme="day"] .bind-row span,
+body[data-theme="day"] .bind-empty { font-size: 13.7px; }
+body[data-theme="day"] .legend-row { font-size: 14.3px; }
+body[data-theme="day"] .map-title,
+body[data-theme="day"] .scale { font-size: 13px; }
+body[data-theme="day"] footer { font-size: 13px; }
+body[data-theme="day"] .stat {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.stat { flex-direction: row; }
+.layout { --layout-pad-left: 0px; --layout-pad-right: 0px; position: relative; }
+.drawer-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1000;
+  width: 28px;
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+  pointer-events: auto !important;
+}
+#rail-resizer { left: calc(var(--layout-pad-left) + var(--rail-w) - 14px); }
+#inspector-resizer { right: calc(var(--layout-pad-right) + var(--inspector-w) - 14px); }
+.drawer-resizer:hover,
+body.resizing-drawer .drawer-resizer { background: rgba(143, 142, 136, .10); }
+body.resizing-drawer { cursor: col-resize; user-select: none; }
+.drawer-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 1px;
+  background: rgba(143, 142, 136, .28);
+  opacity: .35;
+}
+.drawer-resizer:hover::after,
+body.resizing-drawer .drawer-resizer::after { opacity: .9; }
+body[data-theme="day"] .layout { --layout-pad-left: 24px; --layout-pad-right: 24px; }
+@media (max-width: 1100px) {
+  body[data-theme="day"] .layout { --layout-pad-left: 16px; --layout-pad-right: 16px; }
+}
+body:not([data-theme="day"]) .theme-toggle { font-size: 11.5px; padding: 6px 9px; }
+
+/* ── Rail Route signal-board theme ─────────────────────────────────── */
+body[data-theme="railroute"] {
+  --bg: #01050f;
+  --surface: #111111;
+  --surface-2: #151515;
+  --surface-3: #242424;
+  --line: #2b2b2b;
+  --line-strong: #4a4a4a;
+  --text: #ffffff;
+  --text-dim: #cfcfcf;
+  --text-mute: #767676;
+  --accent: #fddc00;
+  --accent-soft: rgba(253, 220, 0, .14);
+  --ok: #42d800;
+  --ok-soft: rgba(66, 216, 0, .14);
+  --warn: #fd7800;
+  --warn-soft: rgba(253, 120, 0, .14);
+  --danger: #ff2523;
+  --danger-soft: rgba(255, 37, 35, .14);
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Plex Sans", "Plex Mono", sans-serif;
+}
+body[data-theme="railroute"] .topbar {
+  height: 56px;
+  padding: 0 18px;
+  gap: 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 4px 0 #000;
+}
+body[data-theme="railroute"] .brand { font-family: "Plex Mono", monospace; color: var(--text); font-size: 14px; letter-spacing: .06em; text-transform: uppercase; }
+body[data-theme="railroute"] .brand-logo { width: 28px; height: 28px; border: 1px solid var(--line-strong); border-radius: 4px; }
+body[data-theme="railroute"] .brand-text small { color: var(--text-mute); font-size: 9px; letter-spacing: .1em; }
+body[data-theme="railroute"] .brand-mark { display: none; }
+body[data-theme="railroute"] .eyebrow { color: var(--text-mute); font-size: 9px; letter-spacing: .1em; }
+body[data-theme="railroute"] .readout b { color: var(--text-dim); font-family: "Plex Mono", monospace; font-size: 11px; }
+body[data-theme="railroute"] .conn { color: var(--text-dim); font-family: "Plex Mono", monospace; font-size: 10px; }
+body[data-theme="railroute"] .conn i { box-shadow: none; }
+body[data-theme="railroute"] .mode-pill { border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--text-dim); font-size: 10px; }
+body[data-theme="railroute"] .mode-pill[data-state="dispatch"] { color: var(--accent); border-color: var(--accent); background: rgba(253,220,0,.08); }
+body[data-theme="railroute"] .layout {
+  height: calc(100vh - var(--topbar-h) - var(--footer-h));
+  height: calc(100dvh - var(--topbar-h) - var(--footer-h));
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--inspector-w);
+  gap: 0;
+  padding: 12px;
+  background: var(--bg);
+}
+body[data-theme="railroute"] .rail,
+body[data-theme="railroute"] .inspector {
+  gap: 12px;
+  padding: 0 10px;
+  background: var(--bg);
+  border: 0;
+  overflow-x: hidden;
+}
+body[data-theme="railroute"] .panel {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 4px 0 #000, inset 0 1px 0 #3f3f3f;
+}
+body[data-theme="railroute"] .panel-head { margin-bottom: 8px; }
+body[data-theme="railroute"] .panel-head h2 { color: var(--text); font-family: "Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+body[data-theme="railroute"] .stats { gap: 9px; margin: 0 0 4px; }
+body[data-theme="railroute"] .stat { opacity: .72; }
+body[data-theme="railroute"] .stat .eyebrow { color: var(--text-mute); font-size: 8px; }
+body[data-theme="railroute"] .stat b { color: var(--text-dim); font-family: "Plex Mono", monospace; font-size: 11px; }
+body[data-theme="railroute"] .field { color: var(--text-mute); font-family: "Plex Sans", sans-serif; font-size: 11px; }
+body[data-theme="railroute"] .field input,
+body[data-theme="railroute"] .field select,
+body[data-theme="railroute"] .popover input { border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); color: var(--text); }
+body[data-theme="railroute"] .segmented button,
+body[data-theme="railroute"] .theme-toggle {
+  min-height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-family: "Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+body[data-theme="railroute"] .segmented button.active,
+body[data-theme="railroute"] .theme-toggle:hover { background: var(--accent); color: #111111; border-color: var(--accent); }
+body[data-theme="railroute"] .theme-toggle { width: 100%; margin-top: 8px; cursor: pointer; text-align: left; }
+body[data-theme="railroute"] .theme-toggle::before { content: "◆"; color: var(--accent); margin-right: 7px; }
+body[data-theme="railroute"] .theme-toggle:hover::before { color: #111111; }
+body[data-theme="railroute"] .stage {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  box-shadow: inset 0 1px 0 #18243a;
+}
+body[data-theme="railroute"] .stage::before {
+  background-image: linear-gradient(rgba(12,140,211,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(12,140,211,.10) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 50% 45%, rgba(0,0,0,.8), transparent 84%);
+}
+body[data-theme="railroute"] .tab {
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-family: "Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 0 #000;
+}
+body[data-theme="railroute"] .tab[aria-expanded="true"],
+body[data-theme="railroute"] .tab:hover { color: #111111; background: var(--accent); border-color: var(--accent); }
+body[data-theme="railroute"] .badge { min-width: 18px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); color: var(--text-dim); }
+body[data-theme="railroute"] .map-title { left: 12px; top: 12px; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); color: var(--text-dim); font-family: "Plex Mono", monospace; font-size: 10px; box-shadow: 0 3px 0 #000; }
+body[data-theme="railroute"] .map-title .sep { color: var(--accent); }
+body[data-theme="railroute"] .scale { left: 12px; bottom: 12px; color: var(--text-mute); font-family: "Plex Mono", monospace; font-size: 10px; }
+body[data-theme="railroute"] .scale i { border-top-color: var(--text-dim); }
+body[data-theme="railroute"] .drawer,
+body[data-theme="railroute"] .editor {
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 4px 0 #000, inset 0 1px 0 #3f3f3f;
+}
+body[data-theme="railroute"] .drawer-head h2,
+body[data-theme="railroute"] .editor-head h2 { color: var(--text); font-family: "Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+body[data-theme="railroute"] .item,
+body[data-theme="railroute"] .request,
+body[data-theme="railroute"] .line-row,
+body[data-theme="railroute"] .player { border-radius: 4px; background: var(--surface-2); color: var(--text-dim); }
+body[data-theme="railroute"] .item:hover,
+body[data-theme="railroute"] .item[aria-current="true"],
+body[data-theme="railroute"] .request:hover,
+body[data-theme="railroute"] .request.selected,
+body[data-theme="railroute"] .line-row:hover,
+body[data-theme="railroute"] .line-row.selected { background: var(--surface-3); border-color: var(--accent); }
+body[data-theme="railroute"] .item-name,
+body[data-theme="railroute"] .request-code,
+body[data-theme="railroute"] .line-name { color: var(--text); }
+body[data-theme="railroute"] .item-meta,
+body[data-theme="railroute"] .request-detail,
+body[data-theme="railroute"] .line-id,
+body[data-theme="railroute"] .line-count { color: var(--text-mute); }
+body[data-theme="railroute"] .btn {
+  min-height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-dim);
+  font-family: "Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 0 #000;
+}
+body[data-theme="railroute"] .btn:hover { background: var(--surface-4); border-color: var(--accent); color: var(--accent); }
+body[data-theme="railroute"] .btn-primary { background: var(--accent); border-color: var(--accent); color: #111111; box-shadow: 0 3px 0 #8a7800; }
+body[data-theme="railroute"] .btn-ok { color: var(--ok); border-color: var(--ok); }
+body[data-theme="railroute"] .btn-warn { color: var(--warn); border-color: var(--warn); }
+body[data-theme="railroute"] .btn-danger { color: var(--danger); border-color: #8c1d2a; background: #1a0f10; box-shadow: none; }
+body[data-theme="railroute"] .status-line { border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); color: var(--text-dim); }
+body[data-theme="railroute"] .status-line[data-tone="ok"] { color: var(--ok); border-color: var(--ok); }
+body[data-theme="railroute"] .status-line[data-tone="warn"] { color: var(--warn); border-color: var(--warn); }
+body[data-theme="railroute"] .status-line[data-tone="error"] { color: var(--danger); border-color: var(--danger); }
+body[data-theme="railroute"] .legend-row { color: var(--text-dim); font-family: "Plex Mono", monospace; font-size: 10px; }
+body[data-theme="railroute"] .sw { background: var(--text-dim); }
+body[data-theme="railroute"] .sw-platform,
+body[data-theme="railroute"] .sw-reserved { background: var(--accent); }
+body[data-theme="railroute"] .sw-occupied { background: var(--danger); }
+body[data-theme="railroute"] .sw-locked { background: var(--text); }
+body[data-theme="railroute"] .popover { border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); box-shadow: 0 4px 0 #000; }
+body[data-theme="railroute"] .toast { border: 1px solid var(--accent); border-radius: 4px; background: var(--surface); color: var(--text); box-shadow: 0 4px 0 #000; }
+body[data-theme="railroute"] footer { height: 28px; padding: 0 18px; border-top: 1px solid var(--line); background: var(--surface); color: var(--text-mute); font-family: "Plex Mono", monospace; font-size: 9px; }
+body[data-theme="railroute"] .drawer-resizer:hover,
+body[data-theme="railroute"].resizing-drawer .drawer-resizer { background: rgba(253,220,0,.12); }
+body[data-theme="railroute"] .drawer-resizer::after { background: rgba(253,220,0,.75); }
+
+/* Rail Route re-layout: fixed instrument rails around a full board. */
+body[data-theme="railroute"] .layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 12px;
+  --layout-pad-left: 12px;
+  --layout-pad-right: 12px;
+}
+body[data-theme="railroute"] .stage {
+  grid-column: 1;
+  min-width: 0;
+  min-height: 0;
+}
+body[data-theme="railroute"] .rail,
+body[data-theme="railroute"] .inspector {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  z-index: 10;
+  width: var(--rail-w);
+  min-width: 0;
+  padding: 0;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+  overflow-x: hidden;
+  pointer-events: none;
+}
+body[data-theme="railroute"] .rail { left: 12px; }
+body[data-theme="railroute"] .inspector { right: 12px; width: var(--inspector-w); }
+body[data-theme="railroute"] .rail > .panel,
+body[data-theme="railroute"] .inspector > .panel { pointer-events: auto; }
+body[data-theme="railroute"] .rail > .panel,
+body[data-theme="railroute"] .inspector > .panel {
+  flex: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: 0 4px 0 #000, inset 0 1px 0 #3f3f3f;
+}
+body[data-theme="railroute"] .rail > .panel-grow,
+body[data-theme="railroute"] .inspector > .panel-grow { flex: 1; min-height: 0; }
+body[data-theme="railroute"] .stage-rail {
+  top: 12px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+body[data-theme="railroute"] .drawer {
+  top: 52px;
+  left: 50%;
+  transform: translate(-50%, -4px);
+  width: min(420px, calc(100% - 24px));
+  border-radius: 4px;
+  box-shadow: 0 4px 0 #000, inset 0 1px 0 #3f3f3f;
+}
+body[data-theme="railroute"] .drawer.open { transform: translate(-50%, 0); }
+body[data-theme="railroute"] .editor {
+  top: 12px;
+  right: calc(var(--inspector-w) + 28px);
+  border-radius: 4px;
+  box-shadow: 0 4px 0 #000, inset 0 1px 0 #3f3f3f;
+}
+body[data-theme="railroute"] .drawer-resizer { z-index: 30; }
+
+/* Day panels gain a restrained surface and edge so the hierarchy reads at a glance. */
+body[data-theme="day"] .panel {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--text);
+  border-radius: 6px;
+  background: rgba(247, 246, 242, .76);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
+}
+body[data-theme="day"] .rail,
+body[data-theme="day"] .inspector { gap: 12px; }
+body[data-theme="railroute"] .legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+body[data-theme="railroute"] .legend-row {
+  min-width: 0;
+  gap: 6px;
+  padding: 7px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-family: "Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+body[data-theme="railroute"] .legend-row .sw {
+  width: 14px;
+  height: 3px;
+  flex: none;
+}
+body[data-theme="railroute"] .legend-row:has(.sw-signal) .sw { width: 8px; height: 8px; border-radius: 50%; }
+body[data-theme="railroute"] .legend-row:has(.sw-platform) .sw { height: 5px; }
+body[data-theme="railroute"] .legend-row.realtime-legend { border-color: #3a3a3a; }
+
+/* Rail Route board composition: the route map is the canvas, utility groups are anchored instruments. */
+body[data-theme="railroute"] .layout {
+  display: block;
+  position: relative;
+  height: calc(100vh - var(--topbar-h) - var(--footer-h));
+  height: calc(100dvh - var(--topbar-h) - var(--footer-h));
+  padding: 0;
+  background: var(--bg);
+}
+body[data-theme="railroute"] .stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+body[data-theme="railroute"] .rail,
+body[data-theme="railroute"] .inspector {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  z-index: 12;
+  display: block;
+  width: var(--rail-w);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+body[data-theme="railroute"] .rail { left: 14px; }
+body[data-theme="railroute"] .inspector { right: 14px; width: var(--inspector-w); }
+body[data-theme="railroute"] .rail > .panel,
+body[data-theme="railroute"] .inspector > .panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: auto;
+  margin: 0;
+  pointer-events: auto;
+  overflow: hidden;
+}
+body[data-theme="railroute"] .rail > .panel:nth-child(1) { top: 0; height: 126px; }
+body[data-theme="railroute"] .rail > .panel:nth-child(2) { top: 138px; bottom: 148px; }
+body[data-theme="railroute"] .rail > .panel:nth-child(3) { bottom: 72px; height: 92px; }
+body[data-theme="railroute"] .rail > .panel:nth-child(4) { bottom: 0; height: 58px; }
+body[data-theme="railroute"] .inspector > .panel:nth-child(1) { top: 0; height: 176px; }
+body[data-theme="railroute"] .inspector > .panel:nth-child(2) { top: 188px; bottom: 102px; }
+body[data-theme="railroute"] .inspector > .panel:nth-child(3) { bottom: 0; height: 90px; }
+body[data-theme="railroute"] .rail > .panel-grow,
+body[data-theme="railroute"] .inspector > .panel-grow { min-height: 0; }
+body[data-theme="railroute"] .stage-rail {
+  top: auto;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+}
+body[data-theme="railroute"] .map-title {
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  z-index: 14;
+}
+body[data-theme="railroute"] .scale { left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 14; }
+body[data-theme="railroute"] .drawer {
+  z-index: 30;
+  top: auto;
+  bottom: 62px;
+  left: 50%;
+  transform: translate(-50%, 8px);
+}
+body[data-theme="railroute"] .drawer.open { transform: translate(-50%, 0); }
+body[data-theme="railroute"] .editor {
+  z-index: 31;
+  top: 16px;
+  right: calc(var(--inspector-w) + 30px);
+}
+body[data-theme="railroute"] #rail-resizer { left: var(--rail-w); }
+body[data-theme="railroute"] #inspector-resizer { right: var(--inspector-w); }
+body[data-theme="railroute"] footer { position: relative; z-index: 40; }
+
+/* Keep the instrument rails readable at short heights instead of clipping fixed slots. */
+body[data-theme="railroute"] .rail,
+body[data-theme="railroute"] .inspector {
+  display: grid;
+  grid-template-rows: auto minmax(240px, 1fr) auto auto;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+body[data-theme="railroute"] .inspector { grid-template-rows: auto minmax(180px, 1fr) auto; }
+body[data-theme="railroute"] .rail > .panel,
+body[data-theme="railroute"] .inspector > .panel {
+  position: static;
+  height: auto !important;
+  min-height: 0;
+  margin: 0;
+  overflow: visible;
+}
+body[data-theme="railroute"] .rail > .panel:nth-child(n),
+body[data-theme="railroute"] .inspector > .panel:nth-child(n) { top: auto; right: auto; bottom: auto; left: auto; }
+body[data-theme="railroute"] .rail > .panel:nth-child(2),
+body[data-theme="railroute"] .inspector > .panel:nth-child(2) {
+  min-height: 0;
+  overflow: hidden;
+}
+body[data-theme="railroute"] .rail > .panel:nth-child(2) .list,
+body[data-theme="railroute"] .inspector > .panel:nth-child(2) .btn-stack {
+  min-height: 0;
+  overflow-y: auto;
+}
+body[data-theme="railroute"] #sensor-list { max-height: none; flex: 1 1 auto; }
+body[data-theme="railroute"] .rail > .panel:nth-child(1) .stats {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+body[data-theme="railroute"] .rail > .panel:nth-child(1) .hint { display: none; }
+body[data-theme="railroute"] .rail > .panel:nth-child(4) .scale-field { margin-top: 4px; }
