@@ -410,3 +410,232 @@ footer .footer-hint { color: #4d5c66; }
   .topbar-readout { gap: 16px; }
   .readout b { max-width: 150px; }
 }
+
+/* ── Lieflat daytime desk ─────────────────────────────────────────────
+   The night palette above remains the original operator console. The day
+   palette is a separate editorial surface using lieflat's paper / ink /
+   muted / grid roles and a single wire-orange accent. */
+body[data-theme="day"] {
+  --bg: #f0efeb;
+  --surface: #f0efeb;
+  --surface-2: #f7f6f2;
+  --surface-3: #e3e1da;
+  --line: #deddd6;
+  --line-strong: #1c1c1a;
+  --text: #1c1c1a;
+  --text-dim: #4a4944;
+  --text-mute: #8f8e88;
+  --accent: #f5572f;
+  --accent-soft: rgba(245, 87, 47, .12);
+  --ok: #43593b;
+  --ok-soft: rgba(67, 89, 59, .12);
+  --warn: #d4a017;
+  --warn-soft: rgba(212, 160, 23, .13);
+  --danger: #f5572f;
+  --danger-soft: rgba(245, 87, 47, .12);
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Plex Sans", "SarasaSC", sans-serif;
+}
+body[data-theme="day"] .topbar {
+  height: 76px;
+  padding: 0 28px;
+  gap: 28px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--line-strong);
+}
+body[data-theme="day"] .brand { font-size: 16px; color: var(--text); letter-spacing: -.02em; }
+body[data-theme="day"] .brand-mark { flex-direction: row; gap: 2px; padding: 4px; border: 1px solid var(--text); border-radius: 50%; background: transparent; }
+body[data-theme="day"] .brand-mark i { width: 4px; height: 10px; border-radius: 1px; }
+body[data-theme="day"] .brand-mark i:nth-child(1) { background: var(--accent); }
+body[data-theme="day"] .brand-mark i:nth-child(2) { background: var(--warn); }
+body[data-theme="day"] .brand-mark i:nth-child(3) { background: var(--text); }
+body[data-theme="day"] .brand-text small { color: var(--text-mute); font-size: 9px; letter-spacing: .15em; }
+body[data-theme="day"] .topbar-readout { gap: 34px; }
+body[data-theme="day"] .eyebrow { color: var(--text-mute); font-size: 9px; letter-spacing: .14em; }
+body[data-theme="day"] .readout b { color: var(--text); font-size: 12px; }
+body[data-theme="day"] .conn { color: var(--text-dim); }
+body[data-theme="day"] .conn i { box-shadow: none; }
+body[data-theme="day"] .mode-pill { color: var(--text); border: 1px solid var(--line-strong); background: transparent; border-radius: 999px; }
+body[data-theme="day"] .mode-pill[data-state="dispatch"] { color: var(--ok); border-color: var(--ok); background: transparent; }
+body[data-theme="day"] .layout {
+  height: calc(100vh - var(--topbar-h) - var(--footer-h));
+  height: calc(100dvh - var(--topbar-h) - var(--footer-h));
+  grid-template-columns: 286px minmax(0, 1fr) 246px;
+  gap: 22px;
+  padding: 22px 24px;
+  background: var(--bg);
+}
+body[data-theme="day"] .rail,
+body[data-theme="day"] .inspector {
+  gap: 18px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  overflow-y: auto;
+}
+body[data-theme="day"] .panel {
+  padding: 15px 0 0;
+  border: 0;
+  border-top: 2px solid var(--text);
+  border-radius: 0;
+  background: transparent;
+}
+body[data-theme="day"] .panel-grow { min-height: 0; }
+body[data-theme="day"] .panel-head { margin-bottom: 12px; }
+body[data-theme="day"] .panel-head h2 { color: var(--text); font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+body[data-theme="day"] .stats { gap: 10px; margin-bottom: 14px; }
+body[data-theme="day"] .stat { padding: 0 0 9px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+body[data-theme="day"] .stat b { color: var(--text); font-size: 26px; font-weight: 800; letter-spacing: -.05em; }
+body[data-theme="day"] .hint { color: var(--text-mute); font-size: 10px; letter-spacing: .02em; }
+body[data-theme="day"] .field { color: var(--text-dim); font-size: 10px; }
+body[data-theme="day"] .field input,
+body[data-theme="day"] .field select,
+body[data-theme="day"] .popover input {
+  padding: 7px 0;
+  border: 0;
+  border-bottom: 1px solid var(--text-mute);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+}
+body[data-theme="day"] .field input:focus-visible,
+body[data-theme="day"] .field select:focus-visible,
+body[data-theme="day"] .popover input:focus-visible { border-color: var(--accent); outline: 0; }
+body[data-theme="day"] .segmented { gap: 5px; }
+body[data-theme="day"] .segmented button,
+body[data-theme="day"] .theme-toggle {
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: .02em;
+}
+body[data-theme="day"] .segmented button:hover,
+body[data-theme="day"] .segmented button.active,
+body[data-theme="day"] .theme-toggle:hover { background: var(--text); color: var(--bg); }
+body[data-theme="day"] .theme-toggle { width: 100%; margin-top: 10px; cursor: pointer; text-align: left; }
+body[data-theme="day"] .theme-toggle::before { content: "◐"; display: inline-block; margin-right: 7px; color: var(--accent); }
+body[data-theme="day"] .theme-toggle:hover::before { color: var(--bg); }
+body[data-theme="day"] input[type="range"] { accent-color: var(--accent); }
+body[data-theme="day"] .stage {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: #e7e4dc;
+  box-shadow: none;
+}
+body[data-theme="day"] .stage::before {
+  background-image: linear-gradient(rgba(28, 28, 26, .055) 1px, transparent 1px), linear-gradient(90deg, rgba(28, 28, 26, .055) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(circle at 50% 44%, rgba(0,0,0,.75), transparent 82%);
+}
+body[data-theme="day"] .stage-rail { top: 18px; gap: 8px; }
+body[data-theme="day"] .tab {
+  min-height: 32px;
+  padding: 5px 13px;
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  background: rgba(240, 239, 235, .82);
+  color: var(--text);
+  font-size: 10px;
+  letter-spacing: .1em;
+  box-shadow: none;
+}
+body[data-theme="day"] .tab:hover,
+body[data-theme="day"] .tab[aria-expanded="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+body[data-theme="day"] .badge { color: var(--text); background: transparent; border: 1px solid currentColor; }
+body[data-theme="day"] .map-title { left: 18px; top: 18px; padding: 8px 11px; border: 1px solid var(--text); border-radius: 0; background: rgba(240,239,235,.86); color: var(--text); font-size: 10px; }
+body[data-theme="day"] .map-title .sep { color: var(--accent); }
+body[data-theme="day"] .scale { left: 18px; bottom: 18px; color: var(--text-dim); }
+body[data-theme="day"] .scale i { border-top-color: var(--text); }
+body[data-theme="day"] .drawer,
+body[data-theme="day"] .editor {
+  border: 1px solid var(--text);
+  border-radius: 18px;
+  background: rgba(240,239,235,.97);
+  box-shadow: 8px 8px 0 rgba(28,28,26,.08);
+}
+body[data-theme="day"] .drawer-head h2,
+body[data-theme="day"] .editor-head h2 { color: var(--text); }
+body[data-theme="day"] .editor-head h2 { font-size: 11px; }
+body[data-theme="day"] .list { scrollbar-color: var(--text-mute) transparent; }
+body[data-theme="day"] .item,
+body[data-theme="day"] .request,
+body[data-theme="day"] .line-row,
+body[data-theme="day"] .player { border-color: transparent; border-radius: 0; background: transparent; color: var(--text); }
+body[data-theme="day"] .item:hover,
+body[data-theme="day"] .item[aria-current="true"],
+body[data-theme="day"] .request:hover,
+body[data-theme="day"] .request.selected,
+body[data-theme="day"] .line-row:hover,
+body[data-theme="day"] .line-row.selected { background: var(--surface-3); border-color: var(--text); }
+body[data-theme="day"] .item-name,
+body[data-theme="day"] .request-code,
+body[data-theme="day"] .line-name { color: var(--text); }
+body[data-theme="day"] .item-meta,
+body[data-theme="day"] .request-detail,
+body[data-theme="day"] .line-id,
+body[data-theme="day"] .line-count { color: var(--text-mute); }
+body[data-theme="day"] .btn {
+  min-height: 30px;
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+body[data-theme="day"] .btn:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
+body[data-theme="day"] .btn-primary { background: var(--text); color: var(--bg); }
+body[data-theme="day"] .btn-ok { color: var(--ok); border-color: var(--ok); }
+body[data-theme="day"] .btn-warn { color: #8b6610; border-color: var(--warn); }
+body[data-theme="day"] .btn-danger { color: var(--danger); border-color: var(--danger); }
+body[data-theme="day"] .btn-ghost { border-color: var(--line-strong); color: var(--text-dim); }
+body[data-theme="day"] .status-line { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text-dim); }
+body[data-theme="day"] .status-line[data-tone="ok"] { color: var(--ok); border-color: var(--ok); }
+body[data-theme="day"] .status-line[data-tone="warn"] { color: #8b6610; border-color: var(--warn); }
+body[data-theme="day"] .status-line[data-tone="error"] { color: var(--danger); border-color: var(--danger); }
+body[data-theme="day"] .legend-row { padding: 4px 0; color: var(--text-dim); }
+body[data-theme="day"] .sw { background: var(--text); }
+body[data-theme="day"] .sw-platform,
+body[data-theme="day"] .sw-reserved { background: var(--warn); }
+body[data-theme="day"] .sw-occupied { background: var(--danger); }
+body[data-theme="day"] .sw-locked { background: var(--text); }
+body[data-theme="day"] footer { height: 30px; padding: 0 24px; border-top: 1px solid var(--line-strong); background: var(--bg); color: var(--text-mute); }
+body[data-theme="day"] .footer-hint { color: var(--text-dim); }
+body[data-theme="day"] .popover { border: 1px solid var(--text); border-radius: 12px; background: var(--bg); box-shadow: 6px 6px 0 rgba(28,28,26,.08); }
+body[data-theme="day"] .modal { background: rgba(28,28,26,.26); }
+body[data-theme="day"] .modal-card { border: 1px solid var(--text); border-radius: 18px; background: var(--bg); box-shadow: 8px 8px 0 rgba(28,28,26,.1); }
+body[data-theme="day"] .modal-card p { color: var(--text); }
+body[data-theme="day"] .toast { border: 1px solid var(--text); border-radius: 999px; background: var(--bg); color: var(--text); box-shadow: 5px 5px 0 rgba(28,28,26,.08); }
+body[data-theme="day"] .bind-group { border-top-color: var(--line); }
+body[data-theme="day"] .bind-row { background: transparent; border-bottom: 1px solid var(--line); border-radius: 0; }
+body[data-theme="day"] .bind-row span { color: var(--text); }
+body[data-theme="day"] .node-actions { gap: 7px; }
+@media (max-width: 1100px) {
+  body[data-theme="day"] .layout { grid-template-columns: 242px minmax(0, 1fr) 210px; gap: 16px; padding: 16px; }
+}
+
+/* Theme control keeps the existing night console button language and is restyled by the daytime surface below. */
+.theme-toggle {
+  display: block;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 8px 9px;
+  text-align: left;
+  background: #101010;
+  border: 1px solid #8a8a8a;
+  border-left: 4px solid #19dc38;
+  border-radius: 0;
+  color: #e1e1e1;
+  font: 700 16px "Terminus", "Microsoft YaHei", sans-serif;
+  letter-spacing: .5px;
+  cursor: pointer;
+}
+.theme-toggle:hover { background: #202020; border-color: #19dc38; color: #00f0e6; }

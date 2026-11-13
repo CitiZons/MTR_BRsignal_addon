@@ -3,7 +3,7 @@
 const LANGUAGE_NAMES = { en: 'English', 'zh-Hans': '简体中文', 'zh-Hant': '繁體中文', ja: '日本語' };
 const I18N = {
   en: {
-    'SKIP TO MAP': 'SKIP TO MAP', 'DISMISS': 'DISMISS', 'SIGNAL DESK': 'SIGNAL DESK', 'DIMENSION': 'DIMENSION', 'REVISION': 'REVISION',
+    'SKIP TO MAP': 'SKIP TO MAP', 'DISMISS': 'DISMISS', 'SIGNAL DESK': 'SIGNAL DESK', 'NIGHT MODE': 'NIGHT MODE', 'DAY MODE': 'DAY MODE', 'DIMENSION': 'DIMENSION', 'REVISION': 'REVISION',
     'OVERVIEW': 'OVERVIEW', 'SECTIONS': 'SECTIONS', 'SIGNAL FACES': 'SIGNAL FACES', 'VEHICLES': 'VEHICLES',
     'FIT': 'FIT', 'RESET': 'RESET', 'DRAG HINT': 'DRAG TO PAN · SCROLL TO ZOOM', 'SENSORS': 'SENSORS',
     'Search sensors': 'Search sensors', 'PLAYERS': 'PLAYERS', 'SETTINGS': 'SETTINGS', 'UI SCALE': 'UI SCALE',
@@ -45,7 +45,7 @@ const I18N = {
     'LINE SNAPSHOT': 'LINE SNAPSHOT', 'SAVE FAILED': 'SAVE FAILED'
   },
   'zh-Hans': {
-    'SKIP TO MAP': '跳到地图', 'DISMISS': '关闭', 'SIGNAL DESK': '信号调度台', 'DIMENSION': '维度', 'REVISION': '修订',
+    'SKIP TO MAP': '跳到地图', 'DISMISS': '关闭', 'SIGNAL DESK': '信号调度台', 'NIGHT MODE': '切换夜间', 'DAY MODE': '切换白天', 'DIMENSION': '维度', 'REVISION': '修订',
     'OVERVIEW': '总览', 'SECTIONS': '区段', 'SIGNAL FACES': '信号面', 'VEHICLES': '列车',
     'FIT': '适应', 'RESET': '重置', 'DRAG HINT': '拖拽平移 · 滚轮缩放', 'SENSORS': '传感器',
     'Search sensors': '搜索传感器', 'PLAYERS': '玩家', 'SETTINGS': '设置', 'UI SCALE': '界面缩放',
@@ -87,7 +87,7 @@ const I18N = {
     'LINE SNAPSHOT': '线路快照', 'SAVE FAILED': '保存失败'
   },
   'zh-Hant': {
-    'SKIP TO MAP': '跳至地圖', 'DISMISS': '關閉', 'SIGNAL DESK': '信號調度台', 'DIMENSION': '維度', 'REVISION': '修訂',
+    'SKIP TO MAP': '跳至地圖', 'DISMISS': '關閉', 'SIGNAL DESK': '信號調度台', 'NIGHT MODE': '切換夜間', 'DAY MODE': '切換白天', 'DIMENSION': '維度', 'REVISION': '修訂',
     'OVERVIEW': '總覽', 'SECTIONS': '區段', 'SIGNAL FACES': '信號面', 'VEHICLES': '列車',
     'FIT': '適應', 'RESET': '重設', 'DRAG HINT': '拖曳平移 · 滾輪縮放', 'SENSORS': '感應器',
     'Search sensors': '搜尋感應器', 'PLAYERS': '玩家', 'SETTINGS': '設定', 'UI SCALE': '介面縮放',
@@ -129,7 +129,7 @@ const I18N = {
     'LINE SNAPSHOT': '路線快照', 'SAVE FAILED': '儲存失敗'
   },
   ja: {
-    'SKIP TO MAP': 'マップへ移動', 'DISMISS': '閉じる', 'SIGNAL DESK': '信号指令卓', 'DIMENSION': 'ディメンション', 'REVISION': 'リビジョン',
+    'SKIP TO MAP': 'マップへ移動', 'DISMISS': '閉じる', 'SIGNAL DESK': '信号指令卓', 'NIGHT MODE': '夜間へ切替', 'DAY MODE': '昼間へ切替', 'DIMENSION': 'ディメンション', 'REVISION': 'リビジョン',
     'OVERVIEW': '概要', 'SECTIONS': '区間', 'SIGNAL FACES': '信号面', 'VEHICLES': '車両',
     'FIT': '全体表示', 'RESET': 'リセット', 'DRAG HINT': 'ドラッグで移動 · スクロールでズーム', 'SENSORS': 'センサー',
     'Search sensors': 'センサーを検索', 'PLAYERS': 'プレイヤー', 'SETTINGS': '設定', 'UI SCALE': 'UI スケール',
@@ -173,6 +173,7 @@ const I18N = {
 };
 
 let language = localStorage.getItem('mtrbr-language') || 'en';
+let theme = localStorage.getItem('mtrbr-theme') || 'day';
 function tr(value) {
   const table = I18N[language] || I18N.en;
   if (table[value]) return table[value];
@@ -209,6 +210,9 @@ function applyLanguage() {
     input.placeholder = tr(key);
     input.setAttribute('aria-label', tr(key));
   });
+  const themeToggle = document.querySelector('#theme-toggle');
+  themeToggle.textContent = tr(theme === 'day' ? 'NIGHT MODE' : 'DAY MODE');
+  themeToggle.setAttribute('aria-pressed', theme === 'night' ? 'true' : 'false');
   renderPanels();
   renderLines();
   if (typeof renderSensorList === 'function') renderSensorList();
@@ -220,6 +224,11 @@ document.querySelectorAll('#language-switcher button').forEach(button => button.
   localStorage.setItem('mtrbr-language', language);
   location.reload();
 }));
+document.querySelector('#theme-toggle').addEventListener('click', () => {
+  theme = theme === 'day' ? 'night' : 'day';
+  localStorage.setItem('mtrbr-theme', theme);
+  applyTheme(theme);
+});
 
 /* ── state ───────────────────────────────────────────────── */
 const canvas = document.querySelector('#diagram');
@@ -400,7 +409,28 @@ const COLOR = {
   label: '#dfe7ec',
   halo: '#06090b'
 };
-const ASPECT_COLOR = { GREEN: '#3ecf8e', RED: '#e05252', YELLOW: '#e0a33c', DOUBLE_YELLOW: '#f2cd6b', UNKNOWN: '#5b6b75' };
+const ASPECT_COLOR = { GREEN: '#3ecf8e', RED: '#e05252', YELLOW: '#e0a33c', DOUBLE_YELLOW: '#f2cd6b', UNKNOWN: '#5b6b75' };const THEME_CANVAS = {
+  night: { track: '#5b6b75', trackDim: '#3d4a52', occupied: '#d24a4a', locked: '#e8eef1', reserved: '#e0a33c', platform: '#e0a33c', signalStem: '#6b7d88', signalRing: '#05080a', repeater: 'rgba(90, 169, 230, .5)', vehicle: '#5aa9e6', vehicleBg: '#06090b', line: '#5aa9e6', linePlatform: '#e0a33c', lineBroken: '#e05252', node: '#9bd0f5', nodeSelected: '#e0a33c', candidateOk: '#f4e07a', candidateBad: '#e05252', highlight: '#e0a33c', label: '#dfe7ec', halo: '#06090b' },
+  day: { track: '#8f8e88', trackDim: '#c6c5bf', occupied: '#f5572f', locked: '#1c1c1a', reserved: '#d4a017', platform: '#d4a017', signalStem: '#8f8e88', signalRing: '#f0efeb', repeater: 'rgba(31, 30, 28, .36)', vehicle: '#1c1c1a', vehicleBg: '#f0efeb', line: '#1c1c1a', linePlatform: '#d4a017', lineBroken: '#f5572f', node: '#6a6963', nodeSelected: '#f5572f', candidateOk: '#d4a017', candidateBad: '#f5572f', highlight: '#f5572f', label: '#1c1c1a', halo: '#f0efeb' }
+};
+const THEME_ASPECT = {
+  night: { GREEN: '#3ecf8e', RED: '#e05252', YELLOW: '#e0a33c', DOUBLE_YELLOW: '#f2cd6b', UNKNOWN: '#5b6b75' },
+  day: { GREEN: '#43593b', RED: '#f5572f', YELLOW: '#d4a017', DOUBLE_YELLOW: '#acada0', UNKNOWN: '#8f8e88' }
+};
+function themeColor(name) { return THEME_CANVAS[theme === 'day' ? 'day' : 'night'][name]; }
+function applyTheme(nextTheme) {
+  theme = nextTheme === 'night' ? 'night' : 'day';
+  document.body.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme === 'day' ? 'light' : 'dark';
+  Object.assign(COLOR, THEME_CANVAS[theme]);
+  Object.assign(ASPECT_COLOR, THEME_ASPECT[theme]);
+  const toggle = document.querySelector('#theme-toggle');
+  if (toggle) {
+    toggle.textContent = tr(theme === 'day' ? 'NIGHT MODE' : 'DAY MODE');
+    toggle.setAttribute('aria-pressed', theme === 'night' ? 'true' : 'false');
+  }
+  draw();
+}
 
 function sectionColor(section) {
   if (section && section.occupied) return COLOR.occupied;
@@ -1539,6 +1569,7 @@ new ResizeObserver(resize).observe(document.querySelector('.stage'));
 window.addEventListener('resize', resize);
 
 resize();
+applyTheme(theme);
 refresh();
 applyLanguage();
 setInterval(refresh, 2000);

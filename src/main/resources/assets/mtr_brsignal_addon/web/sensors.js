@@ -15,7 +15,7 @@ function drawSensors() {
     ctx.save();
     ctx.translate(sensor.x, sensor.z);
     ctx.scale(1 / view.scale, 1 / view.scale);
-    const tone = sensor.loaded ? (sensor.powered ? '#e05252' : '#3ecf8e') : '#6b7d88';
+    const tone = sensor.loaded ? (sensor.powered ? themeColor('occupied') : themeColor('vehicle')) : themeColor('signalStem');
     ctx.fillStyle = tone;
     ctx.globalAlpha = .22;
     ctx.beginPath();
@@ -41,7 +41,7 @@ function drawSensors() {
       ctx.font = `500 10.5px "Plex Mono", ui-monospace, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillStyle = '#dfe7ec';
+      ctx.fillStyle = themeColor('label');
       ctx.fillText(sensor.name || tr('SENSOR'), 0, -13);
     }
     ctx.restore();
