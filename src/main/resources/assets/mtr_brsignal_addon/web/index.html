@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="dark">
   <title>MTRBR Signal Desk</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0e11'/%3E%3Ccircle cx='16' cy='9.5' r='3.1' fill='%23e05252'/%3E%3Ccircle cx='16' cy='16' r='3.1' fill='%23e0a33c'/%3E%3Ccircle cx='16' cy='22.5' r='3.1' fill='%233ecf8e'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="app.css?v=0.2.3-dev.1-railroute4">
 </head>
 <body>
   <a class="skip-link" href="#diagram" data-i18n="SKIP TO MAP">SKIP TO MAP</a>
@@ -28,6 +28,11 @@
     <div class="topbar-readout">
       <span class="readout"><span class="eyebrow" data-i18n="DIMENSION">DIMENSION</span><b id="dimension">AWAITING TOPOLOGY</b></span>
       <span class="readout"><span class="eyebrow" data-i18n="REVISION">REVISION</span><b id="revision">--</b></span>
+    </div>
+    <div class="railroute-resources" aria-label="RailRoute resources">
+      <span class="resource-pill"><i aria-hidden="true">▣</i><b id="rr-sections">0</b><small data-i18n="SECTIONS">SECTIONS</small></span>
+      <span class="resource-pill"><i aria-hidden="true">◇</i><b id="rr-signals">0</b><small data-i18n="SIGNAL FACES">SIGNAL FACES</small></span>
+      <span class="resource-pill"><i aria-hidden="true">▸</i><b id="rr-vehicles">0</b><small data-i18n="VEHICLES">VEHICLES</small></span>
     </div>
     <div class="topbar-right">
       <span id="conn" class="conn" data-state="pending"><i aria-hidden="true"></i><span id="conn-text">CONNECTING</span></span>
@@ -111,6 +116,7 @@
       </aside>
 
       <div class="map-title"><span id="map-title-text" data-i18n="TOPOLOGY">TOPOLOGY</span><span class="sep">//</span><span id="map-dimension">--</span></div>
+      <div class="railroute-clock" aria-label="Dispatch clock"><span class="clock-mark">◉</span><strong id="rr-clock">--:--:--</strong><small data-i18n="STATUS">STATUS</small></div>
       <div class="scale"><i aria-hidden="true"></i><span id="scale-label">-- m</span></div>
 
       <aside id="sensor-editor" class="editor" hidden aria-labelledby="sensor-editor-title">
@@ -228,7 +234,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="app.js"></script>
-  <script src="sensors.js"></script>
+  <script src="app.js?v=0.2.3-dev.1-railroute4"></script>
+  <script src="sensors.js?v=0.2.3-dev.1-railroute4"></script>
 </body>
 </html>

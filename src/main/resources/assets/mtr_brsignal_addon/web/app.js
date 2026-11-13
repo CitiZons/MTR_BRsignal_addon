@@ -576,9 +576,39 @@ function pointAlongRail(points, distance) {
   return points[points.length - 1];
 }
 function drawPlatform(platform) {
+  if (theme === 'railroute') {
+    ctx.save();
+    ctx.strokeStyle = COLOR.platform;
+    ctx.lineWidth = Math.max(.6, .75 / view.scale);
+    ctx.setLineDash([.8, .55]);
+    drawRail(offsetRail(platform.points, platform.side || 1, 2.6), 0);
+    ctx.restore();
+    return;
+  }
   ctx.strokeStyle = COLOR.platform;
   ctx.lineWidth = Math.max(1.536, 1.088 / view.scale);
   drawRail(offsetRail(platform.points, platform.side || 1, 2.6), 0);
+}
+function railrouteIdentityColor(value) {
+  const palette = ['#289a9a', '#0b5f8e', '#8d3da4', '#b02cb5', '#6c2bd9', '#d22b2b', '#c7b269', '#1a7000'];
+  let hash = 0;
+  for (const character of String(value || '')) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return palette[hash % palette.length];
+}
+function drawRailroutePlaque(text, x, z, options = {}) {
+  ctx.save();
+  ctx.translate(x, z);
+  ctx.scale(1 / view.scale, 1 / view.scale);
+  ctx.font = options.font || `700 13px ${SANS}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const width = ctx.measureText(text).width + (options.padding || 14);
+  const height = options.height || 22;
+  ctx.fillStyle = options.fill || '#111111';
+  ctx.fillRect(-width / 2, -height / 2, width, height);
+  ctx.fillStyle = options.color || '#ffffff';
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
 }
 function drawStationLabel(platforms) {
   if (!platforms.length || !platforms[0].name) return;
@@ -590,6 +620,10 @@ function drawStationLabel(platforms) {
     : candidate.marker.x > best.marker.x ? candidate : best);
   const labelX = chosen.marker.x + (horizontal ? 0 : 4);
   const labelZ = chosen.marker.z + (horizontal ? 4 : 0);
+  if (theme === 'railroute') {
+    drawRailroutePlaque(platforms[0].name, labelX, labelZ, { fill: railrouteIdentityColor(platforms[0].name), height: 20, padding: 16 });
+    return;
+  }
   ctx.save();
   ctx.translate(labelX, labelZ);
   ctx.scale(1 / view.scale, 1 / view.scale);
@@ -603,6 +637,12 @@ function drawStationLabel(platforms) {
 function drawPlatformNumber(platform) {
   if (!platform.number) return;
   const points = offsetRail(platform.points, platform.side || 1, 2.6);
+  if (theme === 'railroute') {
+    const inset = 7 / view.scale;
+    const ends = [pointAlongRail(points, inset), pointAlongRail([...points].reverse(), inset)];
+    ends.forEach(end => drawRailroutePlaque(platform.number, end[0], end[1], { fill: COLOR.platform, color: '#111111', font: `700 10px ${MONO}`, height: 16, padding: 10 }));
+    return;
+  }
   ctx.save();
   ctx.scale(1 / view.scale, 1 / view.scale);
   ctx.font = `500 10px ${MONO}`;
@@ -624,14 +664,28 @@ function drawVehicle(code, marker, index) {
   ctx.textBaseline = 'middle';
   const width = ctx.measureText(code).width + 8;
   const y = index * -17;
-  ctx.fillStyle = COLOR.vehicleBg;
+  ctx.fillStyle = theme === 'railroute' ? '#111111' : COLOR.vehicleBg;
   ctx.globalAlpha = .92;
-  ctx.fillRect(-width / 2, y - 8, width, 16);
+  if (theme === 'railroute') {
+    ctx.beginPath();
+    ctx.moveTo(-width / 2 + 4, y - 8);
+    ctx.lineTo(width / 2 - 4, y - 8);
+    ctx.lineTo(width / 2, y - 4);
+    ctx.lineTo(width / 2, y + 4);
+    ctx.lineTo(width / 2 - 4, y + 8);
+    ctx.lineTo(-width / 2 + 4, y + 8);
+    ctx.lineTo(-width / 2, y + 4);
+    ctx.lineTo(-width / 2, y - 4);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.fillRect(-width / 2, y - 8, width, 16);
+  }
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = 'rgba(90, 169, 230, .55)';
+  ctx.strokeStyle = theme === 'railroute' ? '#cfcfcf' : 'rgba(90, 169, 230, .55)';
   ctx.lineWidth = .8;
   ctx.strokeRect(-width / 2, y - 8, width, 16);
-  ctx.fillStyle = COLOR.vehicle;
+  ctx.fillStyle = theme === 'railroute' ? '#ffffff' : COLOR.vehicle;
   ctx.fillText(code, 0, y);
   ctx.restore();
 }
@@ -785,12 +839,30 @@ function draw() {
     ctx.lineTo(1.92, 0);
     ctx.stroke();
     ctx.fillStyle = signalColor(signalAspects[signal.id] || 'UNKNOWN');
-    ctx.beginPath();
-    ctx.arc(0, 0, .704, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = COLOR.signalRing;
-    ctx.lineWidth = .18;
-    ctx.stroke();
+    if (theme === 'railroute') {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(2.175, -1.29);
+      ctx.lineTo(2.175, 1.29);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = COLOR.signalRing;
+      ctx.lineWidth = .18;
+      ctx.stroke();
+      ctx.strokeStyle = COLOR.signalStem;
+      ctx.lineWidth = .32;
+      ctx.beginPath();
+      ctx.moveTo(2.175, 0);
+      ctx.lineTo(2.75, 0);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, .704, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = COLOR.signalRing;
+      ctx.lineWidth = .18;
+      ctx.stroke();
+    }
     ctx.restore();
     const form = document.querySelector('#signal-name-form');
     if (signal.id === hoveredSignalId || signal.id === signalDrag?.id || (signal.id === form.dataset.signalId && !form.hidden)) {
@@ -1629,9 +1701,25 @@ document.querySelector('#token-invalidation-close').addEventListener('click', ()
 new ResizeObserver(resize).observe(document.querySelector('.stage'));
 window.addEventListener('resize', resize);
 
+function syncRailrouteHud() {
+  const pairs = [
+    ['#rr-sections', '#rail-count'],
+    ['#rr-signals', '#signal-count'],
+    ['#rr-vehicles', '#vehicle-count'],
+    ['#rr-clock', '#updated']
+  ];
+  pairs.forEach(([mirror, source]) => {
+    const target = document.querySelector(mirror);
+    const value = document.querySelector(source);
+    if (target && value) target.textContent = value.textContent;
+  });
+}
+
 resize();
 applyTheme(theme);
 refresh();
 applyLanguage();
+syncRailrouteHud();
 setInterval(refresh, 2000);
 setInterval(draw, 420);
+setInterval(syncRailrouteHud, 500);

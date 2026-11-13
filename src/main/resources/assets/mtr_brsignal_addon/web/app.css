@@ -731,7 +731,7 @@ body[data-theme="day"] .stat {
   top: 0;
   bottom: 0;
   z-index: 1000;
-  width: 28px;
+  width: 14px;
   display: block;
   margin: 0;
   padding: 0;
@@ -741,8 +741,8 @@ body[data-theme="day"] .stat {
   touch-action: none;
   pointer-events: auto !important;
 }
-#rail-resizer { left: calc(var(--layout-pad-left) + var(--rail-w) - 14px); }
-#inspector-resizer { right: calc(var(--layout-pad-right) + var(--inspector-w) - 14px); }
+#rail-resizer { left: calc(var(--layout-pad-left) + var(--rail-w) - 7px); }
+#inspector-resizer { right: calc(var(--layout-pad-right) + var(--inspector-w) - 7px); }
 .drawer-resizer:hover,
 body.resizing-drawer .drawer-resizer { background: rgba(143, 142, 136, .10); }
 body.resizing-drawer { cursor: col-resize; user-select: none; }
@@ -1129,8 +1129,8 @@ body[data-theme="railroute"] .editor {
   top: 16px;
   right: calc(var(--inspector-w) + 30px);
 }
-body[data-theme="railroute"] #rail-resizer { left: var(--rail-w); }
-body[data-theme="railroute"] #inspector-resizer { right: var(--inspector-w); }
+body[data-theme="railroute"] #rail-resizer { left: calc(var(--rail-w) + 18px); }
+body[data-theme="railroute"] #inspector-resizer { right: calc(var(--inspector-w) + 18px); }
 body[data-theme="railroute"] footer { position: relative; z-index: 40; }
 
 /* Keep the instrument rails readable at short heights instead of clipping fixed slots. */
@@ -1171,3 +1171,205 @@ body[data-theme="railroute"] .rail > .panel:nth-child(1) .stats {
 }
 body[data-theme="railroute"] .rail > .panel:nth-child(1) .hint { display: none; }
 body[data-theme="railroute"] .rail > .panel:nth-child(4) .scale-field { margin-top: 4px; }
+
+/* Updated RailRoute information architecture: world first, totals above, context actions below. */
+body[data-theme="railroute"] {
+  --topbar-h: 64px;
+  --footer-h: 88px;
+  font-family: "Plex Sans", sans-serif;
+}
+body[data-theme="railroute"] .topbar {
+  height: var(--topbar-h);
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 4px 0 #000;
+}
+body[data-theme="railroute"] .brand { font-family: "Plex Sans", sans-serif; font-size: 18px; font-weight: 700; letter-spacing: .08em; }
+body[data-theme="railroute"] .brand-logo { width: 34px; height: 34px; border-radius: 6px; }
+body[data-theme="railroute"] .brand-text small { font-size: 10px; letter-spacing: .12em; }
+body[data-theme="railroute"] .topbar-readout { display: none; }
+body[data-theme="railroute"] .readout { min-width: 116px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); }
+body[data-theme="railroute"] .readout b { display: block; color: var(--text); font-family: "Plex Sans", sans-serif; font-size: 16px; letter-spacing: .04em; }
+body[data-theme="railroute"] .topbar-right { gap: 10px; }
+body[data-theme="railroute"] .conn,
+body[data-theme="railroute"] .mode-pill { min-height: 34px; padding: 7px 12px; border-radius: 4px; }
+
+body[data-theme="railroute"] .layout {
+  height: calc(100vh - var(--topbar-h) - var(--footer-h));
+  height: calc(100dvh - var(--topbar-h) - var(--footer-h));
+  padding: 14px;
+  background: var(--bg);
+}
+body[data-theme="railroute"] .stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(calc(60px * var(--ui-scale)), 13%) minmax(calc(54px * var(--ui-scale)), 11%);
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+body[data-theme="railroute"] .map-title { left: 50%; top: 18px; transform: translateX(-50%); }
+body[data-theme="railroute"] .scale { left: 50%; bottom: 112px; transform: translateX(-50%); }
+
+body[data-theme="railroute"] .rail,
+body[data-theme="railroute"] .inspector {
+  top: 18px;
+  bottom: 18px;
+  padding: 0;
+  gap: 14px;
+}
+body[data-theme="railroute"] .rail { left: 18px; }
+body[data-theme="railroute"] .inspector { right: 18px; }
+body[data-theme="railroute"] .inspector { grid-template-rows: auto 180px auto; }
+body[data-theme="railroute"] .panel {
+  border-radius: 6px;
+  box-shadow: 0 4px 0 #000, inset 0 1px 0 #3f3f3f;
+  border-top: 1px solid var(--line) !important;
+  border-left: 3px solid var(--line-strong) !important;
+}
+body[data-theme="railroute"] .rail > .panel:first-child,
+body[data-theme="railroute"] .inspector > .panel:first-child { border-left-color: var(--accent) !important; }
+body[data-theme="railroute"] .rail > .panel:nth-child(2) { border-left-color: var(--info) !important; }
+body[data-theme="railroute"] .inspector > .panel:nth-child(2) { border-left-color: var(--ok) !important; }
+body[data-theme="railroute"] .rail > .panel:nth-child(3) { border-left-color: var(--warn) !important; }
+body[data-theme="railroute"] .rail > .panel:nth-child(4) { border-left-color: var(--accent) !important; }
+body[data-theme="railroute"] .panel-head h2 { font-family: "Plex Sans", sans-serif; font-size: 14px; font-weight: 700; letter-spacing: .12em; }
+
+/* The existing request and line controls become one bottom context bar. */
+body[data-theme="railroute"] .stage-rail {
+  position: relative;
+  grid-column: 1;
+  grid-row: 3;
+  top: auto;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  align-self: center;
+  justify-self: center;
+  transform: none;
+  width: min(560px, calc(100% - 40px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 4px 0 #000;
+  z-index: 25;
+}
+body[data-theme="railroute"] .stage-rail .tab { flex: 1 1 0; height: 44px; font-size: 12px; }
+body[data-theme="railroute"] .stage-rail .tab + .tab { border-left: 1px dashed var(--line-strong); }
+
+/* Request and line lists attach to opposite edges so they never cover the clock or context bar. */
+body[data-theme="railroute"] #vehicle-drawer {
+  top: auto;
+  left: calc(var(--rail-w) + 26px);
+  bottom: 44%;
+  transform: translateY(8px);
+  width: min(360px, calc(100% - 36px));
+  max-height: min(320px, calc(100% - 280px));
+}
+body[data-theme="railroute"] #vehicle-drawer.open { transform: translateY(0); }
+body[data-theme="railroute"] #line-drawer {
+  top: auto;
+  left: auto;
+  right: calc(var(--inspector-w) + 26px);
+  bottom: 44%;
+  transform: translateY(8px);
+  width: min(420px, calc(100% - 36px));
+  max-height: min(320px, calc(100% - 280px));
+}
+body[data-theme="railroute"] #line-drawer.open { transform: translateY(0); }
+body[data-theme="railroute"] .stage { z-index: auto; }
+body[data-theme="railroute"] .drawer-resizer { z-index: 11; }
+body[data-theme="railroute"] .drawer-resizer,
+body[data-theme="railroute"] .drawer-resizer:hover,
+body[data-theme="railroute"].resizing-drawer .drawer-resizer { background: transparent; }
+body[data-theme="railroute"] .drawer-resizer::after { display: none; }
+
+/* The existing footer is the fixed-height dock surface. */
+body[data-theme="railroute"] footer {
+  height: var(--footer-h);
+  padding: 0 26px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 -4px 0 #000;
+  font-family: "Plex Sans", sans-serif;
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+body[data-theme="railroute"] footer::before {
+  content: none;
+}
+body[data-theme="railroute"] footer > span:first-child { color: var(--text-mute); }
+
+.railroute-resources,
+.railroute-clock { display: none; }
+body[data-theme="railroute"] .railroute-resources {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+body[data-theme="railroute"] .resource-pill {
+  display: grid;
+  grid-template-columns: 18px auto;
+  grid-template-rows: 1fr 1fr;
+  column-gap: 7px;
+  min-width: 82px;
+  height: 34px;
+  padding: 3px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 3px 0 #000, inset 0 1px 0 #3f3f3f;
+}
+body[data-theme="railroute"] .resource-pill i {
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--accent);
+  font-style: normal;
+  font-size: 16px;
+}
+body[data-theme="railroute"] .resource-pill b { align-self: end; color: var(--text); font-family: "Plex Mono", monospace; font-size: 14px; line-height: 1; }
+body[data-theme="railroute"] .resource-pill small { align-self: start; color: var(--text-mute); font-size: 8px; letter-spacing: .08em; line-height: 1; text-transform: uppercase; }
+body[data-theme="railroute"] .railroute-clock {
+  position: absolute;
+  grid-column: 1;
+  grid-row: 2;
+  position: relative;
+  left: auto;
+  bottom: auto;
+  align-self: center;
+  justify-self: center;
+  transform: none;
+  display: grid;
+  grid-template-columns: 20px auto;
+  grid-template-rows: 1fr 1fr;
+  column-gap: 8px;
+  min-width: 162px;
+  height: 72px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 4px 0 #000, inset 0 1px 0 #3f3f3f;
+  z-index: 20;
+  zoom: var(--ui-scale);
+}
+body[data-theme="railroute"] .railroute-clock .clock-mark { grid-row: 1 / span 2; align-self: center; color: var(--accent); font-size: 18px; }
+body[data-theme="railroute"] .railroute-clock strong { align-self: end; color: var(--text); font-family: "Plex Mono", monospace; font-size: 20px; line-height: 1; }
+body[data-theme="railroute"] .railroute-clock small { align-self: start; color: var(--accent); font-size: 9px; letter-spacing: .12em; }
+@media (max-width: 900px) {
+  body[data-theme="railroute"] .railroute-resources { left: auto; right: 18px; transform: none; }
+  body[data-theme="railroute"] .topbar-readout { display: none; }
+}
+body[data-theme="railroute"] footer .footer-hint { color: var(--accent); font-weight: 700; }
+body[data-theme="railroute"] footer #updated { justify-self: end; color: var(--text); font-family: "Plex Mono", monospace; font-size: 16px; }
