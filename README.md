@@ -25,7 +25,7 @@ The signalling engine is separated from the display layer through public device,
 
 ## Install
 
-Requires Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3. Put `mtr_brsignal_addon-0.2.3-dev.1.jar` in the `mods/` folder on both the client and server.
+Requires Minecraft 1.20.1, Forge 47.4.18 and MTR Forge 4.0.3. Put `mtr_brsignal_addon-0.2.3-dev.2.jar` in the `mods/` folder on both the client and server.
 
 This build uses network protocol `11`; clients and servers must use the same addon build.
 
@@ -85,7 +85,11 @@ Brackets are available in type (1), type (2), double-sided versions and type (1)
 
 ## Dispatcher and Web UI
 
-Open the dispatcher with the console block or dispatcher tool. The Web UI provides a live topology map, section state, signal state, vehicle requests, route editing and operator controls. It includes a lieflat-inspired daytime workspace, the original night workspace and a RailRoute board workspace with a direct theme switch. RailRoute uses a relative lower-board grid, geometric platform and signal symbols, and transparent edge handles for side-rail resizing. Search, status filters, sorting and full-value tooltips keep large networks manageable.
+Open the dispatcher with the console block or dispatcher tool. The Web UI provides a live topology map, section state, signal state, vehicle requests, route editing and operator controls. It includes twelve switchable workspaces: DAY, NIGHT, RAILROUTE, HMI, OCC, SCHEMATIC, METRO, SWISS, BRUTALIST, GLASS, BAUHAUS and BENTO. TERMINAL, FLUENT and CYBER were removed from the picker.
+
+Each workspace changes layout, information hierarchy, panels, buttons, type rhythm, legends and map symbols. RailRoute uses a relative lower-board grid, geometric platform and signal symbols, and transparent edge handles for side-rail resizing. OCC moves the control desk to the bottom, Bento uses modular data tiles, and Schematic follows a Day-like paper hierarchy.
+
+Track state remains high contrast in every workspace. Plain track, RESERVED, LOCKED and OCCUPIED use separate high-contrast colours and clear status layering. Legends switch with the workspace and match the map state colours. Search, status filters, sorting and full-value tooltips keep large networks manageable.
 
 ```text
 /mtrbr requests

@@ -68,6 +68,7 @@ function sensorSectionAt(event) {
 }
 
 function openSensor(sensor) {
+  closeOverlappingOverlays('sensor');
   sensorDraft = JSON.parse(JSON.stringify(sensor));
   sensorBinding = null;
   sensorSelection.clear();

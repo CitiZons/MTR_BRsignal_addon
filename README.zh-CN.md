@@ -23,7 +23,7 @@
 
 ## 安装
 
-需要 Minecraft 1.20.1、Forge 47.4.18 和 MTR Forge 4.0.3。将 `mtr_brsignal_addon-0.2.3-dev.1.jar` 放入客户端和服务端的 `mods/` 文件夹。
+需要 Minecraft 1.20.1、Forge 47.4.18 和 MTR Forge 4.0.3。将 `mtr_brsignal_addon-0.2.3-dev.2.jar` 放入客户端和服务端的 `mods/` 文件夹。
 
 本版本使用网络协议 `11`；客户端和服务端必须使用相同的模组版本。
 
@@ -83,7 +83,11 @@ PSR 限速牌为红色圆牌，AWI 限速牌为黄色三角牌。两者都支持
 
 ## 调度台与 Web UI
 
-可以通过控制台方块或调度工具打开调度台。Web UI 提供实时拓扑地图、区间状态、信号状态、车辆申请、进路编辑和操作员控制；包含 lieflat-charts 风格白天工作区、原夜间工作区和 RailRoute 看板工作区，并支持直接切换。RailRoute 使用相对底部网格、几何化站台和信号标志，以及贴合抽屉边缘的透明拖拽区域。搜索、状态筛选、排序和完整值提示让大型网络更易管理。
+可以通过控制台方块或调度工具打开调度台。Web UI 提供实时拓扑地图、区间状态、信号状态、车辆申请、进路编辑和操作员控制；包含 DAY、NIGHT、RAILROUTE、HMI、OCC、SCHEMATIC、METRO、SWISS、BRUTALIST、GLASS、BAUHAUS 和 BENTO 十二种界面风格，并支持通过可滚动列表切换。TERMINAL、FLUENT 和 CYBER 已移除。
+
+各风格会同时改变布局、信息层次、面板、按钮、字体节奏、图例和地图标志。RailRoute 使用相对底部网格、几何化站台和信号标志，以及贴合抽屉边缘的透明拖拽区域。OCC 将控制区重排到底部，Bento 使用数据卡片布局，Schematic 接近 Day 的纸面层次。
+
+轨道状态在所有风格中均保持高对比显示。普通轨道、RESERVED、LOCKED 和 OCCUPIED 通过高对比颜色和清晰的状态层级区分。图例会随风格切换，并与当前画布状态颜色同步。搜索、状态筛选、排序和完整值提示让大型网络更易管理。
 
 ```text
 /mtrbr requests

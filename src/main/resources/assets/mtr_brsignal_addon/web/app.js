@@ -183,8 +183,23 @@ const I18N = {
   }
 };
 
+const THEME_META = [
+  { id: 'day', label: 'DAY · LIEFLAT', detail: 'Paper desk / quiet hierarchy' },
+  { id: 'night', label: 'NIGHT · CONTROL ROOM', detail: 'Original operator console' },
+  { id: 'railroute', label: 'RAILROUTE · SIGNAL BOARD', detail: 'Hard panels / geometric map' },
+  { id: 'hmi', label: 'HMI · HIGH PERFORMANCE', detail: 'Muted normal state / sharp alarms' },
+  { id: 'occ', label: 'OCC · TRAFFIC DESK', detail: 'Operations center / task lanes' },
+  { id: 'schematic', label: 'SCHEMATIC · BECK GRID', detail: 'Transit diagram / clean geometry' },
+  { id: 'metro', label: 'METRO · MINIMAL FLOW', detail: 'Bright map / reduced chrome' },
+  { id: 'swiss', label: 'SWISS · PAPER GRID', detail: 'Editorial grid / precise type' },
+  { id: 'brutalist', label: 'BRUTALIST · SIGNAL BLOCKS', detail: 'Thick ink / hard offset panels' },
+  { id: 'glass', label: 'GLASS · NIGHT MAP', detail: 'Translucent layers / luminous map' },
+  { id: 'bauhaus', label: 'BAUHAUS · PRIMARY GRID', detail: 'Red blue yellow / asymmetric blocks' },
+  { id: 'bento', label: 'BENTO · DATA TILES', detail: 'Modular cards / compact workspace' }
+];
 let language = storage.getItem('mtrbr-language') || 'en';
 let theme = storage.getItem('mtrbr-theme') || 'day';
+if (!THEME_META.some(option => option.id === theme)) theme = 'day';
 function tr(value) {
   const table = I18N[language] || I18N.en;
   if (table[value]) return table[value];
@@ -270,8 +285,9 @@ function applyLanguage() {
     input.setAttribute('aria-label', tr(key));
   });
   const themeToggle = document.querySelector('#theme-toggle');
-  themeToggle.textContent = tr(theme === 'day' ? 'NIGHT MODE' : theme === 'night' ? 'RAILROUTE MODE' : 'DAY MODE');
-  themeToggle.setAttribute('aria-pressed', theme === 'day' ? 'false' : 'true');
+  themeToggle.textContent = THEME_META.find(option => option.id === theme)?.label || theme.toUpperCase();
+  themeToggle.setAttribute('aria-pressed', 'false');
+  renderThemeOptions();
   renderPanels();
   renderLines();
   if (typeof renderSensorList === 'function') renderSensorList();
@@ -283,10 +299,26 @@ document.querySelectorAll('#language-switcher button').forEach(button => button.
   storage.setItem('mtrbr-language', language);
   location.reload();
 }));
+const themeMenu = document.querySelector('#theme-menu');
+const themeOptions = document.querySelector('#theme-options');
+if (themeMenu) document.body.append(themeMenu);
+function renderThemeOptions() {
+  if (!themeOptions) return;
+  themeOptions.innerHTML = THEME_META.map(option => `<button type="button" class="theme-option${option.id === theme ? ' active' : ''}" data-theme-option="${option.id}" role="option" aria-selected="${option.id === theme}"><strong>${option.label}</strong><small>${option.detail}</small></button>`).join('');
+  themeOptions.querySelectorAll('[data-theme-option]').forEach(button => button.addEventListener('click', () => {
+    theme = button.dataset.themeOption;
+    storage.setItem('mtrbr-theme', theme);
+    applyTheme(theme);
+    themeMenu.hidden = true;
+  }));
+}
 document.querySelector('#theme-toggle').addEventListener('click', () => {
-  theme = theme === 'day' ? 'night' : theme === 'night' ? 'railroute' : 'day';
-  storage.setItem('mtrbr-theme', theme);
-  applyTheme(theme);
+  themeMenu.hidden = !themeMenu.hidden;
+  if (!themeMenu.hidden) renderThemeOptions();
+});
+document.querySelector('#theme-menu-close').addEventListener('click', () => { themeMenu.hidden = true; });
+document.addEventListener('pointerdown', event => {
+  if (!themeMenu.hidden && !themeMenu.contains(event.target) && event.target !== document.querySelector('#theme-toggle')) themeMenu.hidden = true;
 });
 
 /* ── state ───────────────────────────────────────────────── */
@@ -478,27 +510,54 @@ const THEME_ASPECT = {
   day: { GREEN: '#43593b', RED: '#f5572f', YELLOW: '#d4a017', DOUBLE_YELLOW: '#acada0', UNKNOWN: '#8f8e88' },
   railroute: { GREEN: '#42d800', RED: '#ff2523', YELLOW: '#fddc00', DOUBLE_YELLOW: '#fd7800', UNKNOWN: '#767676' }
 };
+Object.assign(THEME_CANVAS, {
+  hmi: { ...THEME_CANVAS.night, track: '#9aa8bd', trackDim: '#4e5a70', platform: '#8fd3ff', line: '#8fd3ff', linePlatform: '#ffbf69', vehicle: '#8fd3ff', label: '#f2f5fa' },
+  occ: { ...THEME_CANVAS.night, track: '#86a7b5', trackDim: '#365667', platform: '#19d3e6', line: '#19d3e6', linePlatform: '#ffb84d', vehicle: '#19d3e6', label: '#e8f7fb' },
+  schematic: { ...THEME_CANVAS.day, track: '#39424e', trackDim: '#a7afb2', occupied: '#c62828', locked: '#6d28d9', reserved: '#075985', platform: '#d52b2b', line: '#1f5aa6', linePlatform: '#16845b', vehicle: '#1c1c1a', vehicleBg: '#ffffff', label: '#1c1c1a', halo: '#fbfaf6' },
+  metro: { ...THEME_CANVAS.day, track: '#766f64', trackDim: '#c9b98e', occupied: '#b91c1c', locked: '#4c1d95', reserved: '#b45309', platform: '#edb700', line: '#1d6fd1', linePlatform: '#e26f26', vehicle: '#28241f', vehicleBg: '#fffdf7', label: '#28241f', halo: '#fff9ea' },
+  swiss: { ...THEME_CANVAS.day, track: '#252525', trackDim: '#aaa8a0', occupied: '#d81e05', locked: '#075985', reserved: '#c2410c', platform: '#e3342f', line: '#1c1c1a', linePlatform: '#16845b', vehicle: '#1c1c1a', vehicleBg: '#ffffff', label: '#1c1c1a', halo: '#f0efeb' },
+  brutalist: { ...THEME_CANVAS.day, track: '#252525', trackDim: '#8b8b83', occupied: '#c1121f', locked: '#155eef', reserved: '#b45309', platform: '#f1c40f', line: '#1c1c1a', linePlatform: '#1f5aa6', vehicle: '#1c1c1a', vehicleBg: '#ffffff', label: '#1c1c1a', halo: '#f3f0e8' },
+  glass: { ...THEME_CANVAS.night, track: '#b8d4ff', trackDim: '#50647f', occupied: '#ff3b6b', locked: '#fff06a', reserved: '#ff9f1c', platform: '#ffd166', line: '#7bdff2', linePlatform: '#ffd166', vehicle: '#e8f3ff', vehicleBg: '#17253c', label: '#f8fbff', halo: '#08111e' },
+  bauhaus: { ...THEME_CANVAS.day, track: '#202020', trackDim: '#a5a095', occupied: '#d92d20', locked: '#1f4e9b', reserved: '#f0c808', platform: '#f0c808', line: '#1f4e9b', linePlatform: '#d92d20', vehicle: '#202020', vehicleBg: '#f6f0df', label: '#202020', halo: '#f6f0df' },
+  bento: { ...THEME_CANVAS.day, track: '#637083', trackDim: '#b9c3cf', occupied: '#c62828', locked: '#7749d8', reserved: '#b45309', platform: '#eaad22', line: '#3f70d0', linePlatform: '#eaad22', vehicle: '#223047', vehicleBg: '#ffffff', label: '#223047', halo: '#eff3f8' }
+});
+Object.assign(THEME_ASPECT, {
+  hmi: { GREEN: '#5dd39e', RED: '#ff6b6b', YELLOW: '#ffbf69', DOUBLE_YELLOW: '#8fd3ff', UNKNOWN: '#71809c' },
+  occ: { GREEN: '#55d68a', RED: '#ff6675', YELLOW: '#ffb84d', DOUBLE_YELLOW: '#19d3e6', UNKNOWN: '#668b99' },
+  schematic: { GREEN: '#16845b', RED: '#d52b2b', YELLOW: '#b67500', DOUBLE_YELLOW: '#1f5aa6', UNKNOWN: '#85837b' },
+  metro: { GREEN: '#138a61', RED: '#c83d47', YELLOW: '#edb700', DOUBLE_YELLOW: '#e26f26', UNKNOWN: '#938671' },
+  swiss: { GREEN: '#16845b', RED: '#e3342f', YELLOW: '#ad7000', DOUBLE_YELLOW: '#1c1c1a', UNKNOWN: '#85827a' },
+  brutalist: { GREEN: '#16845b', RED: '#d52b2b', YELLOW: '#f1c40f', DOUBLE_YELLOW: '#1f5aa6', UNKNOWN: '#8b8b83' },
+  glass: { GREEN: '#64e6a2', RED: '#ff5e86', YELLOW: '#ffd166', DOUBLE_YELLOW: '#7bdff2', UNKNOWN: '#7388a5' },
+  bauhaus: { GREEN: '#18855d', RED: '#d92d20', YELLOW: '#f0c808', DOUBLE_YELLOW: '#1f4e9b', UNKNOWN: '#a5a095' },
+  bento: { GREEN: '#16855f', RED: '#d95757', YELLOW: '#eaad22', DOUBLE_YELLOW: '#3f70d0', UNKNOWN: '#8492a3' }
+});
 function themeColor(name) { return THEME_CANVAS[theme][name]; }
 function applyTheme(nextTheme) {
-  theme = ['day', 'night', 'railroute'].includes(nextTheme) ? nextTheme : 'day';
+  theme = THEME_META.some(option => option.id === nextTheme) ? nextTheme : 'day';
   document.body.dataset.theme = theme;
-  document.documentElement.style.colorScheme = theme === 'day' ? 'light' : 'dark';
+  document.documentElement.style.colorScheme = ['day', 'schematic', 'metro', 'swiss', 'bauhaus', 'bento'].includes(theme) ? 'light' : 'dark';
+  document.querySelectorAll('.rail, .inspector').forEach(panel => {
+    panel.scrollTop = 0;
+    panel.scrollLeft = 0;
+  });
   Object.assign(COLOR, THEME_CANVAS[theme]);
   Object.assign(ASPECT_COLOR, THEME_ASPECT[theme]);
   const toggle = document.querySelector('#theme-toggle');
   if (toggle) {
-    toggle.textContent = tr(theme === 'day' ? 'NIGHT MODE' : theme === 'night' ? 'RAILROUTE MODE' : 'DAY MODE');
-    toggle.setAttribute('aria-pressed', theme === 'day' ? 'false' : 'true');
+    toggle.textContent = THEME_META.find(option => option.id === theme)?.label || theme.toUpperCase();
+    toggle.setAttribute('aria-pressed', 'false');
   }
   draw();
 }
 
-function sectionColor(section) {
-  if (section && section.occupied) return COLOR.occupied;
-  if (section && section.locked) return COLOR.locked;
-  if (section && section.reserved) return COLOR.reserved;
-  return COLOR.track;
+function sectionStatus(section) {
+  if (section?.occupied) return 'occupied';
+  if (section?.locked) return 'locked';
+  if (section?.reserved) return 'reserved';
+  return 'track';
 }
+function sectionColor(section) { return COLOR[sectionStatus(section)]; }
 function signalColor(aspect) { return ASPECT_COLOR[aspect] || ASPECT_COLOR.UNKNOWN; }
 function signalOffset(signal) { return signalOffsets[signal.id] || { x: 0, z: 0 }; }
 function signalPosition(signal) {
@@ -772,15 +831,15 @@ function draw() {
 
   const sectionLayer = rail => {
     const section = sections.get(rail.id);
-    if (section?.occupied) return 2;
-    if (section?.locked) return 1;
-    return 0;
+    const status = sectionStatus(section);
+    return status === 'occupied' ? 3 : status === 'locked' ? 2 : status === 'reserved' ? 1 : 0;
   };
   const rails = line ? data.rails : [...data.rails].sort((left, right) => sectionLayer(left) - sectionLayer(right));
   for (const rail of rails) {
     const section = sections.get(rail.id);
-    ctx.strokeStyle = line ? COLOR.trackDim : section?.occupied ? COLOR.occupied : sectionColor(section);
-    ctx.lineWidth = Math.max(.72, .544 / view.scale);
+    const status = line ? 'trackDim' : sectionStatus(section);
+    ctx.strokeStyle = line ? COLOR.trackDim : sectionColor(section);
+    ctx.lineWidth = line ? Math.max(.72, .544 / view.scale) : Math.max(status === 'occupied' ? 1.35 : 1.05, .62 / view.scale);
     drawRail(rail.points);
     if (typeof sensorDraft !== 'undefined' && sensorDraft && (sensorSelection.has(rail.id) || sensorDraft.approach.includes(rail.id) || sensorDraft.targets.includes(rail.id))) {
       ctx.save();
@@ -936,6 +995,7 @@ function renderPanels() {
 function renderLineEditPrompt() {
   const prompt = document.querySelector('#line-edit-prompt');
   const line = selectedLine();
+  if (line && selectedNodeIndex !== null) closeDrawer('line');
   if (!line || selectedNodeIndex === null) prompt.hidden = true;
   else prompt.hidden = false;
   const nodeCount = line ? lineNodes(line).length : 0;
@@ -1064,7 +1124,9 @@ function openVehicleDelete(vehicleId) {
     draw();
     return;
   }
+  closeOverlappingOverlays('vehicle');
   selectVehicle(vehicleId);
+  closeDrawer('vehicle');
   const form = document.querySelector('#vehicle-delete-form');
   deleteVehicleId = vehicleId;
   deleteArmed = vehicleQuarantineStates.get(vehicleId) === 'DELETE_PENDING';
@@ -1187,6 +1249,7 @@ function openSignalName(signal) {
     draw();
     return;
   }
+  closeOverlappingOverlays('signal');
   form.dataset.signalId = signal.id;
   form.style.left = `${view.x + position.x * view.scale}px`;
   form.style.top = `${view.y + position.z * view.scale - 26}px`;
@@ -1479,10 +1542,27 @@ function closeDrawer(kind) {
   drawer.setAttribute('aria-hidden', 'true');
   document.querySelector(`#${kind}-toggle`).setAttribute('aria-expanded', 'false');
 }
+function closeOverlappingOverlays(keep = '') {
+  if (keep !== 'drawer') {
+    closeDrawer('vehicle');
+    closeDrawer('line');
+  }
+  const overlays = {
+    sensor: '#sensor-editor',
+    signal: '#signal-name-form',
+    vehicle: '#vehicle-delete-form',
+    line: '#line-edit-prompt'
+  };
+  Object.entries(overlays).forEach(([name, selector]) => {
+    if (name !== keep) document.querySelector(selector).hidden = true;
+  });
+  if (keep !== 'signal') hoveredSignalId = null;
+  if (keep !== 'vehicle') closeVehicleDelete();
+}
 function toggleDrawer(kind) {
   const drawer = document.querySelector(`#${kind}-drawer`);
   if (drawer.classList.contains('open')) closeDrawer(kind);
-  else openDrawer(kind);
+  else { closeOverlappingOverlays('drawer'); openDrawer(kind); }
 }
 
 /* ── input ───────────────────────────────────────────────── */

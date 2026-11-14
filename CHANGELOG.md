@@ -1,5 +1,38 @@
 # 更新记录 / Changelog
 
+## 0.2.3-dev.2 (2026-11-14)
+
+本开发版继续使用 Minecraft 1.20.1、Forge 47.4.18、MTR Forge 4.0.3 及网络协议 `11`。客户端与服务端使用同一 `mtr_brsignal_addon-0.2.3-dev.2.jar`。
+
+This development build keeps Minecraft 1.20.1, Forge 47.4.18, MTR Forge 4.0.3 and network protocol `11`. Install the same `mtr_brsignal_addon-0.2.3-dev.2.jar` on client and server.
+
+### Web UI 主题与布局 / Themes and layout
+
+- 风格选择器扩展为可滚动主题列表，提供 DAY、NIGHT、RAILROUTE、HMI、OCC、SCHEMATIC、METRO、SWISS、BRUTALIST、GLASS、BAUHAUS 和 BENTO。TERMINAL、FLUENT 和 CYBER 已移除。
+- 每个主题拥有独立的布局语言、面板层次、按钮形态、字体节奏、图例排列和画布标志。主题切换不会改变调度数据、传感器绑定、进路编辑或操作权限。
+- SETTINGS 中的风格切换按钮按当前主题重新适配边条、圆角、阴影、几何符号、纸面或玻璃材质。
+- Schematic 调整为接近 Day 的纸面板块体系。Metro 与 Swiss 的地图标题锚定在可见画布区域，避免被侧边抽屉遮挡。
+- OCC 保持底部交通控制台布局。Bento 将左侧信息区与底部数据卡重排，Brutalist、Glass 和 Bauhaus 使用不同的面板结构与空间节奏。
+
+### 状态安全与图例 / Safety states and legends
+
+- 轨道状态统一按 OCCUPIED、LOCKED、RESERVED、普通轨道的优先级绘制，主题切换后继续读取服务端状态快照，不再回退为普通轨道色。
+- 所有候选主题重新提供高对比状态色，并保持 OCCUPIED、LOCKED、RESERVED 与普通轨道之间清晰的颜色层级，降低误判风险。
+- 图例的色带、圆点、线段、卡片和排列方式随主题变化，并与画布中的实际状态颜色保持一致。
+
+### 浮层、抽屉与交互 / Overlays and interaction
+
+- 风格列表提升到页面顶层，避免被左侧滚动抽屉或中央画布裁剪。
+- 抽屉、传感器编辑器、线路编辑器、信号命名框和车辆操作框使用统一浮层层级，冲突浮层打开时自动收起，减少重叠遮挡。
+- 抽屉边缘调整区域保持透明，位于弹窗下方，不再绘制额外黄线或红线。Metro、Swiss 和 RailRoute 的命中区与实际抽屉边缘同步。
+- RailRoute 底部请求、线路和时钟区域继续使用相对网格和 UI SCALE 联动布局。
+
+### 验证 / Validation
+
+`node --check src/main/resources/assets/mtr_brsignal_addon/web/app.js`、`git diff --check` 和 `./gradlew build --no-daemon --console=plain` 通过。完整构建执行 23 个 Gradle 任务，并通过 Java、Web 会话、线路、资源、传感器、标牌和回归检查。
+
+`node --check src/main/resources/assets/mtr_brsignal_addon/web/app.js`, `git diff --check` and `./gradlew build --no-daemon --console=plain` pass. The full build executes 23 Gradle tasks and passes the Java, Web session, route, resource, sensor, sign and regression checks.
+
 ## 0.2.3-dev.1 (2026-11-13)
 
 本开发版继续使用 Minecraft 1.20.1、Forge 47.4.18、MTR Forge 4.0.3 及网络协议 `11`。客户端与服务端使用同一 `mtr_brsignal_addon-0.2.3-dev.1.jar`。
